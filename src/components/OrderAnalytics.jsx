@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { apiEndpoint } from '../config/menuMitraConfig';
+import { api, API_PATHS } from '../config/apiConfig';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 // Import both GIFs - static and animated
@@ -137,17 +138,16 @@ const OrderAnalytics = () => {
     try {
       setLoading(true);
       setError('');
+      
+      // Set userInteracted to true
       setUserInteracted(true);
       
-      const requestData = {
-        outlet_id: localStorage.getItem('outlet_id'),
-        device_token: localStorage.getItem('device_token'),
-        device_id: localStorage.getItem('device_id'),
-        start_date: '',
-        end_date: ''
+      // Prepare request data based on range
+      let requestData = {
+        outlet_id: localStorage.getItem('outlet_id')
       };
-
-      // Add date range if not "All Time"
+      
+      // Add date range if applicable
       if (range === 'Custom Range' && startDate && endDate) {
         requestData.start_date = formatDate(startDate);
         requestData.end_date = formatDate(endDate);
@@ -158,19 +158,24 @@ const OrderAnalytics = () => {
           requestData.end_date = dateRange.end_date;
         }
       }
+      
+      // Get user_id from localStorage
+      const userId = localStorage.getItem('user_id');
+      
+      // Create API request payload
+      const apiRequestData = {
+        user_id: parseInt(userId),
+        outlet_id: parseInt(requestData.outlet_id),
+        ...requestData.start_date && { start_date: requestData.start_date },
+        ...requestData.end_date && { end_date: requestData.end_date }
+      };
 
-      console.log('Making API request with data:', requestData);
+      console.log('Making API request with data:', apiRequestData);
 
-      const response = await axios.post(
-        `${apiEndpoint}order_analytics`,
-        requestData,
-        {
-          headers: getAuthHeaders()
-        }
-      );
+      const response = await api.post(API_PATHS.orderAnalytics, apiRequestData);
 
-      if (response.data && response.data.data) {
-        const data = response.data.data;
+      if (response.data && response.data.detail) {
+        const data = response.data.detail;
         setAnalyticsData({
           avg_first_order_time: data.first_order_time || '0 mins',
           avg_last_order_time: data.last_order_time || '0 mins',

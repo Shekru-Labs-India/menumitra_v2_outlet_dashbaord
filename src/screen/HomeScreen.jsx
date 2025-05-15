@@ -16,6 +16,7 @@ import Footer from "../components/Footer";
 import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
 import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still-frame.gif';
 import { apiEndpoint } from '../config/menuMitraConfig';
+import { api, API_PATHS } from '../config/apiConfig';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import { useNavigate } from 'react-router-dom';
@@ -31,7 +32,8 @@ function HomeScreen() {
     analyticReports_from_context,
     loading: contextLoading, 
     error: contextError,
-    refreshDashboard
+    refreshDashboard,
+    permissionDenied
   } = useDashboard();
 
   const [dateRange, setDateRange] = useState('All Time');
@@ -115,12 +117,12 @@ function HomeScreen() {
       return;
     }
     
-    const outletId = localStorage.getItem('outlet_id');
-    const accessToken = localStorage.getItem('access');
+    const userId = localStorage.getItem('user_id');
+    const accessToken = localStorage.getItem('access_token');
     
     // Log auth status for debugging
     console.log('HomeScreen auth check:', { 
-      hasOutletId: !!outletId, 
+      hasUserId: !!userId,
       hasToken: !!accessToken,
       tokenLength: accessToken ? accessToken.length : 0,
       path: window.location.pathname,
@@ -129,7 +131,7 @@ function HomeScreen() {
       postLoginFetchedRef: postLoginFetchedRef.current
     });
     
-    if (!outletId || !accessToken) {
+    if (!userId || !accessToken) {
       console.warn('Missing credentials in HomeScreen, redirecting to login');
       navigate('/login');
       return;
@@ -214,7 +216,7 @@ function HomeScreen() {
     };
     
     if (includeAuth) {
-      const accessToken = localStorage.getItem('access');
+      const accessToken = localStorage.getItem('access_token');
       if (accessToken) {
         headers['Authorization'] = `Bearer ${accessToken}`;
       }
@@ -340,22 +342,32 @@ function HomeScreen() {
       setUserInteracted(true);
 
       const requestData = prepareRequestData(range);
-      console.log('Sending request to analytics_reports with data:', requestData);
       
-      const response = await axios.post(`${apiEndpoint}analytics_reports`, requestData, {
-        headers: getAuthHeaders(useAuth)
-      });
+      // Get user_id from localStorage
+      const userId = localStorage.getItem('user_id');
+      
+      // Update request data with user_id and remove device tokens
+      const apiRequestData = {
+        user_id: parseInt(userId),
+        outlet_id: parseInt(requestData.outlet_id),
+        ...requestData.start_date && { start_date: requestData.start_date },
+        ...requestData.end_date && { end_date: requestData.end_date }
+      };
+      
+      console.log('Sending request to analytics_reports with data:', apiRequestData);
+      
+      const response = await api.post(`${API_PATHS.analyticsReports}`, apiRequestData);
 
       console.log('API Response:', response.data);
       
-      if (response.data?.message === 'success' && response.data?.data) {
-        const responseData = response.data.data;
+      if (response.data?.detail) {
+        const responseData = response.data.detail;
         console.log('Statistics data received:', responseData);
         
         setStatistics({
           total_orders: responseData.total_orders || 0,
           average_order_value: responseData.average_order_value || 0,
-          customer_count: 0, // Removed from API response
+          customer_count: 0, // Not in response
           total_revenue: responseData.total_revenue || 0,
           average_turnover_time: responseData.average_turnover_time || "0 min"
         });
@@ -386,7 +398,7 @@ function HomeScreen() {
     } finally {
       setLoading(false);
     }
-  }, [prepareRequestData, getAuthHeaders, navigate]);
+  }, [prepareRequestData, navigate, API_PATHS.analyticsReports, api]);
 
   const handleDateRangeChange = (range) => {
     setDateRange(range);
@@ -581,11 +593,24 @@ function HomeScreen() {
           <Header />
           <div className="content-wrapper flex-grow-1">
             <div className="container-fluid flex-grow-1 container-p-y">
-              {currentError && (
+              {permissionDenied ? (
+                <div className="alert alert-warning mb-4" role="alert">
+                  <div className="d-flex align-items-center">
+                    <i className="fas fa-exclamation-triangle me-3 fs-3"></i>
+                    <div>
+                      <h4 className="alert-heading mb-1">Permission Denied</h4>
+                      <p className="mb-0">
+                        You don't have permission to access statistics management functionality. 
+                        Please contact your administrator to request access.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : currentError ? (
                 <div className="alert alert-danger mb-4" role="alert">
                   {currentError}
                 </div>
-              )}
+              ) : null}
               {/* Welcome Card Section */}
               <div className="row mb-4">
                 <div className="col-12">

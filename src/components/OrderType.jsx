@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from 'axios';
+import { api, API_PATHS } from '../config/apiConfig';
 import { apiEndpoint } from '../config/menuMitraConfig';
 import 'remixicon/fonts/remixicon.css';
 import DatePicker from 'react-datepicker';
@@ -198,90 +199,80 @@ const OrderType = () => {
     }
   };
 
-  const fetchData = async (range) => {
+  const fetchData = async (range = 'All Time', useAuth = true) => {
     try {
       setLoading(true);
       setError('');
+      // Set user interaction flag to true
+      setUserInteracted(true);
+
+      // Get user_id from localStorage
+      const userId = localStorage.getItem('user_id');
+      const outletId = localStorage.getItem('outlet_id');
       
-      // Prepare request data
-      const requestData = {
-        outlet_id: localStorage.getItem('outlet_id'),
-        device_token: localStorage.getItem('device_token') || '',
-        device_id: localStorage.getItem('device_id') || ''
+      // Prepare date range if applicable
+      const dateRange = prepareRequestData(range);
+      
+      // Create API request payload
+      const apiRequestData = {
+        user_id: parseInt(userId),
+        outlet_id: parseInt(outletId),
+        ...dateRange
       };
-
-      // Add date range if not "All Time"
-      if (range === 'Custom Range' && startDate && endDate) {
-        requestData.start_date = formatDate(startDate);
-        requestData.end_date = formatDate(endDate);
-      } else if (range !== 'All Time') {
-        const dateRange = getDateRange(range);
-        if (dateRange) {
-          requestData.start_date = dateRange.start_date;
-          requestData.end_date = dateRange.end_date;
-        }
-      }
-
-      // Get authentication token
-      const accessToken = localStorage.getItem('access');
       
-      // Make API request
-      const response = await axios.post(
-        'https://men4u.xyz/outlet_statistics/order_type_statistics',
-        requestData,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': accessToken ? `Bearer ${accessToken}` : ''
-          }
-        }
-      );
+      console.log('Making API request with data:', apiRequestData);
 
-      if (response.data?.data) {
-        // Process the response data
-        const data = response.data.data;
-        setOrderTypes([
+      // Make API request using the api instance
+      const response = await api.post(API_PATHS.orderTypeStats, apiRequestData);
+
+      if (response.data?.detail) {
+        console.log('API Response:', response.data);
+        
+        const data = response.data.detail;
+        // Calculate total orders (may be provided directly in the response)
+        const totalOrders = data.total_orders || 
+                          (data["dine-in"] + data.parcel + data.delivery + data.counter + data["drive-through"]);
+        
+        // Map data to chart series format
+        setChartData([
           {
-            name: "Dine In",
-            icon: "fas fa-utensils",
-            count: data["dine-in"] || 0,
-            trend: "0%",
-            trendUp: true,
-            color: "primary"
+            name: "Dine-in",
+            value: data["dine-in"] || 0,
+            percentage: totalOrders > 0 ? Math.round((data["dine-in"] / totalOrders) * 100) : 0,
           },
           {
-            name: "Drive Through",
-            icon: "fas fa-car",
-            count: data["drive-through"] || 0,
-            trend: "0%",
-            trendUp: true,
-            color: "info"
-          },
-          {
-            name: "Parcel",
-            icon: "fas fa-box",
-            count: data.parcel || 0,
-            trend: "0%",
-            trendUp: true,
-            color: "success"
+            name: "Takeaway",
+            value: data.parcel || 0,
+            percentage: totalOrders > 0 ? Math.round((data.parcel / totalOrders) * 100) : 0,
           },
           {
             name: "Delivery",
-            icon: "fas fa-globe",
-            count: data.delivery || 0,
-            trend: "0%",
-            trendUp: true,
-            color: "warning"
-          }
+            value: data.delivery || 0,
+            percentage: totalOrders > 0 ? Math.round((data.delivery / totalOrders) * 100) : 0,
+          },
+          {
+            name: "Counter",
+            value: data.counter || 0,
+            percentage: totalOrders > 0 ? Math.round((data.counter / totalOrders) * 100) : 0,
+          },
+          {
+            name: "Drive-through",
+            value: data["drive-through"] || 0,
+            percentage: totalOrders > 0 ? Math.round((data["drive-through"] / totalOrders) * 100) : 0,
+          },
         ]);
       } else {
-        console.error('No data available in response');
-        setError('No data available');
+        setError('Invalid response format');
+        setChartData([]);
       }
     } catch (error) {
-      console.error('Failed to fetch order type statistics:', error);
-      setError('Failed to fetch order type statistics');
+      console.error('API Error:', error);
+      const errorMessage = error.response?.data?.message || 
+                          error.response?.status === 401 ? 'Unauthorized access' :
+                          error.request ? 'No response from server' :
+                          'Failed to fetch data';
+      setError(errorMessage);
+      setChartData([]);
     } finally {
       setLoading(false);
     }

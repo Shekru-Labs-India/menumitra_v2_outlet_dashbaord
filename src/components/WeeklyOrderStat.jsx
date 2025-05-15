@@ -5,7 +5,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
 import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still-frame.gif';
 import axios from 'axios';
-import { apiEndpoint } from '../config/menuMitraConfig';
+import { api, API_PATHS } from '../config/apiConfig';
 import { useDashboard } from '../context/DashboardContext'; // Import context
 
 const WeeklyOrderStat = () => {
@@ -101,31 +101,30 @@ const WeeklyOrderStat = () => {
       setError('');
       setUserInteracted(true);
 
-      const requestData = {
-        outlet_id: localStorage.getItem('outlet_id'),
-        device_token: localStorage.getItem('device_token') || '',
-        device_id: localStorage.getItem('device_id') || '',
-        ...prepareRequestData(range)
+      // Get user_id from localStorage
+      const userId = localStorage.getItem('user_id');
+      const outletId = localStorage.getItem('outlet_id');
+      
+      // Prepare date range if applicable
+      const dateRange = prepareRequestData(range);
+      
+      // Create API request payload
+      const apiRequestData = {
+        user_id: parseInt(userId),
+        outlet_id: parseInt(outletId),
+        ...dateRange
       };
       
-      const response = await axios.post(
-        'https://men4u.xyz/outlet_statistics/weekly_order_stats',
-        requestData,
-        { 
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('access')}`
-          }
-        }
-      );
+      // Make API request using the api instance
+      const response = await api.post(API_PATHS.weeklyOrderStats, apiRequestData);
 
-      if (response.data?.data) {
-        const { data, peak_day, low_day } = response.data;
+      if (response.data?.detail) {
+        // The response structure is different now
+        const { detail, peak_day, low_day } = response.data;
         
         // Transform the data into the required format
-        const days = data.map(item => item[0]);
-        const orderCounts = data.map(item => parseInt(item[1]));
+        const days = detail.map(item => item[0]);
+        const orderCounts = detail.map(item => parseInt(item[1]));
         
         setDays(days);
         setOrderData(orderCounts);

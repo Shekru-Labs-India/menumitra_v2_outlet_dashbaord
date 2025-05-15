@@ -5,6 +5,7 @@ import { ToastContainer, toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import { useDashboard } from '../context/DashboardContext'
 import { apiEndpoint } from '../config/menuMitraConfig'
+import { api, API_PATHS } from '../config/apiConfig'
 
 function Header() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -72,7 +73,7 @@ function Header() {
       setError(null);
       
       const userId = localStorage.getItem('user_id');
-      const accessToken = localStorage.getItem('access');
+      const accessToken = localStorage.getItem('access_token');
       const storedOutletId = localStorage.getItem('outlet_id');
       
       if (!userId || !accessToken) {
@@ -80,21 +81,13 @@ function Header() {
         return;
       }
 
-      const response = await fetch(`https://men4u.xyz/common_api/get_outlet_list`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        },
-        body: JSON.stringify({
-          owner_id: parseInt(userId),
-          device_token: localStorage.getItem('device_token') || '',
-          device_id: localStorage.getItem('device_id') || ''
-        })
+      const response = await api.post(`${API_PATHS.common}/get_outlet_list`, {
+        owner_id: parseInt(userId),
+        device_token: localStorage.getItem('device_token') || '',
+        device_id: localStorage.getItem('device_id') || ''
       });
 
-      if (!response.ok) {
+      if (response.status !== 200) {
         if (response.status === 401) {
           setError('Session expired. Please login again.');
           navigate('/login');
@@ -103,7 +96,7 @@ function Header() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = response.data;
       
       if (data.st === 1) {
         const transformedOutlets = data.outlet_list.map(outlet => ({
@@ -222,19 +215,16 @@ function Header() {
     }
   };
 
-  const handleLogout = () => {
-    // Clear all localStorage data
-    localStorage.removeItem('outlet_id');
+  const logoutUser = () => {
     localStorage.removeItem('user_id');
     localStorage.removeItem('user_name');
-    localStorage.removeItem('owner_id');
+    localStorage.removeItem('mobile_number');
     localStorage.removeItem('role');
-    localStorage.removeItem('access');
-    localStorage.removeItem('refresh');
-    localStorage.removeItem('fcm_token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('expires_at');
+    localStorage.removeItem('token_timestamp');
     
-    // Navigate to login page
-    navigate('/login');
+    window.location.href = '/login';
   };
 
   const toggleMenu = (e) => {
@@ -853,7 +843,7 @@ function Header() {
                     <div className="d-grid px-4 pt-2 pb-1">
                       <button
                         className="btn btn-danger d-flex align-items-center justify-content-center"
-                        onClick={handleLogout}
+                        onClick={logoutUser}
                       >
                         <small className="align-middle">Logout</small>
                         <i className="fas fa-sign-out-alt fa-sm ms-2" />

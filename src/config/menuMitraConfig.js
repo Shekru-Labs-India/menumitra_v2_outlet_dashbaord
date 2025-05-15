@@ -1,10 +1,18 @@
-const apiEndpoint = "https://men4u.xyz/outlet_statistics/";
+import { STATISTICS_PREFIX, isDev } from './apiConfig';
+
+// Use the STATISTICS_PREFIX as the API endpoint
+const apiEndpoint = STATISTICS_PREFIX;
+
+// App version with environment indicator
+const APP_VERSION = "1.0.1";
+const ENV_INDICATOR = isDev ? "(DEV)" : "";
+
 export { apiEndpoint };
 
 export const menuMitraCompanyInfo = {
   name: "Shekru Labs India Pvt. Ltd.",
   website: "https://shekruweb.com/",
-  version: "1.0.0",
+  version: APP_VERSION,
 };
 
 export const menuMitraSocialLinks = [
@@ -42,7 +50,8 @@ export const menuMitraSocialLinks = [
 
 export const menuMitraAppInfo = {
   name: "MenuMitra",
-  title: "MenuMitra Statistics Dashboard",
+  title: `MenuMitra Statistics Dashboard ${ENV_INDICATOR}`,
+  version: APP_VERSION,
   logo: {
     width: "60px",
     height: "60px",

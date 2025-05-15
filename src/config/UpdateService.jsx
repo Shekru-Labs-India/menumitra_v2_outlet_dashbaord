@@ -10,7 +10,7 @@ export class UpdateService {
       console.log('Version check response:', response.data);
 
       // Set current version
-      const currentVersion = '1.2'; // Current app version
+      const currentVersion = '1.3'; // Current app version
 
       // If response is not success or app_type doesn't match, treat as version mismatch
       if (response.data.st !== 1) {

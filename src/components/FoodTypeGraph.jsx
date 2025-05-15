@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import axios from 'axios';
-import { apiEndpoint } from '../config/menuMitraConfig';
-import Chart from 'react-apexcharts';
+import { api, API_PATHS } from '../config/apiConfig';
 // Import both GIFs - static and animated
 import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
 import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still-frame.gif';
 import { useDashboard } from '../context/DashboardContext'; // Import context
+import Chart from 'react-apexcharts';
 
 const FoodTypeGraph = () => {
     // Get data from context
@@ -184,30 +183,27 @@ const FoodTypeGraph = () => {
     };
 
     const processFoodTypeData = (data) => {
-        if (!data) {
-            console.log('No data received for processing');
+        try {
+            // The new API response has days of the week as keys
+            const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            
+            // Create an array of objects with day and food type data
+            const formattedData = days.map(day => {
+                const dayData = data[day] || { veg: 0, nonveg: 0, vegan: 0, egg: 0 };
+                return {
+                    day: day.charAt(0).toUpperCase() + day.slice(1), // Capitalize first letter
+                    Veg: dayData.veg || 0,
+                    'Non-Veg': dayData.nonveg || 0,
+                    Vegan: dayData.vegan || 0,
+                    Eggs: dayData.egg || 0
+                };
+            });
+            
+            setFoodTypeData(formattedData);
+        } catch (error) {
+            console.error('Error processing food type data:', error);
             setFoodTypeData([]);
-            return;
         }
-
-        console.log('Raw data received:', data);
-
-        const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-        const chartData = days.map(day => {
-            const dayData = data[day] || {};
-            console.log(`Processing ${day} data:`, dayData);
-
-            return {
-                day: day.charAt(0).toUpperCase() + day.slice(1),
-                Veg: dayData.veg || 0,
-                "Non-Veg": dayData.nonveg || 0,
-                Vegan: dayData.vegan || 0,
-                Eggs: dayData.egg || 0
-            };
-        });
-        
-        console.log('Final chart data:', chartData);
-        setFoodTypeData(chartData);
     };
 
     // Function to get date range
@@ -356,42 +352,33 @@ const FoodTypeGraph = () => {
         try {
             setLoading(true);
             setError('');
+            
+            // Set userInteracted to true
             setUserInteracted(true);
             
-            // Prepare request data
-            const requestData = {
-                outlet_id: localStorage.getItem('outlet_id'),
-                device_token: localStorage.getItem('device_token'),
-                device_id: localStorage.getItem('device_id')
+            const requestData = prepareRequestData(range);
+            
+            // Get user_id from localStorage
+            const userId = localStorage.getItem('user_id');
+            const outletId = localStorage.getItem('outlet_id');
+            
+            // Create API request payload
+            const apiRequestData = {
+                user_id: parseInt(userId),
+                outlet_id: parseInt(outletId || requestData.outlet_id),
+                ...requestData.start_date && { start_date: requestData.start_date },
+                ...requestData.end_date && { end_date: requestData.end_date }
             };
+            
+            console.log('Making API request with data:', apiRequestData);
 
-            // Add date range if not "All time"
-            if (range === 'Custom Range' && startDate && endDate) {
-                requestData.start_date = formatDate(startDate);
-                requestData.end_date = formatDate(endDate);
-            } else if (range !== 'All time') {
-                const dateRange = getDateRange(range);
-                if (dateRange) {
-                    requestData.start_date = dateRange.start_date;
-                    requestData.end_date = dateRange.end_date;
-                }
-            }
-
-            console.log('Making API request with data:', requestData);
-
-            // Make the API call
-            const response = await axios.post(
-                `${apiEndpoint}food_type_statistics`,
-                requestData,
-                {
-                    headers: getAuthHeaders()
-                }
-            );
+            // Make the API call using the api instance
+            const response = await api.post(API_PATHS.foodTypeStats, apiRequestData);
             
             console.log('API Response:', response.data);
 
-            if (response.data?.data) {
-                processFoodTypeData(response.data.data);
+            if (response.data?.detail) {
+                processFoodTypeData(response.data.detail);
             } else {
                 setError('No data available for the selected period');
                 setFoodTypeData([]);
@@ -400,7 +387,16 @@ const FoodTypeGraph = () => {
             console.error('API Error:', error);
             if (error.response) {
                 console.error('Error Response:', error.response.data);
-                setError(error.response.data.message || 'Failed to fetch data');
+                
+                // Handle specific status codes
+                if (error.response.status === 401) {
+                    setError('Your session has expired. Please log in again.');
+                    // Redirect to login will be handled by API interceptor
+                } else if (error.response.status === 403) {
+                    setError('You don\'t have permission to access this data. Please contact your administrator.');
+                } else {
+                    setError(error.response.data.detail || 'Failed to fetch data');
+                }
             } else {
                 setError('Failed to connect to server');
             }

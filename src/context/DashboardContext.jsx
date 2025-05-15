@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { apiEndpoint } from '../config/menuMitraConfig';
+import { api, API_PATHS } from '../config/apiConfig';
 
 const DashboardContext = createContext();
 
@@ -20,6 +21,8 @@ export const DashboardProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [tokenChecked, setTokenChecked] = useState(false);
   const [shouldRedirectToLogin, setShouldRedirectToLogin] = useState(false);
+  // Add permission denied state to avoid repeated calls
+  const [permissionDenied, setPermissionDenied] = useState(false);
   
   // Add refs to track API call status
   const isFetchingRef = useRef(false);
@@ -43,14 +46,14 @@ export const DashboardProvider = ({ children }) => {
 
   // Check credentials and log their status
   const getAuthCredentials = useCallback(() => {
-    const accessToken = localStorage.getItem('access');
-    const outletId = localStorage.getItem('outlet_id');
+    const accessToken = localStorage.getItem('access_token');
+    const userId = localStorage.getItem('user_id');
     const tokenTimestamp = localStorage.getItem('token_timestamp');
     
     // Log auth details in development (locally triggered logs are fine)
     console.log('Auth status check:', { 
       hasAccessToken: !!accessToken, 
-      hasOutletId: !!outletId,
+      hasUserId: !!userId,
       tokenLength: accessToken ? accessToken.length : 0,
       currentPath: window.location.pathname,
       tokenAge: tokenTimestamp ? Math.floor((Date.now() - parseInt(tokenTimestamp, 10)) / 1000) + ' seconds' : 'unknown',
@@ -59,7 +62,7 @@ export const DashboardProvider = ({ children }) => {
     
     setTokenChecked(true);
     
-    return { accessToken, outletId };
+    return { accessToken, userId };
   }, [isRecentLogin]);
 
   // Effect to handle login redirect if needed, but prevent loops
@@ -71,9 +74,10 @@ export const DashboardProvider = ({ children }) => {
   }, [shouldRedirectToLogin]);
 
   const fetchDashboardData = useCallback(async (dateFilter = {}) => {
-    // Skip if we're already fetching or on login page
-    if (isFetchingRef.current || isLoginPage()) {
-      console.log('Skipping fetch - already in progress or on login page');
+    // Skip if we're already fetching, on login page, or if permission was denied
+    if (isFetchingRef.current || isLoginPage() || permissionDenied) {
+      console.log('Skipping fetch - already in progress, on login page, or permission denied:', 
+                  {isFetching: isFetchingRef.current, isLogin: isLoginPage(), permissionDenied});
       return;
     }
     
@@ -93,9 +97,9 @@ export const DashboardProvider = ({ children }) => {
       setError(null);
       
       // Get auth credentials
-      const { accessToken, outletId } = getAuthCredentials();
+      const { userId, accessToken } = getAuthCredentials();
       
-      if (!accessToken || !outletId) {
+      if (!userId || !accessToken) {
         console.warn('Missing authentication credentials in localStorage');
         // Only redirect if not already on login page
         if (!isLoginPage()) {
@@ -104,41 +108,23 @@ export const DashboardProvider = ({ children }) => {
         throw new Error('Missing authentication credentials. Please login again.');
       }
 
-      // Prepare request body with date filters if provided
+      // Prepare request body for analytics_reports
       const requestBody = {
-        outlet_id: outletId,
-        device_token: localStorage.getItem('device_token') || '',
-        device_id: localStorage.getItem('device_id') || ''
+        user_id: parseInt(userId),
+        outlet_id: parseInt(localStorage.getItem('outlet_id') || '1'), // Use stored outlet ID or default to 1
       };
 
       console.log('Context API request data:', requestBody);
       
-      const headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      };
-      
-      // Make the API call
-      const response = await axios.post(
-        `https://men4u.xyz/outlet_statistics/get_all_stats_without_filter`,
-        requestBody,
-        { headers }
-      );
+      // Make the API call to analytics_reports
+      const response = await api.post(`${API_PATHS.analyticsReports}`, requestBody);
 
-      if (response.data && response.data.message === "success") {
-        const data = response.data.data;
-        console.log('Successfully fetched context data at:', new Date().toISOString());
+      if (response.data && response.data.detail) {
+        const data = response.data.detail;
+        console.log('Successfully fetched analytics data at:', new Date().toISOString());
         
-        // Set individual state variables for each category
-        setAnalyticReports(data.analytic_reports || null);
-        setOrderAnalytics(data.order_analytics || null);
-        setFoodTypeStatistics(data.food_type_statistics || null);
-        setOrderTypeStatistics(data.order_type_statistics || null);
-        setOrderStatistics(data.order_statistics || null);
-        setTotalCollectionSource(data.total_collection_source || null);
-        setSalesPerformance(data.sales_performance || null);
-        setWeeklyOrderStats(data.weekly_order_stats || null);
+        // Set analytics reports state
+        setAnalyticReports(data);
         
         setError(null);
         lastFetchTimeRef.current = Date.now();
@@ -157,6 +143,16 @@ export const DashboardProvider = ({ children }) => {
         return;
       }
       
+      // Handle 403 Forbidden/permission denied
+      if (err.response?.status === 403) {
+        console.error('Permission denied (403 Forbidden) - will not retry fetching data');
+        setPermissionDenied(true); // Set permission denied flag to prevent retries
+        setError(err.response?.data?.detail || 'You do not have permission to access this resource');
+        // Still mark as completed to avoid retries
+        initialFetchCompletedRef.current = true;
+        return;
+      }
+      
       const errorMessage = err.response?.data?.detail || 
                           err.response?.data?.message ||
                           err.message || 'Failed to fetch statistics';
@@ -168,7 +164,7 @@ export const DashboardProvider = ({ children }) => {
       // Release the fetching lock
       isFetchingRef.current = false;
     }
-  }, [getAuthCredentials, isLoginPage]);
+  }, [getAuthCredentials, isLoginPage, permissionDenied]);
 
   useEffect(() => {
     // Skip data fetching if we're on the login page
@@ -178,9 +174,9 @@ export const DashboardProvider = ({ children }) => {
       return;
     }
     
-    // If we've already completed the initial fetch, don't do it again
-    if (initialFetchCompletedRef.current) {
-      console.log('Initial fetch already completed, skipping');
+    // If we've already completed the initial fetch or permission was denied, don't do it again
+    if (initialFetchCompletedRef.current || permissionDenied) {
+      console.log('Initial fetch already completed or permission denied, skipping');
       return;
     }
     
@@ -198,13 +194,19 @@ export const DashboardProvider = ({ children }) => {
     
     // Clean up the timer if component unmounts
     return () => clearTimeout(initialDataFetchTimer);
-  }, [fetchDashboardData, isLoginPage, isRecentLogin]);
+  }, [fetchDashboardData, isLoginPage, isRecentLogin, permissionDenied]);
 
   // Make sure refreshDashboard is properly memoized with useCallback
   const refreshDashboard = useCallback((dateFilter = {}) => {
+    // Don't try to refresh if permission was denied
+    if (permissionDenied) {
+      console.log('Refresh requested, but permission was previously denied. Skipping.');
+      return;
+    }
+    
     console.log('Dashboard refresh requested with filter:', dateFilter);
     fetchDashboardData(dateFilter);
-  }, [fetchDashboardData]);
+  }, [fetchDashboardData, permissionDenied]);
 
   // Memoize the context value to prevent unnecessary re-renders
   const value = React.useMemo(() => ({
@@ -223,7 +225,8 @@ export const DashboardProvider = ({ children }) => {
     error,
     refreshDashboard,
     tokenChecked,
-    isRecentLogin: isRecentLogin()
+    isRecentLogin: isRecentLogin(),
+    permissionDenied
   }), [
     analyticReports_from_context,
     orderAnalytics_from_context,
@@ -237,7 +240,8 @@ export const DashboardProvider = ({ children }) => {
     error,
     refreshDashboard,
     tokenChecked,
-    isRecentLogin
+    isRecentLogin,
+    permissionDenied
   ]);
 
   return (

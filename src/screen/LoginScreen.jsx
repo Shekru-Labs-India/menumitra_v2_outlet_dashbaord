@@ -12,6 +12,7 @@ import logo from "../assets/img/company/MenuMitra_logo.png";
 import { menuMitraCompanyInfo, menuMitraSocialLinks, menuMitraAppInfo, apiEndpoint } from '../config/menuMitraConfig';
 import { requestNotificationPermission } from '../config/firebase';
 import { UpdateService } from '../config/UpdateService';
+import { api, API_PATHS } from '../config/apiConfig';
 
 function LoginScreen() {
   const [mobileNumber, setMobileNumber] = useState('');
@@ -66,7 +67,7 @@ function LoginScreen() {
       
       try {
         // Make API call to send OTP
-        const response = await axios.post(`${apiEndpoint}outlet_login`, {
+        const response = await api.post(`${API_PATHS.common}/login`, {
           mobile: mobileNumber
         });
         
@@ -193,9 +194,9 @@ function LoginScreen() {
       }
 
       // Make API call to verify OTP with FCM token and device info
-      const response = await axios.post(`${apiEndpoint}verify_otp`, {
+      const response = await axios.post(`${API_PATHS.common}/verify_otp`, {
         mobile: mobileNumber,
-        otp: parseInt(enteredOtp),
+        otp: enteredOtp,
         device_id: deviceId,
         device_model: deviceModel,
         fcm_token: fcmToken
@@ -206,17 +207,15 @@ function LoginScreen() {
         console.log('Verification Response:', response.data);
         
         // Extract data from response based on updated API format
-        const { user_id, name, outlet_id, role, refresh, access, device_token } = response.data;
+        const { user_id, name, role, access_token, expires_at } = response.data;
         
         // Store data in localStorage
-        localStorage.setItem('outlet_id', outlet_id);
         localStorage.setItem('user_id', user_id);
         localStorage.setItem('user_name', name);
         localStorage.setItem('mobile_number', mobileNumber);
         localStorage.setItem('role', role || "owner");
-        localStorage.setItem('refresh', refresh);
-        localStorage.setItem('access', access);
-        localStorage.setItem('device_token', device_token || ''); // Store device token
+        localStorage.setItem('access_token', access_token);
+        localStorage.setItem('expires_at', expires_at);
         
         // Add timestamp to track when token was saved
         localStorage.setItem('token_timestamp', Date.now().toString());
@@ -258,7 +257,7 @@ function LoginScreen() {
     
     try {
       // Make API call to resend OTP
-      const response = await axios.post(`${apiEndpoint}outlet_login`, {
+      const response = await api.post(`${API_PATHS.common}/resend_otp`, {
         mobile: mobileNumber
       });
       

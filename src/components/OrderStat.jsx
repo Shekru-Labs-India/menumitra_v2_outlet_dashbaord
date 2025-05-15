@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { api, API_PATHS } from '../config/apiConfig';
 import { apiEndpoint } from '../config/menuMitraConfig';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -141,14 +142,15 @@ const OrderStat = () => {
             setLoading(true);
             setError('');
             
-            // Prepare request data
-            const requestData = {
-                outlet_id: localStorage.getItem('outlet_id'),
-                device_token: localStorage.getItem('device_token') || '',
-                device_id: localStorage.getItem('device_id') || ''
+            // Set userInteracted to true
+            setUserInteracted(true);
+            
+            // Prepare request data based on range
+            let requestData = {
+                outlet_id: localStorage.getItem('outlet_id')
             };
-
-            // Add date range if not "All Time"
+            
+            // Add date range if applicable
             if (range === 'Custom Range' && startDate && endDate) {
                 requestData.start_date = formatDate(startDate);
                 requestData.end_date = formatDate(endDate);
@@ -160,25 +162,23 @@ const OrderStat = () => {
                 }
             }
 
-            // Get authentication token
-            const accessToken = localStorage.getItem('access');
+            // Get user_id from localStorage
+            const userId = localStorage.getItem('user_id');
             
-            // Make API request
-            const response = await axios.post(
-                'https://men4u.xyz/outlet_statistics/order_statistics',
-                requestData,
-                {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'Authorization': accessToken ? `Bearer ${accessToken}` : ''
-                    }
-                }
-            );
+            // Create API request payload
+            const apiRequestData = {
+                user_id: parseInt(userId),
+                outlet_id: parseInt(requestData.outlet_id),
+                ...requestData.start_date && { start_date: requestData.start_date },
+                ...requestData.end_date && { end_date: requestData.end_date }
+            };
+            
+            // Make API request using the api instance
+            const response = await api.post(API_PATHS.orderStatistics, apiRequestData);
 
-            if (response.data?.data) {
+            if (response.data?.detail) {
                 // Process the response data
-                const data = response.data.data;
+                const data = response.data.detail;
                 setOrderStats({
                     success_orders: data.success_orders || 0,
                     cancelled_orders: data.cancelled_orders || 0,
