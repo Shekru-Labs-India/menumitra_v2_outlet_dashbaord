@@ -7,6 +7,7 @@ import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still
 import axios from 'axios';
 import { api, API_PATHS } from '../config/apiConfig';
 import { useDashboard } from '../context/DashboardContext'; // Import context
+import { ForbiddenAccessMessage } from './common';
 
 const WeeklyOrderStat = () => {
   // Get data from context
@@ -29,8 +30,9 @@ const WeeklyOrderStat = () => {
   const [maxOrders, setMaxOrders] = useState(0);
   const [minOrders, setMinOrders] = useState(0);
   const [error, setError] = useState('');
-  const [userInteracted, setUserInteracted] = useState(false); // Flag to track user interaction
-  const [showModal, setShowModal] = useState(false); // New state for modal
+  const [userInteracted, setUserInteracted] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
 
   // Helper function to get auth headers
   const getAuthHeaders = useMemo(() => (includeAuth = true) => {
@@ -100,18 +102,17 @@ const WeeklyOrderStat = () => {
       setLoading(true);
       setError('');
       setUserInteracted(true);
+      setPermissionDenied(false);
 
       // Get user_id from localStorage
       const userId = localStorage.getItem('user_id');
-      const outletId = localStorage.getItem('outlet_id');
       
       // Prepare date range if applicable
       const dateRange = prepareRequestData(range);
       
-      // Create API request payload
+      // Create API request payload - outlet_id will be handled by the API interceptor
       const apiRequestData = {
         user_id: parseInt(userId),
-        outlet_id: parseInt(outletId),
         ...dateRange
       };
       
@@ -154,7 +155,11 @@ const WeeklyOrderStat = () => {
       }
     } catch (error) {
       console.error('Failed to fetch weekly order stats:', error);
-      setError('Failed to load weekly order statistics. Please try again.');
+      if (error.response?.status === 403) {
+        setPermissionDenied(true);
+      } else {
+        setError('Failed to load weekly order statistics. Please try again.');
+      }
       // Reset data on error
       setDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']);
       setOrderData([0, 0, 0, 0, 0, 0, 0]);
@@ -584,6 +589,20 @@ const WeeklyOrderStat = () => {
       return () => clearTimeout(timer);
     }
   }, [isGifPlaying]);
+
+  if (permissionDenied) {
+    return (
+      <ForbiddenAccessMessage 
+        title="Permission Denied" 
+        message="You don't have permission to access statistics management functionality"
+        resourceName="Weekly Order Statistics"
+        onRetry={() => {
+          setPermissionDenied(false);
+          fetchWeeklyOrderStats(dateRange);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="card">

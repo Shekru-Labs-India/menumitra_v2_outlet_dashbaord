@@ -11,6 +11,7 @@ import OrderStat from "../components/OrderStat";
 import FoodTypeGraph from "../components/FoodTypeGraph";
 import OrderType from "../components/OrderType";
 import OrderAnalytics from '../components/OrderAnalytics';
+import OutletStats from '../components/OutletStats';
 import Footer from "../components/Footer";
 // Import the ForbiddenAccessMessage component
 import { ForbiddenAccessMessage } from "../components/common";
@@ -823,6 +824,13 @@ function HomeScreen() {
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Outlet Stats Section */}
+              <div className="row mb-4">
+                <div className="col-12">
+                  <OutletStats />
                 </div>
               </div>
 

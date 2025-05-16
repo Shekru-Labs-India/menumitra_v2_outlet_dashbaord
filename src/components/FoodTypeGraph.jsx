@@ -340,10 +340,9 @@ const FoodTypeGraph = ({ handleApiError }) => {
             const requestData = prepareRequestData(range);
             const userId = localStorage.getItem('user_id');
             
-            // Create the request payload
+            // Create the request payload - outlet_id will be handled by the API interceptor
             const apiRequestData = {
                 user_id: parseInt(userId),
-                outlet_id: parseInt(requestData.outlet_id),
                 ...requestData.start_date && { start_date: requestData.start_date },
                 ...requestData.end_date && { end_date: requestData.end_date }
             };
