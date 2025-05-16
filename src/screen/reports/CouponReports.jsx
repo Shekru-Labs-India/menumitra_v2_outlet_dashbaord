@@ -33,11 +33,7 @@ function CouponReports() {
         params.order_type = orderType;
       }
 
-      console.log('Debug - Making API call to:', API_PATHS.couponReport);
-      console.log('Debug - With params:', params);
-
       const response = await api.post(API_PATHS.couponReport, params);
-      console.log('Debug - API Response:', response.data);
       
       if (response.data && response.data.detail) {
         setCouponData(response.data.detail);
@@ -113,6 +109,9 @@ function CouponReports() {
                           <option value="all">All Orders</option>
                           <option value="dine-in">Dine-in</option>
                           <option value="parcel">Parcel</option>
+                          <option value="counter">Counter</option>
+                          <option value="delivery">Delivery</option>
+                          <option value="drive-through">Drive-through</option>
                         </select>
                         <button 
                           className="btn btn-primary"
@@ -238,7 +237,7 @@ function CouponReports() {
                                       <tr key={coupon.order_id}>
                                         <td>{coupon.order_number}</td>
                                         <td>
-                                          <span className={`badge bg-${coupon.order_type === 'dine-in' ? 'primary' : 'info'}`}>
+                                          <span className={`badge bg-${getOrderTypeColor(coupon.order_type)}`}>
                                             {coupon.order_type}
                                           </span>
                                         </td>
@@ -292,6 +291,23 @@ function getStatusColor(status) {
       return 'danger';
     case 'cooking':
       return 'warning';
+    default:
+      return 'secondary';
+  }
+}
+
+function getOrderTypeColor(type) {
+  switch (type.toLowerCase()) {
+    case 'dine-in':
+      return 'primary';
+    case 'parcel':
+      return 'info';
+    case 'counter':
+      return 'success';
+    case 'delivery':
+      return 'warning';
+    case 'drive-through':
+      return 'danger';
     default:
       return 'secondary';
   }

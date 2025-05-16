@@ -14,11 +14,19 @@ function InventoryReports() {
   const [filterType, setFilterType] = useState('all');
   const [supplierId, setSupplierId] = useState('');
   const [inOrOut, setInOrOut] = useState('in');
+  const [expandedRows, setExpandedRows] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchInventoryReport();
   }, [filterType, supplierId, inOrOut]);
+
+  const toggleRow = (inventoryId) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [inventoryId]: !prev[inventoryId]
+    }));
+  };
 
   const fetchInventoryReport = async () => {
     try {
@@ -169,7 +177,7 @@ function InventoryReports() {
                       ) : inventoryData && (
                         <>
                           <div className="row mb-4">
-                            <div className="col-md-3">
+                            <div className="col-md-4">
                               <div className="card bg-primary text-white">
                                 <div className="card-body">
                                   <h6 className="card-title">Total Items</h6>
@@ -177,7 +185,7 @@ function InventoryReports() {
                                 </div>
                               </div>
                             </div>
-                            <div className="col-md-3">
+                            <div className="col-md-4">
                               <div className="card bg-success text-white">
                                 <div className="card-body">
                                   <h6 className="card-title">Total Inventory Value</h6>
@@ -185,7 +193,7 @@ function InventoryReports() {
                                 </div>
                               </div>
                             </div>
-                            <div className="col-md-3">
+                            <div className="col-md-4">
                               <div className="card bg-warning text-white">
                                 <div className="card-body">
                                   <h6 className="card-title">Items Below Reorder Level</h6>
@@ -233,50 +241,120 @@ function InventoryReports() {
                             </div>
                             <div className="card-body">
                               <div className="table-responsive">
-                                <table className="table table-bordered">
+                                <table className="table table-hover">
                                   <thead>
                                     <tr>
-                                      <th>Name</th>
-                                      <th>Category</th>
-                                      <th>Supplier</th>
-                                      <th>Unit Price</th>
-                                      <th>Quantity</th>
-                                      <th>Unit</th>
-                                      <th>Reorder Level</th>
-                                      <th>Expiration</th>
-                                      <th>Brand</th>
-                                      <th>Status</th>
-                                      <th>Dates</th>
+                                      <th style={{ width: '5%' }}></th>
+                                      <th style={{ width: '20%' }}>Item Details</th>
+                                      <th style={{ width: '15%' }}>Category</th>
+                                      <th style={{ width: '15%' }}>Supplier</th>
+                                      <th style={{ width: '10%' }}>Price</th>
+                                      <th style={{ width: '10%' }}>Quantity</th>
+                                      <th style={{ width: '10%' }}>Status</th>
+                                      <th style={{ width: '15%' }}>Dates</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {inventoryData.inventory_items.map((item) => (
-                                      <tr key={item.inventory_id}>
-                                        <td>
-                                          <div>{item.name}</div>
-                                          <small className="text-muted">{item.description}</small>
-                                        </td>
-                                        <td>{item.category}</td>
-                                        <td>
-                                          <div>{item.supplier.name}</div>
-                                          <small className="text-muted">ID: {item.supplier.id}</small>
-                                        </td>
-                                        <td>₹{item.unit_price.toFixed(2)}</td>
-                                        <td>{item.quantity}</td>
-                                        <td>{item.unit_of_measure}</td>
-                                        <td>{item.reorder_level}</td>
-                                        <td>{item.expiration_date}</td>
-                                        <td>{item.brand_name}</td>
-                                        <td>
-                                          <span className={`badge bg-${item.in_or_out === 'in' ? 'success' : 'danger'}`}>
-                                            {item.in_or_out === 'in' ? 'In Stock' : 'Out of Stock'}
-                                          </span>
-                                        </td>
-                                        <td>
-                                          <div>In: {item.in_date || '-'}</div>
-                                          <div>Out: {item.out_date || '-'}</div>
-                                        </td>
-                                      </tr>
+                                      <React.Fragment key={item.inventory_id}>
+                                        <tr 
+                                          className="cursor-pointer"
+                                          onClick={() => toggleRow(item.inventory_id)}
+                                          style={{ cursor: 'pointer' }}
+                                        >
+                                          <td>
+                                            <i className={`fas fa-chevron-${expandedRows[item.inventory_id] ? 'down' : 'right'} transition-all`}></i>
+                                          </td>
+                                          <td>
+                                            <div className="d-flex flex-column">
+                                              <span className="fw-semibold">{item.name}</span>
+                                              <small className="text-muted">{item.description}</small>
+                                            </div>
+                                          </td>
+                                          <td>{item.category}</td>
+                                          <td>
+                                            <div className="d-flex flex-column">
+                                              <span>{item.supplier.name}</span>
+                                             
+                                            </div>
+                                          </td>
+                                          <td>₹{item.unit_price.toFixed(2)}</td>
+                                          <td>
+                                            <div className="d-flex flex-column">
+                                              <span>{item.quantity}</span>
+                                              <small className="text-muted">{item.unit_of_measure}</small>
+                                            </div>
+                                          </td>
+                                          <td>
+                                            <span className={`badge bg-${item.in_or_out === 'in' ? 'success' : 'danger'}`}>
+                                              {item.in_or_out === 'in' ? 'In Stock' : 'Out of Stock'}
+                                            </span>
+                                          </td>
+                                          <td>
+                                            <div>In: {item.in_date || '-'}</div>
+                                            <div>Out: {item.out_date || '-'}</div>
+                                          </td>
+                                        </tr>
+                                        <tr>
+                                          <td colSpan="8" className="p-0">
+                                            <div 
+                                              className={`collapse ${expandedRows[item.inventory_id] ? 'show' : ''}`}
+                                              style={{
+                                                transition: 'all 0.3s ease-in-out',
+                                                maxHeight: expandedRows[item.inventory_id] ? '500px' : '0',
+                                                overflow: 'hidden'
+                                              }}
+                                            >
+                                              <div className="p-3 bg-light">
+                                                <div className="row">
+                                                  <div className="col-md-6">
+                                                    <h6 className="mb-3">Item Information</h6>
+                                                    <div className="card">
+                                                      <div className="card-body">
+                                                        <div className="d-flex justify-content-between mb-2">
+                                                          <span>Brand:</span>
+                                                          <span className="fw-semibold">{item.brand_name}</span>
+                                                        </div>
+                                                        <div className="d-flex justify-content-between mb-2">
+                                                          <span>Reorder Level:</span>
+                                                          <span className="fw-semibold">{item.reorder_level}</span>
+                                                        </div>
+                                                        <div className="d-flex justify-content-between mb-2">
+                                                          <span>Tax Rate:</span>
+                                                          <span className="fw-semibold">{(item.tax_rate * 100).toFixed(0)}%</span>
+                                                        </div>
+                                                        <div className="d-flex justify-content-between mb-2">
+                                                          <span>Expiration:</span>
+                                                          <span className="fw-semibold">{item.expiration_date}</span>
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                  <div className="col-md-6">
+                                                    <h6 className="mb-3">Additional Details</h6>
+                                                    <div className="card">
+                                                      <div className="card-body">
+                                                        <div className="d-flex justify-content-between mb-2">
+                                                          <span>Created On:</span>
+                                                          <span>{item.created_on}</span>
+                                                        </div>
+                                                        <div className="d-flex justify-content-between mb-2">
+                                                          <span>Updated On:</span>
+                                                          <span>{item.updated_on || '-'}</span>
+                                                        </div>
+                                                        <div className="d-flex justify-content-between mb-2">
+                                                          <span>Entry By:</span>
+                                                          <span>{item.entry_by || '-'}</span>
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      </React.Fragment>
                                     ))}
                                   </tbody>
                                 </table>

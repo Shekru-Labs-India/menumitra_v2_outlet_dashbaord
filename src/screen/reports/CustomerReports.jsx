@@ -13,11 +13,19 @@ function CustomerReports() {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [filterType, setFilterType] = useState('all');
   const [orderType, setOrderType] = useState('dine-in');
+  const [expandedRows, setExpandedRows] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchCustomerReport();
   }, [filterType, orderType]);
+
+  const toggleRow = (customerId) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [customerId]: !prev[customerId]
+    }));
+  };
 
   const fetchCustomerReport = async () => {
     try {
@@ -196,23 +204,15 @@ function CustomerReports() {
                                   <h5 className="card-title mb-0">Order Type Breakdown</h5>
                                 </div>
                                 <div className="card-body">
-                                  <div className="table-responsive">
-                                    <table className="table table-bordered">
-                                      <thead>
-                                        <tr>
-                                          <th>Order Type</th>
-                                          <th>Count</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {Object.entries(customerData.customer_report.order_type_breakdown).map(([type, count]) => (
-                                          <tr key={type}>
-                                            <td className="text-capitalize">{type}</td>
-                                            <td>{count}</td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
+                                  <div className="row">
+                                    {Object.entries(customerData.customer_report.order_type_breakdown).map(([type, count]) => (
+                                      <div key={type} className="col-md-6 mb-2">
+                                        <div className="d-flex justify-content-between align-items-center">
+                                          <span className="text-capitalize">{type}</span>
+                                          <span className="badge bg-label-primary">{count}</span>
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
                                 </div>
                               </div>
@@ -225,68 +225,160 @@ function CustomerReports() {
                             </div>
                             <div className="card-body">
                               <div className="table-responsive">
-                                <table className="table table-bordered">
+                                <table className="table table-hover">
                                   <thead>
                                     <tr>
-                                      <th>Customer Info</th>
-                                      <th>Order Summary</th>
-                                      <th>Order Types</th>
-                                      <th>Order History</th>
+                                      <th style={{ width: '5%' }}></th>
+                                      <th style={{ width: '25%' }}>Customer Info</th>
+                                      <th style={{ width: '20%' }}>Order Summary</th>
+                                      <th style={{ width: '20%' }}>Order Types</th>
+                                      <th style={{ width: '30%' }}>Recent Orders</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {customerData.customers.map((customer, index) => (
-                                      <tr key={index}>
-                                        <td>
-                                          <div><strong>{customer.customer_name}</strong></div>
-                                          <div>Mobile: {customer.customer_mobile}</div>
-                                          <div>Address: {customer.customer_address}</div>
-                                          <div>First Order: {customer.first_order_date}</div>
-                                          <div>Last Order: {customer.last_order_date}</div>
-                                        </td>
-                                        <td>
-                                          <div>Total Orders: {customer.total_orders}</div>
-                                          <div>Total Spent: ₹{customer.total_spent.toFixed(2)}</div>
-                                          <div>Avg Orders/Customer: {customerData.customer_report.avg_orders_per_customer.toFixed(1)}</div>
-                                        </td>
-                                        <td>
-                                          {Object.entries(customer.order_types).map(([type, count]) => (
-                                            <div key={type} className="text-capitalize">
-                                              {type}: {count}
+                                      <React.Fragment key={index}>
+                                        <tr 
+                                          className="cursor-pointer"
+                                          onClick={() => toggleRow(index)}
+                                          style={{ cursor: 'pointer' }}
+                                        >
+                                          <td>
+                                            <i className={`fas fa-chevron-${expandedRows[index] ? 'down' : 'right'} transition-all`}></i>
+                                          </td>
+                                          <td>
+                                            <div className="d-flex flex-column">
+                                              <span className="fw-semibold">{customer.customer_name}</span>
+                                              <small className="text-muted">Mobile: {customer.customer_mobile}</small>
+                                              <small className="text-muted">Address: {customer.customer_address}</small>
                                             </div>
-                                          ))}
-                                        </td>
-                                        <td>
-                                          <div className="table-responsive">
-                                            <table className="table table-sm">
-                                              <thead>
-                                                <tr>
-                                                  <th>Order #</th>
-                                                  <th>Type</th>
-                                                  <th>Status</th>
-                                                  <th>Amount</th>
-                                                  <th>Date</th>
-                                                </tr>
-                                              </thead>
-                                              <tbody>
-                                                {customer.orders.map((order) => (
-                                                  <tr key={order.order_id}>
-                                                    <td>{order.order_number}</td>
-                                                    <td className="text-capitalize">{order.order_type}</td>
-                                                    <td>
-                                                      <span className={`badge bg-${order.order_status === 'paid' ? 'success' : 'warning'}`}>
-                                                        {order.order_status}
-                                                      </span>
-                                                    </td>
-                                                    <td>₹{order.final_grand_total.toFixed(2)}</td>
-                                                    <td>{order.created_on}</td>
+                                          </td>
+                                          <td>
+                                            <div className="d-flex flex-column">
+                                              <span>Total Orders: {customer.total_orders}</span>
+                                              <span>Total Spent: ₹{customer.total_spent.toFixed(2)}</span>
+                                              <small className="text-muted">Avg: {customerData.customer_report.avg_orders_per_customer.toFixed(1)} orders/customer</small>
+                                            </div>
+                                          </td>
+                                          <td>
+                                            {Object.entries(customer.order_types).map(([type, count]) => (
+                                              <div key={type} className="d-flex justify-content-between align-items-center mb-1">
+                                                <span className="text-capitalize">{type}</span>
+                                                <span className="badge bg-label-primary">{count}</span>
+                                              </div>
+                                            ))}
+                                          </td>
+                                          <td>
+                                            <div className="table-responsive">
+                                              <table className="table table-sm">
+                                                <thead>
+                                                  <tr>
+                                                    <th>Order #</th>
+                                                    <th>Type</th>
+                                                    <th>Status</th>
+                                                    <th>Amount</th>
+                                                    <th>Date</th>
                                                   </tr>
-                                                ))}
-                                              </tbody>
-                                            </table>
-                                          </div>
-                                        </td>
-                                      </tr>
+                                                </thead>
+                                                <tbody>
+                                                  {customer.orders.slice(0, 3).map((order) => (
+                                                    <tr key={order.order_id}>
+                                                      <td>{order.order_number}</td>
+                                                      <td className="text-capitalize">{order.order_type}</td>
+                                                      <td>
+                                                        <span className={`badge bg-${order.order_status === 'paid' ? 'success' : 'warning'}`}>
+                                                          {order.order_status}
+                                                        </span>
+                                                      </td>
+                                                      <td>₹{order.final_grand_total.toFixed(2)}</td>
+                                                      <td>{order.created_on}</td>
+                                                    </tr>
+                                                  ))}
+                                                </tbody>
+                                              </table>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                        <tr>
+                                          <td colSpan="5" className="p-0">
+                                            <div 
+                                              className={`collapse ${expandedRows[index] ? 'show' : ''}`}
+                                              style={{
+                                                transition: 'all 0.3s ease-in-out',
+                                                maxHeight: expandedRows[index] ? '500px' : '0',
+                                                overflow: 'hidden'
+                                              }}
+                                            >
+                                              <div className="p-3 bg-light">
+                                                <div className="row">
+                                                  <div className="col-md-6">
+                                                    <h6 className="mb-3">Customer Information</h6>
+                                                    <div className="card">
+                                                      <div className="card-body">
+                                                        <div className="d-flex justify-content-between mb-2">
+                                                          <span>Name:</span>
+                                                          <span className="fw-semibold">{customer.customer_name}</span>
+                                                        </div>
+                                                        <div className="d-flex justify-content-between mb-2">
+                                                          <span>Mobile:</span>
+                                                          <span>{customer.customer_mobile}</span>
+                                                        </div>
+                                                        <div className="d-flex justify-content-between mb-2">
+                                                          <span>Address:</span>
+                                                          <span>{customer.customer_address}</span>
+                                                        </div>
+                                                        <div className="d-flex justify-content-between mb-2">
+                                                          <span>First Order:</span>
+                                                          <span>{customer.first_order_date}</span>
+                                                        </div>
+                                                        <div className="d-flex justify-content-between mb-2">
+                                                          <span>Last Order:</span>
+                                                          <span>{customer.last_order_date}</span>
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                  <div className="col-md-6">
+                                                    <h6 className="mb-3">Order History</h6>
+                                                    <div className="card">
+                                                      <div className="card-body">
+                                                        <div className="table-responsive">
+                                                          <table className="table table-sm">
+                                                            <thead>
+                                                              <tr>
+                                                                <th>Order #</th>
+                                                                <th>Type</th>
+                                                                <th>Status</th>
+                                                                <th>Amount</th>
+                                                                <th>Date</th>
+                                                              </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                              {customer.orders.map((order) => (
+                                                                <tr key={order.order_id}>
+                                                                  <td>{order.order_number}</td>
+                                                                  <td className="text-capitalize">{order.order_type}</td>
+                                                                  <td>
+                                                                    <span className={`badge bg-${order.order_status === 'paid' ? 'success' : 'warning'}`}>
+                                                                      {order.order_status}
+                                                                    </span>
+                                                                  </td>
+                                                                  <td>₹{order.final_grand_total.toFixed(2)}</td>
+                                                                  <td>{order.created_on}</td>
+                                                                </tr>
+                                                              ))}
+                                                            </tbody>
+                                                          </table>
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      </React.Fragment>
                                     ))}
                                   </tbody>
                                 </table>

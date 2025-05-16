@@ -18,6 +18,8 @@ import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import { ForbiddenAccessMessage } from '../../components/common';
 import { useNavigate } from 'react-router-dom';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const MenuReports = () => {
   const [loading, setLoading] = useState(true);
@@ -27,11 +29,46 @@ const MenuReports = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categories, setCategories] = useState([]);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [expandedRows, setExpandedRows] = useState({});
+  const [dateRange, setDateRange] = useState('All Time');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [loadingCategories, setLoadingCategories] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
+    fetchCategories();
     fetchMenuReport();
-  }, [filterType, selectedCategory]);
+  }, [filterType, selectedCategory, dateRange, startDate, endDate]);
+
+  const fetchCategories = async () => {
+    try {
+      setLoadingCategories(true);
+      const response = await api.post(API_PATHS.menuCategoryList, {
+        outlet_id: localStorage.getItem('outlet_id'),
+        user_id: localStorage.getItem('user_id')
+      });
+      
+      // Filter out null categories and inactive ones
+      const validCategories = response.data.data.menucat_details.filter(
+        cat => cat.menu_cat_id && cat.is_active
+      );
+      setCategories(validCategories);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+      setError('Failed to fetch categories');
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  const toggleRow = (menuId) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [menuId]: !prev[menuId]
+    }));
+  };
 
   const fetchMenuReport = async () => {
     try {
@@ -54,7 +91,6 @@ const MenuReports = () => {
     } catch (err) {
       console.error('Error fetching menu report:', err);
       
-      // Check for permission denied error
       if (err.response?.status === 403 || 
           err.response?.data?.detail?.includes('permission') ||
           err.response?.data?.detail?.includes('access')) {
@@ -64,7 +100,6 @@ const MenuReports = () => {
         setError(err.response?.data?.detail || 'Failed to fetch menu report data');
       }
 
-      // Handle authentication errors
       if (err.response?.status === 401) {
         navigate('/login');
       }
@@ -112,7 +147,38 @@ const MenuReports = () => {
                 <Card>
                   <CardHeader className="d-flex justify-content-between align-items-center">
                     <CardTitle>Menu Reports</CardTitle>
-                    <div className="d-flex gap-3">
+                    <div className="d-flex align-items-center gap-2">
+                      <div className="dropdown">
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary dropdown-toggle"
+                          data-bs-toggle="dropdown"
+                          aria-expanded="false"
+                        >
+                          <i className="fas fa-calendar me-2"></i>
+                          {dateRange}
+                        </button>
+                        <ul className="dropdown-menu dropdown-menu-end">
+                          {['All Time', 'Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'Current Month', 'Last Month'].map((range) => (
+                            <li key={range}>
+                              <a href="javascript:void(0);"
+                                className="dropdown-item d-flex align-items-center"
+                                onClick={() => setDateRange(range)}>
+                                {range}
+                              </a>
+                            </li>
+                          ))}
+                          <li><hr className="dropdown-divider" /></li>
+                          <li>
+                            <a href="javascript:void(0);"
+                              className="dropdown-item d-flex align-items-center"
+                              onClick={() => setShowDatePicker(true)}>
+                              Custom Range
+                            </a>
+                          </li>
+                        </ul>
+                      </div>
+
                       <Form.Select
                         value={filterType}
                         onChange={handleFilterChange}
@@ -121,29 +187,75 @@ const MenuReports = () => {
                         <option value="all">All Items</option>
                         <option value="category">By Category</option>
                       </Form.Select>
+
                       {filterType === 'category' && (
                         <Form.Select
                           value={selectedCategory}
                           onChange={handleCategoryChange}
                           style={{ width: '200px' }}
+                          disabled={loadingCategories}
                         >
                           <option value="">Select Category</option>
                           {categories.map((category) => (
-                            <option key={category.id} value={category.id}>
-                              {category.name}
+                            <option key={category.menu_cat_id} value={category.menu_cat_id}>
+                              {category.category_name}
                             </option>
                           ))}
                         </Form.Select>
                       )}
-                      <Button
-                        variant="outline-primary"
+
+                      <button
+                        type="button"
+                        className={`btn btn-icon p-0 ${loading ? 'disabled' : ''}`}
                         onClick={handleRetry}
                         disabled={loading}
+                        style={{ border: '1px solid var(--bs-primary)' }}
                       >
                         <i className={`fas fa-sync-alt ${loading ? 'fa-spin' : ''}`}></i>
-                      </Button>
+                      </button>
                     </div>
                   </CardHeader>
+
+                  {showDatePicker && (
+                    <CardBody>
+                      <div className="d-flex flex-column gap-2">
+                        <label>Select Date Range:</label>
+                        <div className="d-flex gap-2">
+                          <DatePicker
+                            selected={startDate}
+                            onChange={(date) => setStartDate(date)}
+                            selectsStart
+                            startDate={startDate}
+                            endDate={endDate}
+                            maxDate={new Date()}
+                            placeholderText="DD MMM YYYY"
+                            className="form-control"
+                            dateFormat="dd MMM yyyy"
+                          />
+                          <DatePicker
+                            selected={endDate}
+                            onChange={(date) => setEndDate(date)}
+                            selectsEnd
+                            startDate={startDate}
+                            endDate={endDate}
+                            minDate={startDate}
+                            maxDate={new Date()}
+                            placeholderText="DD MMM YYYY"
+                            className="form-control"
+                            dateFormat="dd MMM yyyy"
+                          />
+                        </div>
+                        <button 
+                          className="btn btn-primary mt-2" 
+                          onClick={() => setShowDatePicker(false)} 
+                          disabled={!startDate || !endDate}
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    </CardBody>
+                  )}
+
                   <CardBody>
                     {loading ? (
                       <div className="text-center py-5">
@@ -152,50 +264,98 @@ const MenuReports = () => {
                         </Spinner>
                       </div>
                     ) : (
-                      <Table responsive hover>
-                        <thead>
-                          <tr>
-                            <th>Menu Name</th>
-                            <th>Category</th>
-                            <th>Description</th>
-                            <th>Status</th>
-                            <th>Portions</th>
-                            <th>Created On</th>
-                            <th>Updated On</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {menuData.map((menu) => (
-                            <tr key={menu.menu_id}>
-                              <td>{menu.menu_name}</td>
-                              <td>{menu.category_name}</td>
-                              <td>{menu.description}</td>
-                              <td>
-                                <Badge bg={menu.is_available ? 'success' : 'danger'}>
-                                  {menu.is_available ? 'Available' : 'Unavailable'}
-                                </Badge>
-                              </td>
-                              <td>
-                                <ul className="list-unstyled mb-0">
-                                  {menu.portions.map((portion) => (
-                                    <li key={portion.portion_id}>
-                                      {portion.portion_name} - ₹{portion.price}
-                                      <Badge
-                                        bg={portion.is_available ? 'success' : 'danger'}
-                                        className="ms-2"
-                                      >
-                                        {portion.is_available ? 'Available' : 'Unavailable'}
-                                      </Badge>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </td>
-                              <td>{menu.created_on}</td>
-                              <td>{menu.updated_on || '-'}</td>
+                      <div className="table-responsive">
+                        <Table className="table-hover">
+                          <thead>
+                            <tr>
+                              <th style={{ width: '5%' }}></th>
+                              <th style={{ width: '20%' }}>Menu Details</th>
+                              <th style={{ width: '15%' }}>Category</th>
+                              <th style={{ width: '25%' }}>Description</th>
+                              <th style={{ width: '10%' }}>Status</th>
+                              <th style={{ width: '15%' }}>Dates</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </Table>
+                          </thead>
+                          <tbody>
+                            {menuData.map((menu) => (
+                              <React.Fragment key={menu.menu_id}>
+                                <tr 
+                                  className="cursor-pointer"
+                                  onClick={() => toggleRow(menu.menu_id)}
+                                  style={{ cursor: 'pointer' }}
+                                >
+                                  <td>
+                                    <i className={`fas fa-chevron-${expandedRows[menu.menu_id] ? 'down' : 'right'} transition-all`}></i>
+                                  </td>
+                                  <td>
+                                    <div className="d-flex flex-column">
+                                      <span className="fw-semibold">{menu.menu_name}</span>
+                                      <small className="text-muted">ID: {menu.menu_id}</small>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <Badge bg="info" className="text-white">
+                                      {menu.category_name}
+                                    </Badge>
+                                  </td>
+                                  <td>
+                                    <p className="mb-0 text-wrap" style={{ maxWidth: '300px' }}>
+                                      {menu.description}
+                                    </p>
+                                  </td>
+                                  <td>
+                                    <Badge bg={menu.is_available ? 'success' : 'danger'}>
+                                      {menu.is_available ? 'Available' : 'Unavailable'}
+                                    </Badge>
+                                  </td>
+                                  <td>
+                                    <div className="d-flex flex-column">
+                                      <small className="text-muted">Created: {menu.created_on}</small>
+                                      <small className="text-muted">Updated: {menu.updated_on || '-'}</small>
+                                    </div>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <td colSpan="6" className="p-0">
+                                    <div 
+                                      className={`collapse ${expandedRows[menu.menu_id] ? 'show' : ''}`}
+                                      style={{
+                                        transition: 'all 0.3s ease-in-out',
+                                        maxHeight: expandedRows[menu.menu_id] ? '500px' : '0',
+                                        overflow: 'hidden'
+                                      }}
+                                    >
+                                      <div className="p-3 bg-light">
+                                        <h6 className="mb-3">Portions</h6>
+                                        <div className="row g-3">
+                                          {menu.portions.map((portion) => (
+                                            <div key={portion.portion_id} className="col-md-4">
+                                              <div className="card h-100">
+                                                <div className="card-body">
+                                                  <div className="d-flex justify-content-between align-items-center mb-2">
+                                                    <h6 className="card-title mb-0">{portion.portion_name}</h6>
+                                                    <Badge bg="primary">₹{portion.price}</Badge>
+                                                  </div>
+                                                  <div className="d-flex justify-content-between align-items-center">
+                                                    <small className="text-muted">Created: {portion.created_on}</small>
+                                                    <Badge bg={portion.is_available ? 'success' : 'danger'}>
+                                                      {portion.is_available ? 'Available' : 'Unavailable'}
+                                                    </Badge>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              </React.Fragment>
+                            ))}
+                          </tbody>
+                        </Table>
+                      </div>
                     )}
                   </CardBody>
                 </Card>

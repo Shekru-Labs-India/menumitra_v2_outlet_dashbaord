@@ -28,11 +28,19 @@ const TableReports = () => {
   const [selectedSection, setSelectedSection] = useState('');
   const [sections, setSections] = useState([]);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [expandedRows, setExpandedRows] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchTableReport();
   }, [filterType, selectedSection]);
+
+  const toggleRow = (tableId) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [tableId]: !prev[tableId]
+    }));
+  };
 
   const fetchTableReport = async () => {
     try {
@@ -145,15 +153,35 @@ const TableReports = () => {
                   <Card className="mb-4">
                     <CardHeader className="d-flex justify-content-between align-items-center">
                       <CardTitle>Table Reports</CardTitle>
-                      <div className="d-flex gap-3">
-                        <Form.Select
-                          value={filterType}
-                          onChange={handleFilterChange}
-                          style={{ width: '200px' }}
-                        >
-                          <option value="all">All Tables</option>
-                          <option value="section">By Section</option>
-                        </Form.Select>
+                      <div className="d-flex align-items-center gap-2">
+                        <div className="dropdown">
+                          <button
+                            type="button"
+                            className="btn btn-outline-primary dropdown-toggle"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                          >
+                            <i className="fas fa-filter me-2"></i>
+                            {filterType === 'all' ? 'All Tables' : 'By Section'}
+                          </button>
+                          <ul className="dropdown-menu dropdown-menu-end">
+                            <li>
+                              <a href="javascript:void(0);"
+                                className="dropdown-item d-flex align-items-center"
+                                onClick={() => setFilterType('all')}>
+                                All Tables
+                              </a>
+                            </li>
+                            <li>
+                              <a href="javascript:void(0);"
+                                className="dropdown-item d-flex align-items-center"
+                                onClick={() => setFilterType('section')}>
+                                By Section
+                              </a>
+                            </li>
+                          </ul>
+                        </div>
+
                         {filterType === 'section' && (
                           <Form.Select
                             value={selectedSection}
@@ -168,13 +196,16 @@ const TableReports = () => {
                             ))}
                           </Form.Select>
                         )}
-                        <Button
-                          variant="outline-primary"
+
+                        <button
+                          type="button"
+                          className={`btn btn-icon p-0 ${loading ? 'disabled' : ''}`}
                           onClick={handleRetry}
                           disabled={loading}
+                          style={{ border: '1px solid var(--bs-primary)' }}
                         >
                           <i className={`fas fa-sync-alt ${loading ? 'fa-spin' : ''}`}></i>
-                        </Button>
+                        </button>
                       </div>
                     </CardHeader>
                   </Card>
@@ -225,46 +256,136 @@ const TableReports = () => {
                           </Spinner>
                         </div>
                       ) : (
-                        <Table responsive hover>
-                          <thead>
-                            <tr>
-                              <th>Table #</th>
-                              <th>Section</th>
-                              <th>Capacity</th>
-                              <th>Status</th>
-                              <th>Current Order</th>
-                              <th>Order Status</th>
-                              <th>Created On</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {tableData.map((table) => (
-                              <tr key={table.table_id}>
-                                <td>{table.table_number}</td>
-                                <td>{table.section_name}</td>
-                                <td>{table.capacity} persons</td>
-                                <td>{getTableStatusBadge(table)}</td>
-                                <td>
-                                  {table.current_order ? (
-                                    <span>Order #{table.current_order.order_number}</span>
-                                  ) : (
-                                    <span className="text-muted">No active order</span>
-                                  )}
-                                </td>
-                                <td>
-                                  {table.current_order ? (
-                                    getOrderStatusBadge(table.current_order.order_status)
-                                  ) : (
-                                    <span className="text-muted">-</span>
-                                  )}
-                                </td>
-                                <td>
-                                  {table.current_order?.created_on || '-'}
-                                </td>
+                        <div className="table-responsive">
+                          <Table className="table-hover">
+                            <thead>
+                              <tr>
+                                <th style={{ width: '5%' }}></th>
+                                <th style={{ width: '15%' }}>Table Details</th>
+                                <th style={{ width: '15%' }}>Section</th>
+                                <th style={{ width: '15%' }}>Status</th>
+                                <th style={{ width: '20%' }}>Current Order</th>
+                                <th style={{ width: '15%' }}>Order Status</th>
+                                <th style={{ width: '15%' }}>Created On</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </Table>
+                            </thead>
+                            <tbody>
+                              {tableData.map((table) => (
+                                <React.Fragment key={table.table_id}>
+                                  <tr 
+                                    className="cursor-pointer"
+                                    onClick={() => toggleRow(table.table_id)}
+                                    style={{ cursor: 'pointer' }}
+                                  >
+                                    <td>
+                                      <i className={`fas fa-chevron-${expandedRows[table.table_id] ? 'down' : 'right'} transition-all`}></i>
+                                    </td>
+                                    <td>
+                                      <div className="d-flex flex-column">
+                                        <span className="fw-semibold">Table #{table.table_number}</span>
+                                        <small className="text-muted">{table.capacity} persons</small>
+                                      </div>
+                                    </td>
+                                    <td>
+                                      <div className="d-flex flex-column">
+                                        <span>{table.section_name}</span>
+                                      </div>
+                                    </td>
+                                    <td>
+                                      {getTableStatusBadge(table)}
+                                    </td>
+                                    <td>
+                                      <div className="d-flex flex-column">
+                                        {table.current_order ? (
+                                          <span className="fw-semibold">Order #{table.current_order.order_number}</span>
+                                        ) : (
+                                          <span className="text-muted">No active order</span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td>
+                                      {table.current_order ? (
+                                        getOrderStatusBadge(table.current_order.order_status)
+                                      ) : (
+                                        <span className="text-muted">-</span>
+                                      )}
+                                    </td>
+                                    <td>
+                                      {table.current_order?.created_on || '-'}
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td colSpan="7" className="p-0">
+                                      <div 
+                                        className={`collapse ${expandedRows[table.table_id] ? 'show' : ''}`}
+                                        style={{
+                                          transition: 'all 0.3s ease-in-out',
+                                          maxHeight: expandedRows[table.table_id] ? '500px' : '0',
+                                          overflow: 'hidden'
+                                        }}
+                                      >
+                                        <div className="p-3 bg-light">
+                                          <div className="row">
+                                            <div className="col-md-6">
+                                              <h6 className="mb-3">Table Information</h6>
+                                              <div className="card">
+                                                <div className="card-body">
+                                                  <div className="d-flex justify-content-between mb-2">
+                                                    <span>Table Number:</span>
+                                                    <span className="fw-semibold">#{table.table_number}</span>
+                                                  </div>
+                                                  <div className="d-flex justify-content-between mb-2">
+                                                    <span>Section:</span>
+                                                    <span className="fw-semibold">{table.section_name}</span>
+                                                  </div>
+                                                  <div className="d-flex justify-content-between mb-2">
+                                                    <span>Capacity:</span>
+                                                    <span className="fw-semibold">{table.capacity} persons</span>
+                                                  </div>
+                                                  <div className="d-flex justify-content-between mb-2">
+                                                    <span>Status:</span>
+                                                    <span>{getTableStatusBadge(table)}</span>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <div className="col-md-6">
+                                              <h6 className="mb-3">Current Order Details</h6>
+                                              <div className="card">
+                                                <div className="card-body">
+                                                  {table.current_order ? (
+                                                    <>
+                                                      <div className="d-flex justify-content-between mb-2">
+                                                        <span>Order Number:</span>
+                                                        <span className="fw-semibold">#{table.current_order.order_number}</span>
+                                                      </div>
+                                                      <div className="d-flex justify-content-between mb-2">
+                                                        <span>Status:</span>
+                                                        <span>{getOrderStatusBadge(table.current_order.order_status)}</span>
+                                                      </div>
+                                                      <div className="d-flex justify-content-between mb-2">
+                                                        <span>Created On:</span>
+                                                        <span>{table.current_order.created_on}</span>
+                                                      </div>
+                                                    </>
+                                                  ) : (
+                                                    <div className="text-center text-muted">
+                                                      No active order
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                </React.Fragment>
+                              ))}
+                            </tbody>
+                          </Table>
+                        </div>
                       )}
                     </CardBody>
                   </Card>

@@ -12,11 +12,19 @@ function StaffReports() {
   const [staffData, setStaffData] = useState(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [filterType, setFilterType] = useState('all');
+  const [expandedRows, setExpandedRows] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchStaffReport();
   }, [filterType]);
+
+  const toggleRow = (staffId) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [staffId]: !prev[staffId]
+    }));
+  };
 
   const fetchStaffReport = async () => {
     try {
@@ -148,32 +156,19 @@ function StaffReports() {
                                 </div>
                               </div>
                             </div>
-                          </div>
-
-                          <div className="row mb-4">
-                            <div className="col-md-6">
+                            <div className="col-md-9">
                               <div className="card">
-                                <div className="card-header">
-                                  <h5 className="card-title mb-0">Role Breakdown</h5>
-                                </div>
                                 <div className="card-body">
-                                  <div className="table-responsive">
-                                    <table className="table table-bordered">
-                                      <thead>
-                                        <tr>
-                                          <th>Role</th>
-                                          <th>Count</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {Object.entries(staffData.staff_report.role_breakdown).map(([role, count]) => (
-                                          <tr key={role}>
-                                            <td className="text-capitalize">{role}</td>
-                                            <td>{count}</td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
+                                  <h6 className="card-title mb-3">Role Breakdown</h6>
+                                  <div className="row">
+                                    {Object.entries(staffData.staff_report.role_breakdown).map(([role, count]) => (
+                                      <div key={role} className="col-md-4 mb-2">
+                                        <div className="d-flex justify-content-between align-items-center">
+                                          <span className="text-capitalize">{role}</span>
+                                          <span className="badge bg-label-primary">{count}</span>
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
                                 </div>
                               </div>
@@ -187,37 +182,121 @@ function StaffReports() {
                               </div>
                               <div className="card-body">
                                 <div className="table-responsive">
-                                  <table className="table table-bordered">
+                                  <table className="table table-hover">
                                     <thead>
                                       <tr>
-                                        <th>Name</th>
-                                        <th>Role</th>
-                                        <th>Contact</th>
-                                        <th>Address</th>
-                                        <th>Status</th>
-                                        <th>Dates</th>
+                                        <th style={{ width: '5%' }}></th>
+                                        <th style={{ width: '20%' }}>Name</th>
+                                        <th style={{ width: '15%' }}>Role</th>
+                                        <th style={{ width: '20%' }}>Contact</th>
+                                        <th style={{ width: '15%' }}>Status</th>
+                                        <th style={{ width: '25%' }}>Dates</th>
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {staffData.operational_staff.map((staff) => (
-                                        <tr key={staff.staff_id}>
-                                          <td>{staff.name}</td>
-                                          <td className="text-capitalize">{staff.role}</td>
-                                          <td>
-                                            <div>Mobile: {staff.mobile}</div>
-                                            {staff.email && <div>Email: {staff.email}</div>}
-                                          </td>
-                                          <td>{staff.address}</td>
-                                          <td>
-                                            <span className={`badge bg-${staff.is_active ? 'success' : 'danger'}`}>
-                                              {staff.is_active ? 'Active' : 'Inactive'}
-                                            </span>
-                                          </td>
-                                          <td>
-                                            <div>Created: {staff.created_on}</div>
-                                            {staff.last_login && <div>Last Login: {staff.last_login}</div>}
-                                          </td>
-                                        </tr>
+                                        <React.Fragment key={staff.staff_id}>
+                                          <tr 
+                                            className="cursor-pointer"
+                                            onClick={() => toggleRow(staff.staff_id)}
+                                            style={{ cursor: 'pointer' }}
+                                          >
+                                            <td>
+                                              <i className={`fas fa-chevron-${expandedRows[staff.staff_id] ? 'down' : 'right'} transition-all`}></i>
+                                            </td>
+                                            <td>
+                                              <div className="d-flex flex-column">
+                                                <span className="fw-semibold">{staff.name}</span>
+                                                <small className="text-muted">ID: {staff.staff_id}</small>
+                                              </div>
+                                            </td>
+                                            <td>
+                                              <span className="badge bg-label-primary text-capitalize">{staff.role}</span>
+                                            </td>
+                                            <td>
+                                              <div className="d-flex flex-column">
+                                                <span>{staff.mobile}</span>
+                                                {staff.email && <small className="text-muted">{staff.email}</small>}
+                                              </div>
+                                            </td>
+                                            <td>
+                                              <span className={`badge bg-${staff.is_active ? 'success' : 'danger'}`}>
+                                                {staff.is_active ? 'Active' : 'Inactive'}
+                                              </span>
+                                            </td>
+                                            <td>
+                                              <div className="d-flex flex-column">
+                                                <small>Created: {staff.created_on}</small>
+                                                {staff.last_login && <small>Last Login: {staff.last_login}</small>}
+                                              </div>
+                                            </td>
+                                          </tr>
+                                          <tr>
+                                            <td colSpan="6" className="p-0">
+                                              <div 
+                                                className={`collapse ${expandedRows[staff.staff_id] ? 'show' : ''}`}
+                                                style={{
+                                                  transition: 'all 0.3s ease-in-out',
+                                                  maxHeight: expandedRows[staff.staff_id] ? '500px' : '0',
+                                                  overflow: 'hidden'
+                                                }}
+                                              >
+                                                <div className="p-3 bg-light">
+                                                  <div className="row">
+                                                    <div className="col-md-6">
+                                                      <h6 className="mb-3">Staff Information</h6>
+                                                      <div className="card">
+                                                        <div className="card-body">
+                                                          <div className="d-flex justify-content-between mb-2">
+                                                            <span>Address:</span>
+                                                            <span className="fw-semibold">{staff.address}</span>
+                                                          </div>
+                                                          <div className="d-flex justify-content-between mb-2">
+                                                            <span>Role:</span>
+                                                            <span className="fw-semibold text-capitalize">{staff.role}</span>
+                                                          </div>
+                                                          <div className="d-flex justify-content-between mb-2">
+                                                            <span>Status:</span>
+                                                            <span className={`badge bg-${staff.is_active ? 'success' : 'danger'}`}>
+                                                              {staff.is_active ? 'Active' : 'Inactive'}
+                                                            </span>
+                                                          </div>
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                    <div className="col-md-6">
+                                                      <h6 className="mb-3">Contact Details</h6>
+                                                      <div className="card">
+                                                        <div className="card-body">
+                                                          <div className="d-flex justify-content-between mb-2">
+                                                            <span>Mobile:</span>
+                                                            <span>{staff.mobile}</span>
+                                                          </div>
+                                                          {staff.email && (
+                                                            <div className="d-flex justify-content-between mb-2">
+                                                              <span>Email:</span>
+                                                              <span>{staff.email}</span>
+                                                            </div>
+                                                          )}
+                                                          <div className="d-flex justify-content-between mb-2">
+                                                            <span>Created On:</span>
+                                                            <span>{staff.created_on}</span>
+                                                          </div>
+                                                          {staff.last_login && (
+                                                            <div className="d-flex justify-content-between mb-2">
+                                                              <span>Last Login:</span>
+                                                              <span>{staff.last_login}</span>
+                                                            </div>
+                                                          )}
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        </React.Fragment>
                                       ))}
                                     </tbody>
                                   </table>
@@ -233,33 +312,117 @@ function StaffReports() {
                               </div>
                               <div className="card-body">
                                 <div className="table-responsive">
-                                  <table className="table table-bordered">
+                                  <table className="table table-hover">
                                     <thead>
                                       <tr>
-                                        <th>Name</th>
-                                        <th>Role</th>
-                                        <th>Contact</th>
-                                        <th>Address</th>
-                                        <th>Additional Info</th>
-                                        <th>Created On</th>
+                                        <th style={{ width: '5%' }}></th>
+                                        <th style={{ width: '20%' }}>Name</th>
+                                        <th style={{ width: '15%' }}>Role</th>
+                                        <th style={{ width: '20%' }}>Contact</th>
+                                        <th style={{ width: '20%' }}>Additional Info</th>
+                                        <th style={{ width: '20%' }}>Created On</th>
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {staffData.non_operational_staff.map((staff) => (
-                                        <tr key={staff.staff_id}>
-                                          <td>{staff.name}</td>
-                                          <td className="text-capitalize">{staff.role}</td>
-                                          <td>
-                                            <div>Mobile: {staff.mobile}</div>
-                                            {staff.email && <div>Email: {staff.email}</div>}
-                                          </td>
-                                          <td>{staff.address}</td>
-                                          <td>
-                                            {staff.aadhar_number && <div>Aadhar: {staff.aadhar_number}</div>}
-                                            {staff.dob && <div>DOB: {staff.dob}</div>}
-                                          </td>
-                                          <td>{staff.created_on}</td>
-                                        </tr>
+                                        <React.Fragment key={staff.staff_id}>
+                                          <tr 
+                                            className="cursor-pointer"
+                                            onClick={() => toggleRow(staff.staff_id)}
+                                            style={{ cursor: 'pointer' }}
+                                          >
+                                            <td>
+                                              <i className={`fas fa-chevron-${expandedRows[staff.staff_id] ? 'down' : 'right'} transition-all`}></i>
+                                            </td>
+                                            <td>
+                                              <div className="d-flex flex-column">
+                                                <span className="fw-semibold">{staff.name}</span>
+                                                <small className="text-muted">ID: {staff.staff_id}</small>
+                                              </div>
+                                            </td>
+                                            <td>
+                                              <span className="badge bg-label-primary text-capitalize">{staff.role}</span>
+                                            </td>
+                                            <td>
+                                              <div className="d-flex flex-column">
+                                                <span>{staff.mobile}</span>
+                                                {staff.email && <small className="text-muted">{staff.email}</small>}
+                                              </div>
+                                            </td>
+                                            <td>
+                                              <div className="d-flex flex-column">
+                                                {staff.aadhar_number && <small>Aadhar: {staff.aadhar_number}</small>}
+                                                {staff.dob && <small>DOB: {staff.dob}</small>}
+                                              </div>
+                                            </td>
+                                            <td>{staff.created_on}</td>
+                                          </tr>
+                                          <tr>
+                                            <td colSpan="6" className="p-0">
+                                              <div 
+                                                className={`collapse ${expandedRows[staff.staff_id] ? 'show' : ''}`}
+                                                style={{
+                                                  transition: 'all 0.3s ease-in-out',
+                                                  maxHeight: expandedRows[staff.staff_id] ? '500px' : '0',
+                                                  overflow: 'hidden'
+                                                }}
+                                              >
+                                                <div className="p-3 bg-light">
+                                                  <div className="row">
+                                                    <div className="col-md-6">
+                                                      <h6 className="mb-3">Staff Information</h6>
+                                                      <div className="card">
+                                                        <div className="card-body">
+                                                          <div className="d-flex justify-content-between mb-2">
+                                                            <span>Address:</span>
+                                                            <span className="fw-semibold">{staff.address}</span>
+                                                          </div>
+                                                          <div className="d-flex justify-content-between mb-2">
+                                                            <span>Role:</span>
+                                                            <span className="fw-semibold text-capitalize">{staff.role}</span>
+                                                          </div>
+                                                          {staff.aadhar_number && (
+                                                            <div className="d-flex justify-content-between mb-2">
+                                                              <span>Aadhar Number:</span>
+                                                              <span>{staff.aadhar_number}</span>
+                                                            </div>
+                                                          )}
+                                                          {staff.dob && (
+                                                            <div className="d-flex justify-content-between mb-2">
+                                                              <span>Date of Birth:</span>
+                                                              <span>{staff.dob}</span>
+                                                            </div>
+                                                          )}
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                    <div className="col-md-6">
+                                                      <h6 className="mb-3">Contact Details</h6>
+                                                      <div className="card">
+                                                        <div className="card-body">
+                                                          <div className="d-flex justify-content-between mb-2">
+                                                            <span>Mobile:</span>
+                                                            <span>{staff.mobile}</span>
+                                                          </div>
+                                                          {staff.email && (
+                                                            <div className="d-flex justify-content-between mb-2">
+                                                              <span>Email:</span>
+                                                              <span>{staff.email}</span>
+                                                            </div>
+                                                          )}
+                                                          <div className="d-flex justify-content-between mb-2">
+                                                            <span>Created On:</span>
+                                                            <span>{staff.created_on}</span>
+                                                          </div>
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        </React.Fragment>
                                       ))}
                                     </tbody>
                                   </table>
