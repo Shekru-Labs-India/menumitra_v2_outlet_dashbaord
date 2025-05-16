@@ -161,7 +161,13 @@ const OrderAnalytics = ({ handleApiError }) => {
       // Process response
       if (response.data?.detail) {
         const data = response.data.detail;
-        processChartData(data);
+        // Update analytics data from response
+        setAnalyticsData({
+          avg_first_order_time: data.first_order_time || '0 mins',
+          avg_last_order_time: data.last_order_time || '0 mins',
+          avg_order_time: data.average_order_time || '0 mins',
+          avg_cooking_time: data.average_cooking_time || '0 mins'
+        });
       } else {
         console.error('Invalid response format');
         setError('Invalid response format received');

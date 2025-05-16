@@ -194,13 +194,13 @@ function CouponReports() {
                                       <tbody>
                                         <tr>
                                           <td>Amount Based</td>
-                                          <td>{couponData.coupon_report.coupon_type_breakdown.amount.count}</td>
-                                          <td>₹{couponData.coupon_report.coupon_type_breakdown.amount.total_discount.toFixed(2)}</td>
+                                          <td>{couponData.coupon_report.coupon_type_breakdown.amount?.count || 0}</td>
+                                          <td>₹{(couponData.coupon_report.coupon_type_breakdown.amount?.total_discount || 0).toFixed(2)}</td>
                                         </tr>
                                         <tr>
                                           <td>Percentage Based</td>
-                                          <td>{couponData.coupon_report.coupon_type_breakdown.percent.count}</td>
-                                          <td>₹{couponData.coupon_report.coupon_type_breakdown.percent.total_discount.toFixed(2)}</td>
+                                          <td>{couponData.coupon_report.coupon_type_breakdown.percent?.count || 0}</td>
+                                          <td>₹{(couponData.coupon_report.coupon_type_breakdown.percent?.total_discount || 0).toFixed(2)}</td>
                                         </tr>
                                       </tbody>
                                     </table>

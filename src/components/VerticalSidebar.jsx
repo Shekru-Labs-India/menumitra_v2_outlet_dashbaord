@@ -13,6 +13,7 @@ function VerticalSidebar() {
   const [isSmallScreen, setIsSmallScreen] = useState(false)
   const [showPinButton, setShowPinButton] = useState(false)
   const [isMobileExpanded, setIsMobileExpanded] = useState(false)
+  const [activeSubmenu, setActiveSubmenu] = useState(""); // Track active submenu
   const sidebarRef = useRef(null)
   const hoverTimerRef = useRef(null)
 
@@ -39,6 +40,15 @@ function VerticalSidebar() {
       clearTimeout(hoverTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    // Set active submenu based on current path
+    if (location.pathname.includes('/reports')) {
+      setActiveSubmenu("reports");
+    } else {
+      setActiveSubmenu("");
+    }
+  }, [location]);
 
   // Add useEffect to update class when isDocked changes
   useEffect(() => {
@@ -103,9 +113,13 @@ function VerticalSidebar() {
     }
   };
 
+  const toggleSubmenu = (submenu) => {
+    setActiveSubmenu(prevState => prevState === submenu ? "" : submenu);
+  };
+
   const isActive = (path) => {
-    return location.pathname === path
-  }
+    return location.pathname === path;
+  };
 
   const sidebarClasses = `
     layout-menu menu-vertical menu
@@ -137,7 +151,7 @@ function VerticalSidebar() {
             <div className="sidebar-pin-toggle">
               {isDocked ? (
                 <button className="btn" onClick={handleUnpinClick} title="Unpin">
-                  <i className="fas fa-thumbtack"></i>
+                  <i className="fas fa-thumbtack fa-rotate-90"></i>
                 </button>
               ) : showPinButton && (
                 <button className="btn" onClick={handlePinClick} title="Pin">
@@ -149,61 +163,69 @@ function VerticalSidebar() {
         </div>
 
         {/* Menu Items */}
-        <ul className="menu-inner">
+        <ul className="menu-inner py-1">
           <li className={`menu-item ${isActive('/dashboard') ? 'active' : ''}`}>
             <Link to="/dashboard" className="menu-link">
-              <i className="menu-icon fa-solid fa-house text-dark"></i>
-              <div className="d-block text-black overflow-hidden w-100">Home</div>
+              <i className="menu-icon fas fa-house"></i>
+              <div>Home</div>
             </Link>
           </li>
           
           {/* Reports Section */}
-          <li className="menu-item">
-            <div className="menu-link">
-              <i className="menu-icon fa-solid fa-chart-line text-dark"></i>
-              <div className="d-block text-black overflow-hidden w-100">Reports</div>
-            </div>
+          <li className={`menu-item ${activeSubmenu === "reports" ? 'open' : ''} ${location.pathname.includes('/reports') ? 'active' : ''}`}>
+            <a 
+              href="javascript:void(0);" 
+              className="menu-link menu-toggle"
+              onClick={(e) => {
+                e.preventDefault();
+                toggleSubmenu("reports");
+              }}
+            >
+              <i className="menu-icon fas fa-chart-line"></i>
+              <div>Reports</div>
+              <i className="menu-arrow fas fa-chevron-right"></i>
+            </a>
             <ul className="menu-sub">
               <li className={`menu-item ${isActive('/reports/menu') ? 'active' : ''}`}>
                 <Link to="/reports/menu" className="menu-link">
-                  <i className="menu-icon fa-solid fa-utensils text-dark"></i>
-                  <div className="d-block text-black overflow-hidden w-100">Menu Reports</div>
+                  <i className="menu-icon fas fa-utensils"></i>
+                  <div>Menu Reports</div>
                 </Link>
               </li>
               <li className={`menu-item ${isActive('/reports/orders') ? 'active' : ''}`}>
                 <Link to="/reports/orders" className="menu-link">
-                  <i className="menu-icon fa-solid fa-receipt text-dark"></i>
-                  <div className="d-block text-black overflow-hidden w-100">Order Reports</div>
+                  <i className="menu-icon fas fa-receipt"></i>
+                  <div>Order Reports</div>
                 </Link>
               </li>
               <li className={`menu-item ${isActive('/reports/tables') ? 'active' : ''}`}>
                 <Link to="/reports/tables" className="menu-link">
-                  <i className="menu-icon fa-solid fa-table text-dark"></i>
-                  <div className="d-block text-black overflow-hidden w-100">Table Reports</div>
+                  <i className="menu-icon fas fa-table"></i>
+                  <div>Table Reports</div>
                 </Link>
               </li>
               <li className={`menu-item ${isActive('/reports/coupons') ? 'active' : ''}`}>
                 <Link to="/reports/coupons" className="menu-link">
-                  <i className="menu-icon fa-solid fa-ticket text-dark"></i>
-                  <div className="d-block text-black overflow-hidden w-100">Coupon Reports</div>
+                  <i className="menu-icon fas fa-ticket"></i>
+                  <div>Coupon Reports</div>
                 </Link>
               </li>
               <li className={`menu-item ${isActive('/reports/inventory') ? 'active' : ''}`}>
                 <Link to="/reports/inventory" className="menu-link">
-                  <i className="menu-icon fa-solid fa-boxes text-dark"></i>
-                  <div className="d-block text-black overflow-hidden w-100">Inventory Reports</div>
+                  <i className="menu-icon fas fa-boxes-stacked"></i>
+                  <div>Inventory Reports</div>
                 </Link>
               </li>
               <li className={`menu-item ${isActive('/reports/staff') ? 'active' : ''}`}>
                 <Link to="/reports/staff" className="menu-link">
-                  <i className="menu-icon fa-solid fa-users text-dark"></i>
-                  <div className="d-block text-black overflow-hidden w-100">Staff Reports</div>
+                  <i className="menu-icon fas fa-users"></i>
+                  <div>Staff Reports</div>
                 </Link>
               </li>
               <li className={`menu-item ${isActive('/reports/customers') ? 'active' : ''}`}>
                 <Link to="/reports/customers" className="menu-link">
-                  <i className="menu-icon fa-solid fa-user-group text-dark"></i>
-                  <div className="d-block text-black overflow-hidden w-100">Customer Reports</div>
+                  <i className="menu-icon fas fa-user-group"></i>
+                  <div>Customer Reports</div>
                 </Link>
               </li>
             </ul>

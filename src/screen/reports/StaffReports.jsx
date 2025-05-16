@@ -207,7 +207,7 @@ function StaffReports() {
                                             <td>
                                               <div className="d-flex flex-column">
                                                 <span className="fw-semibold">{staff.name}</span>
-                                                <small className="text-muted">ID: {staff.staff_id}</small>
+                                               
                                               </div>
                                             </td>
                                             <td>
@@ -337,7 +337,7 @@ function StaffReports() {
                                             <td>
                                               <div className="d-flex flex-column">
                                                 <span className="fw-semibold">{staff.name}</span>
-                                                <small className="text-muted">ID: {staff.staff_id}</small>
+                                               
                                               </div>
                                             </td>
                                             <td>

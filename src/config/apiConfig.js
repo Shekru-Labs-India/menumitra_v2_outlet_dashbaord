@@ -133,6 +133,7 @@ const API_PATHS = {
   updateProfileDetail: `${COMMON_PREFIX}/update_profile`,
   activitiesLog: `${COMMON_PREFIX}/activities_log`,
   menuCategoryList: `${COMMON_PREFIX}/menu_category_list`,
+  sectionList: `${COMMON_PREFIX}/section_list`,
   
   // Statistics API endpoints
   outletStatistics: STATISTICS_PREFIX,

@@ -39,6 +39,9 @@ const MenuReports = () => {
 
   useEffect(() => {
     fetchCategories();
+  }, []);
+
+  useEffect(() => {
     fetchMenuReport();
   }, [filterType, selectedCategory, dateRange, startDate, endDate]);
 
@@ -55,6 +58,12 @@ const MenuReports = () => {
         cat => cat.menu_cat_id && cat.is_active
       );
       setCategories(validCategories);
+      
+      // If we have categories and filter type is category but no category selected,
+      // automatically select the first category
+      if (validCategories.length > 0 && filterType === 'category' && !selectedCategory) {
+        setSelectedCategory(validCategories[0].menu_cat_id.toString());
+      }
     } catch (err) {
       console.error('Error fetching categories:', err);
       setError('Failed to fetch categories');
@@ -72,6 +81,22 @@ const MenuReports = () => {
 
   const fetchMenuReport = async () => {
     try {
+      // If filter type is category but no category is selected, don't fetch
+      if (filterType === 'category' && !selectedCategory) {
+        // If we have categories, select the first one
+        if (categories.length > 0) {
+          setSelectedCategory(categories[0].menu_cat_id.toString());
+          return; // Return early, we'll fetch when selectedCategory changes
+        } else if (!loadingCategories) {
+          // If no categories available and not currently loading, switch to 'all' filter
+          setFilterType('all');
+          return; // Return early, we'll fetch when filterType changes
+        } else {
+          // If still loading categories, don't fetch yet
+          return;
+        }
+      }
+      
       setLoading(true);
       setError(null);
       setPermissionDenied(false);
@@ -82,7 +107,7 @@ const MenuReports = () => {
         user_id: localStorage.getItem('user_id')
       };
 
-      if (filterType === 'category' && selectedCategory) {
+      if (filterType === 'category') {
         params.category_id = selectedCategory;
       }
 
@@ -109,9 +134,15 @@ const MenuReports = () => {
   };
 
   const handleFilterChange = (e) => {
-    setFilterType(e.target.value);
-    if (e.target.value === 'all') {
+    const newFilterType = e.target.value;
+    setFilterType(newFilterType);
+    if (newFilterType === 'all') {
       setSelectedCategory('');
+    } else if (newFilterType === 'category') {
+      // When switching to category filter, select first category if available
+      if (!selectedCategory && categories.length > 0) {
+        setSelectedCategory(categories[0].menu_cat_id.toString());
+      }
     }
   };
 
@@ -185,7 +216,7 @@ const MenuReports = () => {
                         style={{ width: '200px' }}
                       >
                         <option value="all">All Items</option>
-                        <option value="category">By Category</option>
+                        <option value="category" disabled={categories.length === 0}>By Category</option>
                       </Form.Select>
 
                       {filterType === 'category' && (
@@ -193,14 +224,21 @@ const MenuReports = () => {
                           value={selectedCategory}
                           onChange={handleCategoryChange}
                           style={{ width: '200px' }}
-                          disabled={loadingCategories}
+                          disabled={loadingCategories || categories.length === 0}
                         >
-                          <option value="">Select Category</option>
-                          {categories.map((category) => (
-                            <option key={category.menu_cat_id} value={category.menu_cat_id}>
-                              {category.category_name}
-                            </option>
-                          ))}
+                          {loadingCategories ? (
+                            <option>Loading categories...</option>
+                          ) : categories.length === 0 ? (
+                            <option>No categories available</option>
+                          ) : (
+                            <>
+                              {categories.map((category) => (
+                                <option key={category.menu_cat_id} value={category.menu_cat_id}>
+                                  {category.category_name}
+                                </option>
+                              ))}
+                            </>
+                          )}
                         </Form.Select>
                       )}
 
@@ -290,7 +328,7 @@ const MenuReports = () => {
                                   <td>
                                     <div className="d-flex flex-column">
                                       <span className="fw-semibold">{menu.menu_name}</span>
-                                      <small className="text-muted">ID: {menu.menu_id}</small>
+                                     
                                     </div>
                                   </td>
                                   <td>

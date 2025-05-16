@@ -10,6 +10,21 @@
   overflow-x: hidden;
   overflow-y: auto;
   z-index: 1090;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(115, 103, 240, 0.2) transparent;
+}
+
+.layout-menu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.layout-menu::-webkit-scrollbar-thumb {
+  background-color: rgba(115, 103, 240, 0.2);
+  border-radius: 4px;
+}
+
+.layout-menu::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* HOVER and PINNED states - expanded width */
@@ -131,13 +146,14 @@
   border: 1px solid #e9ecef;
   border-radius: 50%;
   background: white;
-  color: #666;
+  color: #6c757d;
   transition: all 0.2s ease;
 }
 
 .sidebar-pin-toggle .btn:hover {
   background: #f8f9fa;
-  color: #333;
+  color: #7367f0;
+  border-color: #7367f0;
 }
 
 /* Menu items container */
@@ -155,6 +171,7 @@
   white-space: nowrap;
   color: #333;
   font-weight: 600;
+  margin-left: 10px;
 }
 
 /* Hide text in STATIC state */
@@ -190,10 +207,11 @@
   width: calc(100% - 1rem);
   box-sizing: border-box;
   overflow: hidden;
-  color: #666;
+  color: #6c757d;
   text-decoration: none;
   transition: all 0.3s ease;
   border-radius: 6px;
+  position: relative;
 }
 
 .menu-icon {
@@ -202,11 +220,29 @@
   justify-content: center;
   width: 1.5rem;
   min-width: 1.5rem;
-  margin-right: 0.75rem;
+  margin-right: 2rem;
   flex-shrink: 0;
   transition: all 0.3s ease;
   font-size: 1.25rem;
-  color: #666;
+  color: #6c757d;
+}
+
+/* Add TF Icons specific styles */
+.tf-icons {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+/* Menu arrow for dropdown */
+.menu-arrow {
+  margin-left: auto;
+  font-size: 0.85rem;
+  transition: transform 0.3s ease;
+  color: #6c757d;
+}
+
+.menu-item.open > .menu-link .menu-arrow {
+  transform: rotate(90deg);
 }
 
 /* Submenu styles */
@@ -215,14 +251,22 @@
   padding: 0;
   margin: 0;
   display: none;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
 }
 
-.menu-item:hover .menu-sub {
+.menu-item.open > .menu-sub {
   display: block;
 }
 
-.layout-menu.docked .menu-sub,
-.layout-menu.hovered .menu-sub {
+/* Don't display submenu in collapsed state */
+.layout-menu:not(.docked):not(.hovered) .menu-sub {
+  display: none;
+}
+
+/* Only display submenu when parent is open in expanded state */
+.layout-menu.docked .menu-item.open > .menu-sub,
+.layout-menu.hovered .menu-item.open > .menu-sub {
   display: block;
 }
 
@@ -231,45 +275,62 @@
 }
 
 .menu-sub .menu-link {
-  padding-left: 3.5rem;
+  padding: 0.475rem 1rem 0.475rem 3.5rem;
 }
 
+/* Submenu icons styling */
 .menu-sub .menu-icon {
-  font-size: 1rem;
+  font-size: 0.95rem;
+  width: 1.25rem;
+  min-width: 1.25rem;
+  margin-right: 0.55rem !important;
+}
+
+/* Remove any pseudo elements in submenu items */
+.menu-sub .menu-link:before {
+  display: none;
 }
 
 /* Active menu item styles */
-.menu-item.active .menu-link {
-  color: white;
-  background: #7367f0;
-  box-shadow: 0 2px 6px 0 rgba(115, 103, 240, 0.48);
+.menu-item.active > .menu-link {
+  color: #7367f0;
+  background: rgba(115, 103, 240, 0.1);
+  font-weight: 500;
 }
 
-.menu-item.active .menu-icon {
-  color: white;
+.menu-item.active > .menu-link .menu-icon,
+.menu-item.active > .menu-link .menu-arrow {
+  color: #7367f0;
 }
 
-.menu-item.active .menu-link div {
-  color: white;
+.menu-sub .menu-item.active > .menu-link {
+  color: #7367f0;
+  background: rgba(115, 103, 240, 0.1);
 }
 
 /* Hover effect for menu items */
 .menu-link:hover {
   color: #7367f0;
-  background: #f8f8ff;
+  background: rgba(115, 103, 240, 0.08);
 }
 
-.menu-link:hover .menu-icon {
+.menu-link:hover .menu-icon,
+.menu-link:hover .menu-arrow {
   color: #7367f0;
 }
 
-.menu-item.active .menu-link:hover {
-  color: white;
-  background: #7367f0;
+/* Fix mobile submenu display */
+.layout-menu.mobile .menu-sub {
+  display: none;
 }
 
-.menu-item.active .menu-link:hover .menu-icon {
-  color: white;
+.layout-menu.mobile .menu-item.open > .menu-sub {
+  display: block;
+}
+
+/* Menu toggle style for parent items */
+.menu-toggle {
+  cursor: pointer;
 }
 
 /* Desktop overrides */
@@ -281,7 +342,8 @@
     width: 3.5rem;
   }
 
-  .layout-menu:not(.docked):not(.hovered) .menu-link div {
+  .layout-menu:not(.docked):not(.hovered) .menu-link div,
+  .layout-menu:not(.docked):not(.hovered) .menu-arrow {
     display: none !important;
   }
   
@@ -293,15 +355,11 @@
   .layout-menu.hovered .menu-link div {
     display: block !important;
   }
-}
 
-/* Mobile specific submenu styles */
-.layout-menu.mobile .menu-sub {
-  display: block;
-}
-
-.layout-menu.mobile .menu-sub .menu-link {
-  padding-left: 3.5rem;
+  .layout-menu.docked .menu-arrow,
+  .layout-menu.hovered .menu-arrow {
+    display: block !important;
+  }
 }
 
 /* Ensure text is properly displayed */
@@ -310,11 +368,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   color: inherit;
-}
-
-/* Active state text color */
-.menu-item.active .menu-link div {
-  color: white;
+  flex: 1;
+  padding-left: 0.5rem;
 }
 
 /* Brand section adjustments */
@@ -325,7 +380,8 @@
   align-items: center;
   justify-content: space-between;
   transition: all 0.3s ease;
-  /* border-bottom: 1px solid #e9ecef; */
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 0.5rem;
 }
 
 .layout-menu:not(.docked):not(.hovered) .sidebar-brand {
@@ -353,16 +409,11 @@
   justify-content: center;
 }
 
-/* Menu inner shadow */
-.menu-inner-shadow {
-  display: none;
-}
-
 /* App brand link styles */
 .sidebar-brand-link {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  text-decoration: none;
 }
 
 /* Adjust logo container in STATIC state */
@@ -391,4 +442,10 @@ html.layout-menu-expanded {
   opacity: 1 !important;
   width: auto !important;
   visibility: visible !important;
+}
+
+/* Menu spacing improvements */
+.menu-inner.py-1 {
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
 } 

@@ -228,7 +228,44 @@ const OrderType = ({ handleApiError }) => {
       if (response.data?.detail) {
         // Process the response data from the new format
         const data = response.data.detail;
-        setOrderTypes(data);
+        
+        // Check if the response is in object format with keys like 'dine-in', 'parcel', etc.
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+          // Convert the object format to our expected array format
+          const orderTypesArray = [];
+          
+          // Map known order types to their display properties
+          const orderTypeMap = {
+            'dine-in': { name: 'Dine In', icon: 'fas fa-utensils', color: 'primary' },
+            'parcel': { name: 'Parcel', icon: 'fas fa-box', color: 'success' },
+            'delivery': { name: 'Delivery', icon: 'fas fa-globe', color: 'warning' },
+            'counter': { name: 'Counter', icon: 'fas fa-cash-register', color: 'danger' },
+            'drive-through': { name: 'Drive Through', icon: 'fas fa-car', color: 'info' }
+          };
+          
+          // Convert each order type to our array format
+          Object.entries(data).forEach(([key, value]) => {
+            // Skip total_orders or any non-order type keys
+            if (key !== 'total_orders' && orderTypeMap[key]) {
+              orderTypesArray.push({
+                name: orderTypeMap[key].name,
+                icon: orderTypeMap[key].icon,
+                count: value,
+                trend: '0%', // We don't have trend data
+                trendUp: true,
+                color: orderTypeMap[key].color
+              });
+            }
+          });
+          
+          setOrderTypes(orderTypesArray);
+        } else if (Array.isArray(data)) {
+          // If it's already an array, use it directly
+          setOrderTypes(data);
+        } else {
+          console.error('Unexpected data format:', data);
+          setError('Unexpected data format received');
+        }
       } else {
         console.error('No data available in response');
         setError('No data available');
@@ -534,7 +571,7 @@ const OrderType = ({ handleApiError }) => {
                   </div>
                 ))
             : // Display actual order type data
-              orderTypes.map((order, index) => (
+              Array.isArray(orderTypes) && orderTypes.map((order, index) => (
                 <div key={index} className="col-md-4 col-sm-6">
                   <div
                     className={`card shadow-none bg-label-${order.color} h-100`}

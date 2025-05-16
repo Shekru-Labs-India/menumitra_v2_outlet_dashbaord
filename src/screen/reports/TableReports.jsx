@@ -29,7 +29,13 @@ const TableReports = () => {
   const [sections, setSections] = useState([]);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [expandedRows, setExpandedRows] = useState({});
+  const [loadingSections, setLoadingSections] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Fetch section list on initial load
+    fetchSectionList();
+  }, []);
 
   useEffect(() => {
     fetchTableReport();
@@ -42,8 +48,52 @@ const TableReports = () => {
     }));
   };
 
+  const fetchSectionList = async () => {
+    try {
+      setLoadingSections(true);
+      const response = await api.post(
+        API_PATHS.sectionList,
+        {
+          outlet_id: localStorage.getItem('outlet_id'),
+          user_id: localStorage.getItem('user_id')
+        }
+      );
+      
+      if (response.data && response.data.detail) {
+        // Transform data to match expected format
+        const sectionList = response.data.detail.map(section => ({
+          id: section.section_id,
+          name: section.section_name
+        }));
+        setSections(sectionList);
+        
+        // If we have sections and none selected, select the first one
+        if (sectionList.length > 0 && filterType === 'section' && !selectedSection) {
+          setSelectedSection(sectionList[0].id);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching section list:', err);
+    } finally {
+      setLoadingSections(false);
+    }
+  };
+
   const fetchTableReport = async () => {
     try {
+      // If filter type is section but no section is selected, don't fetch
+      if (filterType === 'section' && !selectedSection) {
+        // If we have sections, select the first one
+        if (sections.length > 0) {
+          setSelectedSection(sections[0].id);
+          return; // Return early, we'll fetch when selectedSection changes
+        } else {
+          // If no sections available, switch to 'all' filter
+          setFilterType('all');
+          return; // Return early, we'll fetch when filterType changes
+        }
+      }
+      
       setLoading(true);
       setError(null);
       setPermissionDenied(false);
@@ -62,12 +112,23 @@ const TableReports = () => {
       setTableData(response.data.detail.tables || []);
       setTableReport(response.data.detail.table_report || null);
 
-      // Extract unique sections from table data
-      const uniqueSections = [...new Set(response.data.detail.tables.map(table => ({
-        id: table.section_id,
-        name: table.section_name
-      })))];
-      setSections(uniqueSections);
+      // Extract unique sections from table data if we don't have them yet
+      if (sections.length === 0) {
+        const uniqueSections = [];
+        const sectionMap = new Map();
+        
+        response.data.detail.tables.forEach(table => {
+          if (!sectionMap.has(table.section_id)) {
+            sectionMap.set(table.section_id, true);
+            uniqueSections.push({
+              id: table.section_id,
+              name: table.section_name
+            });
+          }
+        });
+        
+        setSections(uniqueSections);
+      }
     } catch (err) {
       console.error('Error fetching table report:', err);
       
@@ -92,6 +153,9 @@ const TableReports = () => {
     setFilterType(e.target.value);
     if (e.target.value === 'all') {
       setSelectedSection('');
+    } else if (e.target.value === 'section' && !selectedSection && sections.length > 0) {
+      // If switching to section filter, select first section if available
+      setSelectedSection(sections[0].id);
     }
   };
 
@@ -175,7 +239,12 @@ const TableReports = () => {
                             <li>
                               <a href="javascript:void(0);"
                                 className="dropdown-item d-flex align-items-center"
-                                onClick={() => setFilterType('section')}>
+                                onClick={() => {
+                                  setFilterType('section');
+                                  if (!selectedSection && sections.length > 0) {
+                                    setSelectedSection(sections[0].id);
+                                  }
+                                }}>
                                 By Section
                               </a>
                             </li>
@@ -187,13 +256,22 @@ const TableReports = () => {
                             value={selectedSection}
                             onChange={handleSectionChange}
                             style={{ width: '200px' }}
+                            disabled={loadingSections || sections.length === 0}
                           >
-                            <option value="">Select Section</option>
-                            {sections.map((section) => (
-                              <option key={section.id} value={section.id}>
-                                {section.name}
-                              </option>
-                            ))}
+                            {loadingSections ? (
+                              <option>Loading sections...</option>
+                            ) : sections.length === 0 ? (
+                              <option>No sections available</option>
+                            ) : (
+                              <>
+                                <option value="">Select Section</option>
+                                {sections.map((section) => (
+                                  <option key={section.id} value={section.id}>
+                                    {section.name}
+                                  </option>
+                                ))}
+                              </>
+                            )}
                           </Form.Select>
                         )}
 
