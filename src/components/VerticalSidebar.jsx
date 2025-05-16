@@ -156,12 +156,58 @@ function VerticalSidebar() {
               <div className="d-block text-black overflow-hidden w-100">Home</div>
             </Link>
           </li>
-          {/* <li className="menu-item ">
-            <Link to="/compare-outlets" className="menu-link">
-              <i className="menu-icon fa-solid fa-code-compare text-dark"></i>
-              <div className="d-block text-truncate overflow-hidden w-100">Compare Outlets</div>
-            </Link>
-          </li> */}
+          
+          {/* Reports Section */}
+          <li className="menu-item">
+            <div className="menu-link">
+              <i className="menu-icon fa-solid fa-chart-line text-dark"></i>
+              <div className="d-block text-black overflow-hidden w-100">Reports</div>
+            </div>
+            <ul className="menu-sub">
+              <li className={`menu-item ${isActive('/reports/menu') ? 'active' : ''}`}>
+                <Link to="/reports/menu" className="menu-link">
+                  <i className="menu-icon fa-solid fa-utensils text-dark"></i>
+                  <div className="d-block text-black overflow-hidden w-100">Menu Reports</div>
+                </Link>
+              </li>
+              <li className={`menu-item ${isActive('/reports/orders') ? 'active' : ''}`}>
+                <Link to="/reports/orders" className="menu-link">
+                  <i className="menu-icon fa-solid fa-receipt text-dark"></i>
+                  <div className="d-block text-black overflow-hidden w-100">Order Reports</div>
+                </Link>
+              </li>
+              <li className={`menu-item ${isActive('/reports/tables') ? 'active' : ''}`}>
+                <Link to="/reports/tables" className="menu-link">
+                  <i className="menu-icon fa-solid fa-table text-dark"></i>
+                  <div className="d-block text-black overflow-hidden w-100">Table Reports</div>
+                </Link>
+              </li>
+              <li className={`menu-item ${isActive('/reports/coupons') ? 'active' : ''}`}>
+                <Link to="/reports/coupons" className="menu-link">
+                  <i className="menu-icon fa-solid fa-ticket text-dark"></i>
+                  <div className="d-block text-black overflow-hidden w-100">Coupon Reports</div>
+                </Link>
+              </li>
+              <li className={`menu-item ${isActive('/reports/inventory') ? 'active' : ''}`}>
+                <Link to="/reports/inventory" className="menu-link">
+                  <i className="menu-icon fa-solid fa-boxes text-dark"></i>
+                  <div className="d-block text-black overflow-hidden w-100">Inventory Reports</div>
+                </Link>
+              </li>
+              <li className={`menu-item ${isActive('/reports/staff') ? 'active' : ''}`}>
+                <Link to="/reports/staff" className="menu-link">
+                  <i className="menu-icon fa-solid fa-users text-dark"></i>
+                  <div className="d-block text-black overflow-hidden w-100">Staff Reports</div>
+                </Link>
+              </li>
+              <li className={`menu-item ${isActive('/reports/customers') ? 'active' : ''}`}>
+                <Link to="/reports/customers" className="menu-link">
+                  <i className="menu-icon fa-solid fa-user-group text-dark"></i>
+                  <div className="d-block text-black overflow-hidden w-100">Customer Reports</div>
+                </Link>
+              </li>
+            </ul>
+          </li>
         </ul>
 
       </aside>

@@ -38,6 +38,13 @@ api.interceptors.request.use(
     // Get the token from localStorage
     const token = localStorage.getItem('access_token');
     
+    console.log('Debug - API Request Interceptor:', {
+      url: config.url,
+      method: config.method,
+      hasToken: !!token,
+      headers: config.headers
+    });
+    
     // If token exists, add it to the headers
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -67,13 +74,28 @@ api.interceptors.request.use(
     
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error('Debug - API Request Interceptor Error:', error);
+    return Promise.reject(error);
+  }
 );
 
 // Add a response interceptor to handle common errors
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('Debug - API Response Interceptor:', {
+      url: response.config.url,
+      status: response.status
+    });
+    return response;
+  },
   (error) => {
+    console.error('Debug - API Response Interceptor Error:', {
+      url: error.config?.url,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+
     // Handle common error scenarios
     if (error.response) {
       const { status, data } = error.response;
@@ -123,6 +145,13 @@ const API_PATHS = {
   totalCollectionSource: `${STATISTICS_PREFIX}/total_collection_source`,
   revenueLoss: `${STATISTICS_PREFIX}/revenue_leakage`,
   paymentMethodCounts: `${STATISTICS_PREFIX}/payment_method_counts`,
+  menuReport: `${STATISTICS_PREFIX}/menu_report`,
+  orderReport: `${STATISTICS_PREFIX}/order_report`,
+  tableReport: `${STATISTICS_PREFIX}/table_report`,
+  couponReport: `${STATISTICS_PREFIX}/coupon_report`,
+  inventoryReport: `${STATISTICS_PREFIX}/inventory_report`,
+  staffReport: `${STATISTICS_PREFIX}/staff_report`,
+  customerReport: `${STATISTICS_PREFIX}/customer_report`,
 };
 
 /**

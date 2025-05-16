@@ -1,3 +1,4 @@
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
 import "./assets/css/demo.css";
@@ -10,6 +11,13 @@ import MyProfile from './screen/MyProfile'
 import CompareOutlets from './screen/CompareOutlets'
 import { ThemeProvider } from './components/ThemeContext'
 import { DashboardProvider } from './context/DashboardContext'
+import MenuReports from './screen/reports/MenuReports'
+import OrderReports from './screen/reports/OrderReports'
+import TableReports from './screen/reports/TableReports'
+import CouponReports from './screen/reports/CouponReports'
+import InventoryReports from './screen/reports/InventoryReports'
+import StaffReports from './screen/reports/StaffReports'
+import CustomerReports from './screen/reports/CustomerReports'
 
 import Header from './components/Header'
 import ProductAnalysis from './components/ProductAnalysis';
@@ -34,6 +42,13 @@ function App() {
                 <Route path="/profile" element={<MyProfile />} />
                 <Route path="/settings" element={<Settings />} /> 
                 <Route path="/compare-outlets" element={<CompareOutlets />} /> 
+                <Route path="/reports/menu" element={<MenuReports />} />
+                <Route path="/reports/orders" element={<OrderReports />} />
+                <Route path="/reports/tables" element={<TableReports />} />
+                <Route path="/reports/coupons" element={<CouponReports />} />
+                <Route path="/reports/inventory" element={<InventoryReports />} />
+                <Route path="/reports/staff" element={<StaffReports />} />
+                <Route path="/reports/customers" element={<CustomerReports />} />
                 
                 {/* Default redirect to login */}
                 <Route path="/" element={<Navigate to="/login" replace />} />

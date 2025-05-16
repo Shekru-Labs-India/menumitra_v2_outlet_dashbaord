@@ -176,7 +176,7 @@
   color: #333;
 }
 
-/* Menu item styles - Mobile First Approach */
+/* Menu item styles */
 .menu-item {
   position: relative;
   margin: 0.125rem 0.75rem;
@@ -209,7 +209,70 @@
   color: #666;
 }
 
-/* Desktop overrides - applied after mobile */
+/* Submenu styles */
+.menu-sub {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: none;
+}
+
+.menu-item:hover .menu-sub {
+  display: block;
+}
+
+.layout-menu.docked .menu-sub,
+.layout-menu.hovered .menu-sub {
+  display: block;
+}
+
+.menu-sub .menu-item {
+  margin: 0;
+}
+
+.menu-sub .menu-link {
+  padding-left: 3.5rem;
+}
+
+.menu-sub .menu-icon {
+  font-size: 1rem;
+}
+
+/* Active menu item styles */
+.menu-item.active .menu-link {
+  color: white;
+  background: #7367f0;
+  box-shadow: 0 2px 6px 0 rgba(115, 103, 240, 0.48);
+}
+
+.menu-item.active .menu-icon {
+  color: white;
+}
+
+.menu-item.active .menu-link div {
+  color: white;
+}
+
+/* Hover effect for menu items */
+.menu-link:hover {
+  color: #7367f0;
+  background: #f8f8ff;
+}
+
+.menu-link:hover .menu-icon {
+  color: #7367f0;
+}
+
+.menu-item.active .menu-link:hover {
+  color: white;
+  background: #7367f0;
+}
+
+.menu-item.active .menu-link:hover .menu-icon {
+  color: white;
+}
+
+/* Desktop overrides */
 @media (min-width: 992px) {
   .layout-menu:not(.docked):not(.hovered) .menu-link {
     justify-content: center;
@@ -232,23 +295,25 @@
   }
 }
 
-/* Remove the unnecessary classes */
-.mobile-visible {
-  /* Replaced with Bootstrap classes */
+/* Mobile specific submenu styles */
+.layout-menu.mobile .menu-sub {
+  display: block;
 }
 
-.layout-menu.mobile .mobile-visible {
-  /* Replaced with Bootstrap classes */
+.layout-menu.mobile .menu-sub .menu-link {
+  padding-left: 3.5rem;
 }
 
-/* Active menu item styles */
-.menu-item.active .menu-link {
-  color: white;
-  background: #7367f0;
-  box-shadow: 0 2px 6px 0 rgba(115, 103, 240, 0.48);
+/* Ensure text is properly displayed */
+.menu-link div {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: inherit;
 }
 
-.menu-item.active .menu-icon {
+/* Active state text color */
+.menu-item.active .menu-link div {
   color: white;
 }
 
@@ -291,21 +356,6 @@
 /* Menu inner shadow */
 .menu-inner-shadow {
   display: none;
-}
-
-/* Hover effect for menu items */
-.menu-link:hover {
-  color: #7367f0;
-  background: #f8f8ff;
-}
-
-.menu-link:hover .menu-icon {
-  color: #7367f0;
-}
-
-.menu-item.active .menu-link:hover {
-  color: white;
-  background: #7367f0;
 }
 
 /* App brand link styles */
