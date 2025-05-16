@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import axios from 'axios';
 import { api, API_PATHS } from '../config/apiConfig';
-import { apiEndpoint } from '../config/menuMitraConfig';
+import Chart from 'react-apexcharts';
+import { withErrorHandling } from './common';
+
 import 'remixicon/fonts/remixicon.css';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -46,7 +48,7 @@ const placeholderOrderTypes = [
   },
 ];
 
-const OrderType = () => {
+const OrderType = ({ handleApiError }) => {
   // Get data from context
   const { 
     orderTypeStatistics_from_context,
@@ -80,25 +82,6 @@ const OrderType = () => {
     }
     
     return headers;
-  };
-
-  // Function to handle API errors
-  const handleApiError = (error) => {
-    console.error('API Error:', error);
-    
-    if (error.response) {
-      // Handle specific error status codes
-      if (error.response.status === 401) {
-        console.error('Unauthorized access');
-        // You may want to redirect to login page here
-      }
-      
-      return error.response.data?.message || 'An error occurred. Please try again.';
-    } else if (error.request) {
-      return 'No response from server. Please check your internet connection.';
-    } else {
-      return 'Error setting up request. Please try again.';
-    }
   };
 
   // Use context data when component mounts
@@ -199,80 +182,65 @@ const OrderType = () => {
     }
   };
 
-  const fetchData = async (range = 'All Time', useAuth = true) => {
+  const fetchData = async (range) => {
     try {
       setLoading(true);
       setError('');
+      
       // Set user interaction flag to true
       setUserInteracted(true);
-
-      // Get user_id from localStorage
+      
+      // Get user and outlet ID from localStorage
       const userId = localStorage.getItem('user_id');
       const outletId = localStorage.getItem('outlet_id');
       
-      // Prepare date range if applicable
-      const dateRange = prepareRequestData(range);
+      if (!userId || !outletId) {
+        setError('User ID or outlet ID not found. Please check your login.');
+        setLoading(false);
+        return;
+      }
       
-      // Create API request payload
-      const apiRequestData = {
-        user_id: parseInt(userId),
-        outlet_id: parseInt(outletId),
-        ...dateRange
+      // Prepare request data
+      const requestData = {
+        user_id: Number(userId),
+        outlet_id: Number(outletId)
       };
       
-      console.log('Making API request with data:', apiRequestData);
-
-      // Make API request using the api instance
-      const response = await api.post(API_PATHS.orderTypeStats, apiRequestData);
-
+      // Add date range if not "All Time"
+      if (range === 'Custom Range' && startDate && endDate) {
+        requestData.start_date = formatDate(startDate);
+        requestData.end_date = formatDate(endDate);
+      } else if (range !== 'All Time') {
+        const dateRange = getDateRange(range);
+        if (dateRange) {
+          requestData.start_date = dateRange.start_date;
+          requestData.end_date = dateRange.end_date;
+        }
+      }
+      
+      console.log('Sending order type statistics request:', requestData);
+      
+      // Make API request using the API instance from apiConfig
+      const response = await api.post(API_PATHS.orderTypeStats, requestData);
+      
+      console.log('Order type statistics response:', response.data);
+      
       if (response.data?.detail) {
-        console.log('API Response:', response.data);
-        
+        // Process the response data from the new format
         const data = response.data.detail;
-        // Calculate total orders (may be provided directly in the response)
-        const totalOrders = data.total_orders || 
-                          (data["dine-in"] + data.parcel + data.delivery + data.counter + data["drive-through"]);
-        
-        // Map data to chart series format
-        setChartData([
-          {
-            name: "Dine-in",
-            value: data["dine-in"] || 0,
-            percentage: totalOrders > 0 ? Math.round((data["dine-in"] / totalOrders) * 100) : 0,
-          },
-          {
-            name: "Takeaway",
-            value: data.parcel || 0,
-            percentage: totalOrders > 0 ? Math.round((data.parcel / totalOrders) * 100) : 0,
-          },
-          {
-            name: "Delivery",
-            value: data.delivery || 0,
-            percentage: totalOrders > 0 ? Math.round((data.delivery / totalOrders) * 100) : 0,
-          },
-          {
-            name: "Counter",
-            value: data.counter || 0,
-            percentage: totalOrders > 0 ? Math.round((data.counter / totalOrders) * 100) : 0,
-          },
-          {
-            name: "Drive-through",
-            value: data["drive-through"] || 0,
-            percentage: totalOrders > 0 ? Math.round((data["drive-through"] / totalOrders) * 100) : 0,
-          },
-        ]);
+        setOrderTypes(data);
       } else {
-        setError('Invalid response format');
-        setChartData([]);
+        console.error('No data available in response');
+        setError('No data available');
       }
     } catch (error) {
-      console.error('API Error:', error);
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.status === 401 ? 'Unauthorized access' :
-                          error.request ? 'No response from server' :
-                          'Failed to fetch data';
-      setError(errorMessage);
-      setChartData([]);
+      console.error('Failed to fetch order type statistics:', error);
+      
+      // Use the handleApiError function from the HOC
+      if (!handleApiError(error)) {
+        // If error was not handled by the HOC (not a 403), set local error state
+        setError('Failed to load order type statistics. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -602,4 +570,4 @@ const OrderType = () => {
   );
 };
 
-export default OrderType;
+export default withErrorHandling(OrderType);

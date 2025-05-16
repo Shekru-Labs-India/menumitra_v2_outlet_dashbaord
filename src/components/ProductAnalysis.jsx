@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import axios from "axios";
+import { api, API_PATHS } from "../config/apiConfig";
 // Import both GIFs - static and animated
 import aiAnimationGif from "../assets/img/gif/AI-animation-unscreen.gif";
 import aiAnimationStillFrame from "../assets/img/gif/AI-animation-unscreen-still-frame.gif";
 import { useDashboard } from "../context/DashboardContext"; // Import context
+import { withErrorHandling } from "./common";
 
-// API configuration
-const API_ENDPOINT = "https://men4u.xyz/";
-
-function TopSell() {
+function TopSell({ handleApiError }) {
   // Get data from context
   const { 
     salesPerformance_from_context,
@@ -123,18 +121,20 @@ function TopSell() {
     setUserInteracted(true);
     
     try {
-      // Get outlet ID from localStorage
+      // Get user and outlet ID from localStorage
+      const userId = localStorage.getItem('user_id');
       const outletId = localStorage.getItem('outlet_id');
-      if (!outletId) {
-        setError('No outlet ID found. Please log in again.');
+      
+      if (!userId || !outletId) {
+        setError('User ID or outlet ID not found. Please check your login.');
+        setLoading(false);
         return;
       }
       
-      // Prepare request data
+      // Prepare request data using new simplified format
       const requestData = { 
-        outlet_id: outletId,
-        device_token: localStorage.getItem('device_token') || '',
-        device_id: localStorage.getItem('device_id') || ''
+        user_id: Number(userId),
+        outlet_id: Number(outletId)
       };
       
       // Add date range if not "All Time" and if both dates are available for custom range
@@ -143,26 +143,18 @@ function TopSell() {
         Object.assign(requestData, dateParams);
       }
       
-      // Get authentication token
-      const accessToken = localStorage.getItem('access');
+      console.log('Sending sales performance request:', requestData);
       
-      // Make API request
-      const response = await axios.post(
-        `${API_ENDPOINT}outlet_statistics/sales_performance`, 
-        requestData, 
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': accessToken ? `Bearer ${accessToken}` : ''
-          }
-        }
-      );
+      // Make API request using the API instance from apiConfig
+      const response = await api.post(API_PATHS.salesPerformance, requestData);
+      
+      console.log('Sales performance response:', response.data);
       
       // Parse and store response data
       if (response.data) {
-        // Handle nested data structure
-        const responseData = response.data.data || response.data;
+        // Handle nested data structure - the detail field contains the data
+        const responseData = response.data.detail || response.data;
+        
         setSalesData({
           top_selling: responseData.top_selling || [],
           low_selling: responseData.low_selling || []
@@ -170,7 +162,12 @@ function TopSell() {
       }
     } catch (err) {
       console.error("Error fetching data:", err);
-      setError("Failed to load sales data. Please try again.");
+      
+      // Use the handleApiError function from the HOC
+      if (!handleApiError(err)) {
+        // If error was not handled by the HOC (not a 403), set local error state
+        setError("Failed to load sales data. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -451,4 +448,5 @@ function TopSell() {
   );
 }
 
-export default TopSell;
+// Export the component wrapped in the HOC
+export default withErrorHandling(TopSell);

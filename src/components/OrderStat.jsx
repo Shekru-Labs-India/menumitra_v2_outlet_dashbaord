@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { api, API_PATHS } from '../config/apiConfig';
-import { apiEndpoint } from '../config/menuMitraConfig';
+
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 // Import both GIFs - static and animated
 import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
 import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still-frame.gif';
 import { useDashboard } from '../context/DashboardContext'; // Import context
+import { withErrorHandling } from './common';
 
-const OrderStat = () => {
+const OrderStat = ({ handleApiError }) => {
     // Get data from context
     const { 
       orderStatistics_from_context,
@@ -48,25 +49,6 @@ const OrderStat = () => {
         }
         
         return headers;
-    };
-
-    // Function to handle API errors
-    const handleApiError = (error) => {
-        console.error('API Error:', error);
-        
-        if (error.response) {
-            // Handle specific error status codes
-            if (error.response.status === 401) {
-                console.error('Unauthorized access');
-                // You may want to redirect to login page here
-            }
-            
-            return error.response.data?.message || 'An error occurred. Please try again.';
-        } else if (error.request) {
-            return 'No response from server. Please check your internet connection.';
-        } else {
-            return 'Error setting up request. Please try again.';
-        }
     };
 
     // Use context data when component mounts
@@ -191,7 +173,12 @@ const OrderStat = () => {
             }
         } catch (error) {
             console.error('Failed to fetch order statistics:', error);
-            setError('Failed to fetch order statistics');
+            
+            // Use the handleApiError function from the HOC
+            if (!handleApiError(error)) {
+                // If error was not handled by the HOC (not a 403), set local error state
+                setError('Failed to fetch order statistics');
+            }
         } finally {
             setLoading(false);
         }
@@ -457,4 +444,4 @@ const OrderStat = () => {
     );
 }
 
-export default OrderStat;
+export default withErrorHandling(OrderStat);

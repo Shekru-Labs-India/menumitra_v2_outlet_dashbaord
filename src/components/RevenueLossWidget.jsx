@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import axios from 'axios';
+import { api, API_PATHS } from '../config/apiConfig';
 // Import both GIFs - static and animated
 import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
 import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still-frame.gif';
+import { withErrorHandling } from './common';
 
-const RevenueLossWidget = () => {
+const RevenueLossWidget = ({ handleApiError }) => {
   const [dateRange, setDateRange] = useState('Yesterday');
   const [loading, setLoading] = useState(false);
   const [startDate, setStartDate] = useState(null);
@@ -53,11 +54,19 @@ const fetchData = async (range) => {
     try {
         setLoading(true);
         
-        // Prepare request data
+        const userId = localStorage.getItem('user_id');
+        const outletId = localStorage.getItem('outlet_id');
+        
+        if (!userId || !outletId) {
+            console.error('User ID or outlet ID not found');
+            setLoading(false);
+            return;
+        }
+        
+        // Prepare request data using new simplified format
         const requestData = {
-            outlet_id: localStorage.getItem('outlet_id'),
-            device_token: localStorage.getItem('device_token') || '',
-            device_id: localStorage.getItem('device_id') || ''
+            user_id: Number(userId),
+            outlet_id: Number(outletId)
         };
 
         // Add date range if not "All Time"
@@ -72,37 +81,36 @@ const fetchData = async (range) => {
             }
         }
 
-        // Get authentication token
-        const accessToken = localStorage.getItem('access');
+        console.log('Sending revenue leakage request:', requestData);
         
-        // Make API request
-        const response = await axios.post(
-            'https://men4u.xyz/outlet_statistics/revenue_leakage',
-            requestData,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'Authorization': accessToken ? `Bearer ${accessToken}` : ''
-                }
-            }
-        );
+        // Make API request using the API instance from apiConfig
+        const response = await api.post(API_PATHS.revenueLoss, requestData);
+        
+        console.log('Revenue leakage response:', response.data);
 
-        if (response.data?.data) {
-            // Process the response data
-            const data = response.data.data;
+        if (response.data?.detail) {
+            // Process the response data from the new format
+            const data = response.data.detail;
             // Update your metrics state here based on the response
-            // For example:
-            // setMetrics([
-            //     { title: 'Bills Modified', value: data.bills_modified || '0', subtitle: 'Bills Modified' },
-            //     { title: 'Bills Re-Printed', value: data.bills_reprinted || '0', subtitle: 'Bills Re-Printed' },
-            //     // ... other metrics
-            // ]);
+            setMetrics([
+                { title: 'Bills Modified', value: data.bills_modified || '0', subtitle: 'Bills Modified' },
+                { title: 'Bills Re-Printed', value: data.bills_reprinted || '0', subtitle: 'Bills Re-Printed' },
+                { title: 'Waived Off', value: `₹${data.waived_off || '0'}`, subtitle: 'Waived Off' },
+                { title: 'KOTs Cancelled', value: data.kots_cancelled || '0', subtitle: 'KOTs Cancelled' },
+                { title: 'Modified KOTs', value: data.modified_kots || '0', subtitle: 'Modified KOTs' },
+                { title: 'Not Used In Bills', value: data.not_used_in_bills || '0', subtitle: 'Not Used In Bills' }
+            ]);
         } else {
             console.error('No data available in response');
         }
     } catch (error) {
         console.error('Failed to fetch revenue leakage data:', error);
+        
+        // Use the handleApiError function from the HOC
+        if (!handleApiError(error)) {
+            // If error was not handled by the HOC (not a 403), handle it here
+            // For now, just log it, but you could set a local error state if needed
+        }
     } finally {
         setLoading(false);
     }
@@ -157,14 +165,14 @@ const handleCustomDateSelect = () => {
     }
 };
 
-  const metrics = [
-    { title: 'Bills Modified', value: '12', subtitle: 'Bills Modified' },
-    { title: 'Bills Re-Printed', value: '23', subtitle: 'Bills Re-Printed' },
-    { title: 'Waived Off', value: '₹16', subtitle: 'Waived Off' },
-    { title: 'KOTs Cancelled', value: '6', subtitle: 'KOTs Cancelled' },
-    { title: 'Modified KOTs', value: '33', subtitle: 'Modified KOTs' },
-    { title: 'Not Used In Bills', value: '23', subtitle: 'Not Used In Bills' }
-  ];
+  const [metrics, setMetrics] = useState([
+    { title: 'Bills Modified', value: '0', subtitle: 'Bills Modified' },
+    { title: 'Bills Re-Printed', value: '0', subtitle: 'Bills Re-Printed' },
+    { title: 'Waived Off', value: '₹0', subtitle: 'Waived Off' },
+    { title: 'KOTs Cancelled', value: '0', subtitle: 'KOTs Cancelled' },
+    { title: 'Modified KOTs', value: '0', subtitle: 'Modified KOTs' },
+    { title: 'Not Used In Bills', value: '0', subtitle: 'Not Used In Bills' }
+  ]);
 
   return (
     <div className="card">
@@ -320,4 +328,5 @@ const handleCustomDateSelect = () => {
   );
 };
 
-export default RevenueLossWidget; 
+// Export the component wrapped in the HOC
+export default withErrorHandling(RevenueLossWidget); 

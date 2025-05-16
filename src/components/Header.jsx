@@ -4,7 +4,6 @@ import 'animate.css'
 import { ToastContainer, toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import { useDashboard } from '../context/DashboardContext'
-import { apiEndpoint } from '../config/menuMitraConfig'
 import { api, API_PATHS } from '../config/apiConfig'
 
 function Header() {
@@ -74,17 +73,15 @@ function Header() {
       
       const userId = localStorage.getItem('user_id');
       const accessToken = localStorage.getItem('access_token');
-      const storedOutletId = localStorage.getItem('outlet_id');
       
       if (!userId || !accessToken) {
         setError('Authentication failed. Please login again.');
         return;
       }
 
+      // Use the simplified payload format as provided
       const response = await api.post(`${API_PATHS.common}/get_outlet_list`, {
-        owner_id: parseInt(userId),
-        device_token: localStorage.getItem('device_token') || '',
-        device_id: localStorage.getItem('device_id') || ''
+        owner_id: parseInt(userId)
       });
 
       if (response.status !== 200) {
@@ -98,8 +95,9 @@ function Header() {
 
       const data = response.data;
       
-      if (data.st === 1) {
-        const transformedOutlets = data.outlet_list.map(outlet => ({
+      // Check for success response based on the presence of outlets array
+      if (data.outlets && Array.isArray(data.outlets)) {
+        const transformedOutlets = data.outlets.map(outlet => ({
           name: outlet.name,
           location: outlet.address,
           status: outlet.is_open ? 'open' : 'closed',
@@ -110,6 +108,7 @@ function Header() {
         setOutlets(transformedOutlets);
         
         // If there's a stored outlet_id, update selected outlet data
+        const storedOutletId = localStorage.getItem('outlet_id');
         if (storedOutletId) {
           const matchingOutlet = transformedOutlets.find(o => o.outlet_id.toString() === storedOutletId);
           if (matchingOutlet) {
@@ -118,9 +117,19 @@ function Header() {
             setOutletId(matchingOutlet.outlet_id.toString());
             setSelectedOutletData(matchingOutlet);
           }
+        } else if (transformedOutlets.length > 0) {
+          // If no stored outlet_id but outlets exist, select the first one
+          const firstOutlet = transformedOutlets[0];
+          const truncatedName = truncateText(firstOutlet.name, 20);
+          setSelectedOutlet(truncatedName);
+          setOutletId(firstOutlet.outlet_id.toString());
+          setSelectedOutletData(firstOutlet);
+          
+          // Store this outlet_id for future use
+          localStorage.setItem('outlet_id', firstOutlet.outlet_id.toString());
         }
       } else {
-        setError(data.msg || 'Failed to fetch outlets');
+        setError(data.detail || 'Failed to fetch outlets');
       }
     } catch (err) {
       console.error('Error fetching outlets:', err);

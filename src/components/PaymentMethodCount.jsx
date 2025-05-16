@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react'
-import axios from 'axios'
-import { apiEndpoint } from '../config/menuMitraConfig'
+import { api, API_PATHS } from '../config/apiConfig';
+import { withErrorHandling } from './common';
 
-const PaymentMethodCount = () => {
+const PaymentMethodCount = ({ handleApiError }) => {
   const [paymentCounts, setPaymentCounts] = useState({
     cash: 0,
     upi: 0,
     card: 0,
-    complimentary: 0
+    complementary: 0
   });
   const [loading, setLoading] = useState(false);
   const [dateRange, setDateRange] = useState('Today');
@@ -16,11 +16,19 @@ const PaymentMethodCount = () => {
     try {
       setLoading(true);
       
-      // Prepare request data
+      const userId = localStorage.getItem('user_id');
+      const outletId = localStorage.getItem('outlet_id');
+      
+      if (!userId || !outletId) {
+          console.error('User ID or outlet ID not found');
+          setLoading(false);
+          return;
+      }
+      
+      // Prepare request data using new simplified format
       const requestData = {
-        outlet_id: localStorage.getItem('outlet_id'),
-        device_token: localStorage.getItem('device_token') || '',
-        device_id: localStorage.getItem('device_id') || ''
+          user_id: Number(userId),
+          outlet_id: Number(outletId)
       };
 
       // Add date range if not "All Time"
@@ -35,36 +43,33 @@ const PaymentMethodCount = () => {
         }
       }
 
-      // Get authentication token
-      const accessToken = localStorage.getItem('access');
+      console.log('Sending payment method counts request:', requestData);
       
-      // Make API request
-      const response = await axios.post(
-        'https://men4u.xyz/outlet_statistics/payment_method_counts',
-        requestData,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': accessToken ? `Bearer ${accessToken}` : ''
-          }
-        }
-      );
+      // Make API request using the API instance from apiConfig
+      const response = await api.post(API_PATHS.paymentMethodCounts, requestData);
+      
+      console.log('Payment method counts response:', response.data);
 
-      if (response.data?.data) {
-        // Process the response data
-        const data = response.data.data;
+      if (response.data?.detail) {
+        // Process the response data from the new format
+        const data = response.data.detail;
         setPaymentCounts({
           cash: data.cash || 0,
           upi: data.upi || 0,
           card: data.card || 0,
-          complimentary: data.complimentary || 0
+          complementary: data.complementary || 0
         });
       } else {
         console.error('No data available in response');
       }
     } catch (error) {
       console.error('Failed to fetch payment method counts:', error);
+      
+      // Use the handleApiError function from the HOC
+      if (!handleApiError(error)) {
+        // If error was not handled by the HOC (not a 403), handle it here
+        // For now, just log it, but you could set a local error state if needed
+      }
     } finally {
       setLoading(false);
     }
@@ -213,15 +218,15 @@ const PaymentMethodCount = () => {
           
           <div className="mb-3">
             <div className="d-flex justify-content-between align-items-center mb-1">
-              <span>Complimentary</span>
-              <span>{paymentCounts.complimentary}</span>
+              <span>Complementary</span>
+              <span>{paymentCounts.complementary}</span>
             </div>
             <div className="progress" style={{ height: '10px' }}>
               <div 
                 className="progress-bar bg-warning" 
                 role="progressbar" 
-                style={{ width: `${getPercentage(paymentCounts.complimentary)}%` }} 
-                aria-valuenow={paymentCounts.complimentary} 
+                style={{ width: `${getPercentage(paymentCounts.complementary)}%` }} 
+                aria-valuenow={paymentCounts.complementary} 
                 aria-valuemin="0" 
                 aria-valuemax={maxCount}
               ></div>
@@ -233,4 +238,4 @@ const PaymentMethodCount = () => {
   )
 }
 
-export default PaymentMethodCount
+export default withErrorHandling(PaymentMethodCount);

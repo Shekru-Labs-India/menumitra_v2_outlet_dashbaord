@@ -12,10 +12,11 @@ import FoodTypeGraph from "../components/FoodTypeGraph";
 import OrderType from "../components/OrderType";
 import OrderAnalytics from '../components/OrderAnalytics';
 import Footer from "../components/Footer";
+// Import the ForbiddenAccessMessage component
+import { ForbiddenAccessMessage } from "../components/common";
 // Import both GIFs - static and animated
 import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
 import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still-frame.gif';
-import { apiEndpoint } from '../config/menuMitraConfig';
 import { api, API_PATHS } from '../config/apiConfig';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
@@ -594,18 +595,13 @@ function HomeScreen() {
           <div className="content-wrapper flex-grow-1">
             <div className="container-fluid flex-grow-1 container-p-y">
               {permissionDenied ? (
-                <div className="alert alert-warning mb-4" role="alert">
-                  <div className="d-flex align-items-center">
-                    <i className="fas fa-exclamation-triangle me-3 fs-3"></i>
-                    <div>
-                      <h4 className="alert-heading mb-1">Permission Denied</h4>
-                      <p className="mb-0">
-                        You don't have permission to access statistics management functionality. 
-                        Please contact your administrator to request access.
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                <ForbiddenAccessMessage 
+                  title="Permission Denied" 
+                  message="You don't have permission to access statistics management functionality."
+                  resourceName="Statistics Dashboard"
+                  onRetry={() => refreshDashboard()}
+                  onBack={() => navigate(-1)}
+                />
               ) : currentError ? (
                 <div className="alert alert-danger mb-4" role="alert">
                   {currentError}

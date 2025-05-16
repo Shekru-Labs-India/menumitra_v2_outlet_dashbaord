@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import ReactApexChart from 'react-apexcharts';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import axios from 'axios';
+import { api, API_PATHS } from '../config/apiConfig';
 // Import both GIFs - static and animated
 import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
 import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still-frame.gif';
 import { useDashboard } from '../context/DashboardContext'; // Import context
+import { withErrorHandling } from './common';
 
-const PaymentMethodsChart = () => {
+const PaymentMethodsChart = ({ handleApiError }) => {
   // Get data from context
   const { 
     totalCollectionSource_from_context,
@@ -28,29 +29,11 @@ const PaymentMethodsChart = () => {
     cash_orders: 0,
     card_amount: 0,
     card_orders: 0,
-    complemenatry_amount: 0,
-    complemenatry_orders: 0
+    complementary_amount: 0,
+    complementary_orders: 0
   });
   const [userInteracted, setUserInteracted] = useState(false); // Flag to track user interaction
   
-  // Helper function to get auth headers
-  const getAuthHeaders = (includeAuth = true) => {
-    const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    };
-    
-    // Only add Authorization header if includeAuth is true and token exists
-    if (includeAuth) {
-      const accessToken = localStorage.getItem('access');
-      if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`;
-      }
-    }
-    
-    return headers;
-  };
-
   // Helper function to format currency in Indian format
   const formatIndianCurrency = (amount) => {
     const num = parseFloat(amount);
@@ -80,9 +63,6 @@ const PaymentMethodsChart = () => {
       setPaymentData(totalCollectionSource_from_context);
     }
   }, [totalCollectionSource_from_context]);
-
-  // REMOVED: Don't fetch data on initial mount, rely only on context data
-  // We will only make API calls when user interacts with the component
 
   const formatDate = (date) => {
     if (!date) return '';
@@ -123,11 +103,19 @@ const PaymentMethodsChart = () => {
     try {
         setLoading(true);
         
-        // Prepare request data
+        const userId = localStorage.getItem('user_id');
+        const outletId = localStorage.getItem('outlet_id');
+        
+        if (!userId || !outletId) {
+            console.error('User ID or outlet ID not found');
+            setLoading(false);
+            return;
+        }
+        
+        // Prepare request data using new simplified format
         const requestData = {
-            outlet_id: localStorage.getItem('outlet_id'),
-            device_token: localStorage.getItem('device_token') || '',
-            device_id: localStorage.getItem('device_id') || ''
+            user_id: Number(userId),
+            outlet_id: Number(outletId)
         };
 
         // Add date range if not "All Time"
@@ -142,25 +130,16 @@ const PaymentMethodsChart = () => {
             }
         }
 
-        // Get authentication token
-        const accessToken = localStorage.getItem('access');
+        console.log('Sending total collection source request:', requestData);
         
-        // Make API request
-        const response = await axios.post(
-            'https://men4u.xyz/outlet_statistics/total_collection_source',
-            requestData,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'Authorization': accessToken ? `Bearer ${accessToken}` : ''
-                }
-            }
-        );
+        // Make API request using the API instance from apiConfig
+        const response = await api.post(API_PATHS.totalCollectionSource, requestData);
+        
+        console.log('Total collection source response:', response.data);
 
-        if (response.data?.data) {
-            // Process the response data
-            const data = response.data.data;
+        if (response.data?.detail) {
+            // Process the response data from the new format
+            const data = response.data.detail;
             setPaymentData({
                 upi_amount: data.upi_amount || 0,
                 upi_orders: data.upi_orders || 0,
@@ -168,14 +147,20 @@ const PaymentMethodsChart = () => {
                 cash_orders: data.cash_orders || 0,
                 card_amount: data.card_amount || 0,
                 card_orders: data.card_orders || 0,
-                complemenatry_amount: data.complemenatry_amount || 0,
-                complemenatry_orders: data.complemenatry_orders || 0
+                complementary_amount: data.complementary_amount || 0,
+                complementary_orders: data.complementary_orders || 0
             });
         } else {
             console.error('No data available in response');
         }
     } catch (error) {
         console.error('Failed to fetch payment methods data:', error);
+        
+        // Use the handleApiError function from the HOC
+        if (!handleApiError(error)) {
+            // If error was not handled by the HOC (not a 403), handle it here
+            // For now, just log it, but you could set a local error state if needed
+        }
     } finally {
         setLoading(false);
     }
@@ -235,7 +220,7 @@ const getDateRange = (range) => {
     { method: 'Cash', value: paymentData.cash_amount || 0, count: paymentData.cash_orders || 0 },
     { method: 'Card', value: paymentData.card_amount || 0, count: paymentData.card_orders || 0 },
     { method: 'UPI', value: paymentData.upi_amount || 0, count: paymentData.upi_orders || 0 },
-    { method: 'Complimentary', value: paymentData.complemenatry_amount || 0, count: paymentData.complemenatry_orders || 0 },
+    { method: 'Complementary', value: paymentData.complementary_amount || 0, count: paymentData.complementary_orders || 0 },
   ];
 
   const total = data.reduce((sum, item) => sum + item.value, 0);
@@ -446,4 +431,5 @@ const getDateRange = (range) => {
   );
 };
 
-export default PaymentMethodsChart; 
+// Export the component wrapped in the HOC
+export default withErrorHandling(PaymentMethodsChart); 

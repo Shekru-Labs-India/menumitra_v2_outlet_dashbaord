@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { apiEndpoint } from '../config/menuMitraConfig';
 import { api, API_PATHS } from '../config/apiConfig';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -8,8 +6,10 @@ import 'react-datepicker/dist/react-datepicker.css';
 import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
 import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still-frame.gif';
 import { useDashboard } from '../context/DashboardContext'; // Import context
+import Chart from 'react-apexcharts';
+import { withErrorHandling } from './common';
 
-const OrderAnalytics = () => {
+const OrderAnalytics = ({ handleApiError }) => {
   // Get data from context
   const { 
     orderAnalytics_from_context,
@@ -48,25 +48,6 @@ const OrderAnalytics = () => {
     }
     
     return headers;
-  };
-
-  // Function to handle API errors
-  const handleApiError = (error) => {
-    console.error('API Error:', error);
-    
-    if (error.response) {
-      // Handle specific error status codes
-      if (error.response.status === 401) {
-        console.error('Unauthorized access');
-        // You may want to redirect to login page here
-      }
-      
-      return error.response.data?.message || 'An error occurred. Please try again.';
-    } else if (error.request) {
-      return 'No response from server. Please check your internet connection.';
-    } else {
-      return 'Error setting up request. Please try again.';
-    }
   };
 
   // Simplified effect to handle the animation timing
@@ -139,15 +120,26 @@ const OrderAnalytics = () => {
       setLoading(true);
       setError('');
       
-      // Set userInteracted to true
+      // Set user interaction flag to true
       setUserInteracted(true);
       
-      // Prepare request data based on range
-      let requestData = {
-        outlet_id: localStorage.getItem('outlet_id')
+      // Get user and outlet IDs
+      const userId = localStorage.getItem('user_id');
+      const outletId = localStorage.getItem('outlet_id');
+      
+      if (!userId || !outletId) {
+        setError('User ID or outlet ID not found. Please check your login.');
+        setLoading(false);
+        return;
+      }
+      
+      // Prepare request data
+      const requestData = {
+        user_id: Number(userId),
+        outlet_id: Number(outletId)
       };
       
-      // Add date range if applicable
+      // Add date range if not "All Time"
       if (range === 'Custom Range' && startDate && endDate) {
         requestData.start_date = formatDate(startDate);
         requestData.end_date = formatDate(endDate);
@@ -159,35 +151,29 @@ const OrderAnalytics = () => {
         }
       }
       
-      // Get user_id from localStorage
-      const userId = localStorage.getItem('user_id');
+      console.log('Sending order analytics request:', requestData);
       
-      // Create API request payload
-      const apiRequestData = {
-        user_id: parseInt(userId),
-        outlet_id: parseInt(requestData.outlet_id),
-        ...requestData.start_date && { start_date: requestData.start_date },
-        ...requestData.end_date && { end_date: requestData.end_date }
-      };
-
-      console.log('Making API request with data:', apiRequestData);
-
-      const response = await api.post(API_PATHS.orderAnalytics, apiRequestData);
-
-      if (response.data && response.data.detail) {
+      // Make API request using the API instance from apiConfig
+      const response = await api.post(API_PATHS.orderAnalytics, requestData);
+      
+      console.log('Order analytics response:', response.data);
+      
+      // Process response
+      if (response.data?.detail) {
         const data = response.data.detail;
-        setAnalyticsData({
-          avg_first_order_time: data.first_order_time || '0 mins',
-          avg_last_order_time: data.last_order_time || '0 mins',
-          avg_order_time: data.average_order_time || '0 mins',
-          avg_cooking_time: data.average_cooking_time || '0 mins'
-        });
+        processChartData(data);
       } else {
-        setError('No data available for the selected period');
+        console.error('Invalid response format');
+        setError('Invalid response format received');
       }
     } catch (error) {
-      console.error('API Error:', error);
-      setError(handleApiError(error));
+      console.error('Failed to fetch order analytics:', error);
+      
+      // Use the handleApiError function from the HOC
+      if (!handleApiError(error)) {
+        // If error was not handled by the HOC (not a 403), set local error state
+        setError('Failed to load order analytics. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -496,4 +482,4 @@ const OrderAnalytics = () => {
   );
 };
 
-export default OrderAnalytics; 
+export default withErrorHandling(OrderAnalytics); 

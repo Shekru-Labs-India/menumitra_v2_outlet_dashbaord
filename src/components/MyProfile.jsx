@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { apiEndpoint } from '../config/menuMitraConfig';
 import Header from './Header';
 import Footer from './Footer';
 

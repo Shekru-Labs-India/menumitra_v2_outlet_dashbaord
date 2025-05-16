@@ -7,8 +7,9 @@ import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
 import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still-frame.gif';
 import { useDashboard } from '../context/DashboardContext'; // Import context
 import Chart from 'react-apexcharts';
+import { withErrorHandling } from './common';
 
-const FoodTypeGraph = () => {
+const FoodTypeGraph = ({ handleApiError }) => {
     // Get data from context
     const { 
       foodTypeStatistics_from_context,
@@ -43,25 +44,6 @@ const FoodTypeGraph = () => {
         }
         
         return headers;
-    };
-
-    // Function to handle API errors
-    const handleApiError = (error) => {
-        console.error('API Error:', error);
-        
-        if (error.response) {
-            // Handle specific error status codes
-            if (error.response.status === 401) {
-                console.error('Unauthorized access');
-                // You may want to redirect to login page here
-            }
-            
-            return error.response.data?.message || 'An error occurred. Please try again.';
-        } else if (error.request) {
-            return 'No response from server. Please check your internet connection.';
-        } else {
-            return 'Error setting up request. Please try again.';
-        }
     };
 
     // Simplified effect to handle the animation timing
@@ -349,58 +331,44 @@ const FoodTypeGraph = () => {
     };
 
     const fetchData = async (range) => {
+        setLoading(true);
+        setError('');
+        // Set user interaction flag to true
+        setUserInteracted(true);
+        
         try {
-            setLoading(true);
-            setError('');
-            
-            // Set userInteracted to true
-            setUserInteracted(true);
-            
             const requestData = prepareRequestData(range);
-            
-            // Get user_id from localStorage
             const userId = localStorage.getItem('user_id');
-            const outletId = localStorage.getItem('outlet_id');
             
-            // Create API request payload
+            // Create the request payload
             const apiRequestData = {
                 user_id: parseInt(userId),
-                outlet_id: parseInt(outletId || requestData.outlet_id),
+                outlet_id: parseInt(requestData.outlet_id),
                 ...requestData.start_date && { start_date: requestData.start_date },
                 ...requestData.end_date && { end_date: requestData.end_date }
             };
             
-            console.log('Making API request with data:', apiRequestData);
+            console.log('API Request Payload:', apiRequestData);
 
-            // Make the API call using the api instance
+            // Make API request using the API instance
             const response = await api.post(API_PATHS.foodTypeStats, apiRequestData);
             
             console.log('API Response:', response.data);
-
+            
             if (response.data?.detail) {
                 processFoodTypeData(response.data.detail);
             } else {
-                setError('No data available for the selected period');
-                setFoodTypeData([]);
+                console.warn('Invalid response format');
+                setError('Invalid data format received from the server');
             }
         } catch (error) {
-            console.error('API Error:', error);
-            if (error.response) {
-                console.error('Error Response:', error.response.data);
-                
-                // Handle specific status codes
-                if (error.response.status === 401) {
-                    setError('Your session has expired. Please log in again.');
-                    // Redirect to login will be handled by API interceptor
-                } else if (error.response.status === 403) {
-                    setError('You don\'t have permission to access this data. Please contact your administrator.');
-                } else {
-                    setError(error.response.data.detail || 'Failed to fetch data');
-                }
-            } else {
-                setError('Failed to connect to server');
+            console.error('Error fetching food type data:', error);
+            
+            // Use the handleApiError function from the HOC
+            if (!handleApiError(error)) {
+                // If error was not handled by the HOC (not a 403), set local error state
+                setError('Failed to load food type statistics. Please try again.');
             }
-            setFoodTypeData([]);
         } finally {
             setLoading(false);
         }
@@ -764,4 +732,4 @@ const FoodTypeGraph = () => {
     );
 };
 
-export default FoodTypeGraph;
+export default withErrorHandling(FoodTypeGraph);

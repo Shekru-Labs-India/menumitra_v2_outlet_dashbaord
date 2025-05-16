@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { apiEndpoint } from '../config/menuMitraConfig';
+import { api, API_PATHS } from '../config/apiConfig';
 import VerticalSidebar from "../components/VerticalSidebar";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -18,32 +17,17 @@ const MyProfile = () => {
     created_on: '',
     updated_on: null,
     created_by: '',
-    updated_by: null,
-    subscription_outlet: []
+    updated_by: null
   });
   
+  const [activeSessions, setActiveSessions] = useState([]);
+  const [userFunctionalities, setUserFunctionalities] = useState([]);
+  const [subscriptionOutlets, setSubscriptionOutlets] = useState([]);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
-  // Helper function to get auth headers
-  const getAuthHeaders = (includeAuth = true) => {
-    const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    };
-    
-    if (includeAuth) {
-      const accessToken = localStorage.getItem('access');
-      if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`;
-      }
-    }
-    
-    return headers;
-  };
 
   // Function to handle API errors
   const handleApiError = (error) => {
@@ -66,46 +50,58 @@ const MyProfile = () => {
 
   useEffect(() => {
     const fetchUserProfile = async () => {
+      setLoading(true);
       try {
         const user_id = localStorage.getItem("user_id");
         if (!user_id) {
           setError('User ID not found');
+          setLoading(false);
           return;
         }
 
-        const response = await axios.post('https://men4u.xyz/common_api/view_profile_detail', 
-          { 
-            user_id: user_id,
-            outlet_id: localStorage.getItem('outlet_id'),
-            device_token: localStorage.getItem('device_token') || '',
-            device_id: localStorage.getItem('device_id') || ''
-          },
-          { headers: getAuthHeaders() }
-        );
+        // Simplified payload based on the provided API format
+        const payload = { 
+          user_id: Number(user_id)
+        };
 
-        if (response.data.st === 1 && response.data.Data.user_details) {
-          const userData = response.data.Data.user_details;
-          const subscriptionData = response.data.Data.subscription_outlet?.[0] || {};
+        console.log('Sending payload:', payload);
+        const response = await api.post(API_PATHS.viewProfileDetail, payload);
+        console.log('Profile response:', response.data);
+
+        // Check for successful response based on data structure
+        if (response.data && response.data.data) {
+          const { user_details, user_active_sessions } = response.data.data;
+          
+          if (!user_details) {
+            setError('User details not found in response');
+            setLoading(false);
+            return;
+          }
           
           // Format the date of birth for display
           const formattedUserData = {
-            ...userData,
-            dob: userData.dob ? formatDateForDisplay(userData.dob) : 'Not provided',
-            subscription_outlet: response.data.Data.subscription_outlet || []
+            ...user_details,
+            dob: user_details.dob ? formatDateForDisplay(user_details.dob) : 'Not provided'
           };
           
           setUserDetails(formattedUserData);
+          setActiveSessions(user_active_sessions || []);
+          
           setFormData({
             ...formattedUserData,
-            dob: userData.dob ? formatDateForInput(userData.dob) : ''
+            dob: user_details.dob ? formatDateForInput(user_details.dob) : ''
           });
+          
+          setError(''); // Clear any previous errors
         } else {
-          setError('Failed to fetch user profile');
+          setError(response.data.detail || 'Failed to fetch user profile');
         }
       } catch (error) {
         console.error('Error fetching user profile:', error);
         const errorMessage = handleApiError(error);
         setError(errorMessage || 'Failed to fetch user profile. Please try again.');
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -153,6 +149,7 @@ const MyProfile = () => {
         return `${day} ${month} ${year}`;
       };
 
+      // Simplified payload based on the provided API format
       const payload = {
         update_user_id: Number(localStorage.getItem("user_id")),
         user_id: Number(localStorage.getItem("user_id")),
@@ -160,20 +157,15 @@ const MyProfile = () => {
         email: formData.email,
         mobile_number: formData.mobile_number,
         dob: formatDateForAPI(formData.dob),
-        aadhar_number: formData.aadhar_number,
-        outlet_id: localStorage.getItem('outlet_id'),
-        device_token: localStorage.getItem('device_token') || '',
-        device_id: localStorage.getItem('device_id') || ''
+        aadhar_number: formData.aadhar_number
       };
 
-      const response = await axios({
-        method: 'post',
-        url: 'https://men4u.xyz/common_api/update_profile_detail',
-        headers: getAuthHeaders(),
-        data: payload
-      });
+      console.log('Update profile payload:', payload);
+      // Use PATCH method for updating profile as specified
+      const response = await api.patch(API_PATHS.updateProfileDetail, payload);
+      console.log('Update profile response:', response.data);
 
-      if (response.data.st === 1) {
+      if (response.data && response.data.message) {
         // Get current timestamp
         const now = new Date();
         const formattedTimestamp = now.toLocaleString('en-US', {
@@ -191,14 +183,14 @@ const MyProfile = () => {
           ...formData,
           dob: formatDateForDisplay(formData.dob),
           updated_on: formattedTimestamp,
-          updated_by: userDetails.name // Using the user's name as the updater
+          updated_by: userDetails.role // Using the user's role as the updater
         };
 
         setUserDetails(updatedUserDetails);
-        setSuccess(response.data.msg || 'Profile updated successfully!');
+        setSuccess(response.data.message || 'Profile updated successfully!');
         setEditMode(false);
       } else {
-        setError(response.data.msg || 'Failed to update profile');
+        setError(response.data.detail || 'Failed to update profile');
       }
     } catch (error) {
       console.error('Failed to update profile:', error);
@@ -282,6 +274,16 @@ const MyProfile = () => {
           <Header />
           <div className="content-wrapper flex-grow-1">
             <div className="container-xxl flex-grow-1 container-p-y">
+              {/* Loading Indicator */}
+              {loading && (
+                <div className="text-center py-3">
+                  <div className="spinner-border text-primary" role="status">
+                    <span className="visually-hidden">Loading...</span>
+                  </div>
+                  <p className="mt-2 text-muted">Loading profile information...</p>
+                </div>
+              )}
+            
               {/* Error and Success Messages */}
               {error && (
                 <div className="alert alert-danger mb-4" role="alert">
@@ -339,21 +341,11 @@ const MyProfile = () => {
                       <small className="text-muted mb-1">
                         {userDetails.role}
                       </small>
-                      {/* <div className="d-flex flex-wrap gap-3">
-                        <span className="text-muted">
-                          <i className="fas fa-user-tag me-1"></i>
-                          {userDetails.role}
-                        </span>
-                        <span className="text-muted">•</span>
-                        <span className="text-muted">
-                          <i className="fas fa-id-card me-1"></i>
-                          {userDetails.aadhar_number}
-                        </span>
-                      </div> */}
                     </div>
                     <button
                       className="btn btn-primary rounded-pill px-4"
                       onClick={handleEditToggle}
+                      disabled={loading}
                     >
                       <i
                         className={`fas ${
@@ -517,117 +509,17 @@ const MyProfile = () => {
                 </div>
 
                 <div className="col-12 col-md-6">
-                  <div className="card shadow-sm">
+                  <div className="card shadow-sm mb-4">
                     <div className="card-body p-4">
                       <h5 className="card-title text-uppercase mb-4 fw-bold">
                         <i className="fas fa-store me-2 text-primary"></i>
                         ACCOUNT INFORMATION
                       </h5>
-                      {/* <div className="ps-2">
-                        {userDetails.subscription_outlet.length > 0 ? (
-                          <div className="row g-3">
-                            {userDetails.subscription_outlet.map((outlet) => (
-                              <div
-                                key={outlet.outlet_id}
-                                className="col-12 col-md-6"
-                              >
-                                <div className="card p-0 h-100">
-                                  <div className="card-header py-2 px-3 d-flex justify-content-between align-items-center flex-wrap">
-                                    <h6 className="card-title mb-0 fw-bold">
-                                      {outlet.outlet_name}
-                                    </h6>
-                                    <div className="meta">
-                                      <span className="badge rounded-pill bg-label-primary small me-2">
-                                        {outlet.subscription_name}
-                                      </span>
-                                      <span
-                                        className={`badge rounded-pill bg-label-${
-                                          outlet.days_until_expiry > 30
-                                            ? "success"
-                                            : "warning"
-                                        } small`}
-                                      >
-                                        {outlet.days_until_expiry > 30
-                                          ? "Active"
-                                          : "Expiring Soon"}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="card-body py-2 px-3">
-                                    <div className="row g-2">
-                                      <div className="col-8">
-                                        <div className="d-flex align-items-center">
-                                          <i className="fas fa-calendar-alt text-primary me-2 small"></i>
-                                          <div>
-                                            <small className="d-block  fw-bold">
-                                              {outlet.subscription_date} to{" "}
-                                              {outlet.expiry_date}
-                                            </small>
-                                            <small className="text-muted d-block">
-                                              Subscription Period
-                                            </small>
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <div className="col-4">
-                                        <div className="d-flex align-items-center">
-                                          <i className="fas fa-clock text-primary me-2 small"></i>
-                                          <div>
-                                            <small className="d-block fw-bold">
-                                              {outlet.days_until_expiry} days
-                                            </small>
-                                            <small className="text-muted d-block">
-                                              Days Until Expiry
-                                            </small>
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <div className="col-8">
-                                        <div className="d-flex align-items-center">
-                                          <i className="fas fa-hourglass-half text-primary me-2 small"></i>
-                                          <div>
-                                            <small className="d-block fw-bold">
-                                              {outlet.tenure} months
-                                            </small>
-                                            <small className="text-muted d-block">
-                                              Tenure
-                                            </small>
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <div className="col-4">
-                                        <div className="d-flex align-items-center">
-                                          <i className="fas fa-rupee-sign text-primary me-2 small"></i>
-                                          <div>
-                                            <small className="d-block fw-bold">
-                                              ₹{outlet.price}
-                                            </small>
-                                            <small className="text-muted d-block">
-                                              Price
-                                            </small>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-center py-4">
-                            <i className="fas fa-store fa-3x text-muted mb-3"></i>
-                            <p className="text-muted mb-0">
-                              No outlets available
-                            </p>
-                          </div>
-                        )}
-                      </div> */}
                       <div className="row">
                         <div className="col-12 col-md-6 mb-3">
                           <div className="d-flex flex-column">
                             <span className="fw-bold">
-                              {userDetails.created_on}
+                              {userDetails.created_on || 'Not available'}
                             </span>
                             <small className="text-muted mb-1">
                               Created On
@@ -637,7 +529,7 @@ const MyProfile = () => {
                         <div className="col-12 col-md-6 mb-3">
                           <div className="d-flex flex-column">
                             <span className="fw-bold">
-                              {userDetails.created_by}
+                              {userDetails.created_by || 'System'}
                             </span>
                             <small className="text-muted mb-1">
                               Created By
@@ -647,7 +539,7 @@ const MyProfile = () => {
                         <div className="col-12 col-md-6 mb-3">
                           <div className="d-flex flex-column">
                             <span className="fw-bold">
-                              {userDetails.updated_on}
+                              {userDetails.updated_on || 'Not updated'}
                             </span>
                             <small className="text-muted mb-1">
                               Updated On
@@ -657,7 +549,7 @@ const MyProfile = () => {
                         <div className="col-12 col-md-6 mb-3">
                           <div className="d-flex flex-column">
                             <span className="fw-bold">
-                              {userDetails.updated_by}
+                              {userDetails.updated_by || 'Not updated'}
                             </span>
                             <small className="text-muted mb-1">
                               Updated By
@@ -666,13 +558,50 @@ const MyProfile = () => {
                         </div>
                         <div className="d-flex flex-column">
                           <span className="fw-bold">
-                            {userDetails.last_login}
+                            {userDetails.last_login || 'Never logged in'}
                           </span>
                           <small className="text-muted mb-1">Last Login</small>
                         </div>
                       </div>
                     </div>
                   </div>
+
+                  {activeSessions && activeSessions.length > 0 && (
+                    <div className="card shadow-sm mb-4">
+                      <div className="card-body p-4">
+                        <h5 className="card-title text-uppercase mb-4 fw-bold">
+                          <i className="fas fa-mobile-alt me-2 text-primary"></i>
+                          ACTIVE SESSIONS
+                        </h5>
+                        <div className="table-responsive">
+                          <table className="table table-sm table-hover">
+                            <thead>
+                              <tr>
+                                <th>Device</th>
+                                <th>Last Activity</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {activeSessions.slice(0, 5).map((session, index) => (
+                                <tr key={index}>
+                                  <td>
+                                    <i className={`fas ${session.device_model.includes('Windows') ? 'fa-desktop' : 'fa-mobile-alt'} me-2 text-muted`}></i>
+                                    {session.device_model}
+                                  </td>
+                                  <td>{session.last_activity}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {activeSessions.length > 5 && (
+                          <p className="text-muted small mt-2">
+                            +{activeSessions.length - 5} more active sessions not shown
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

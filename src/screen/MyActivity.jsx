@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import axios from 'axios';
 import { 
   Card, CardContent, Box, CircularProgress, Alert, 
   Table, TableBody, TableCell, TableContainer, 
   TableHead, TableRow, Paper, Pagination, Typography
 } from '@mui/material';
-import { format } from 'date-fns';
-import { useNavigate } from 'react-router-dom';
 import VerticalSidebar from '../components/VerticalSidebar';
 import Header from '../components/Header';
 import debounce from 'lodash/debounce';
+import { api, API_PATHS } from '../config/apiConfig';
 
 const MyActivity = () => {
   const [activities, setActivities] = useState([]);
@@ -21,21 +19,10 @@ const MyActivity = () => {
     totalRecords: 0,
     currentPage: 1,
     totalPages: 1,
-    recordsPerPage: 25,
+    recordsPerPage: 10,
     showingRecords: '0 to 0'
   });
-  const itemsPerPage = 20;
-  const navigate = useNavigate();
-
-  // Memoized axios instance
-  const api = useMemo(() => axios.create({
-    baseURL: 'https://men4u.xyz',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${localStorage.getItem('access')}`
-    }
-  }), []);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     fetchActivityLog(page, searchTerm);
@@ -44,35 +31,55 @@ const MyActivity = () => {
   const fetchActivityLog = async (currentPage, search = '') => {
     try {
       setLoading(true);
-      setError('');
+      setError(null);
 
       const userId = localStorage.getItem('user_id');
-      const deviceToken = localStorage.getItem('device_token');
       
-      if (!userId || !deviceToken) {
-        setError('Authentication information missing. Please login again.');
-        navigate('/login');
+      if (!userId) {
+        setError('User ID not found. Please check your login.');
         return;
       }
 
-      const response = await api.post('/common_api/activity_log', {
-        user_id: parseInt(userId),
-        device_token: deviceToken,
-        device_id: localStorage.getItem('device_id') || '',
-        outlet_id: localStorage.getItem('outlet_id'),
-        page: currentPage,
-        per_page: itemsPerPage,
-        search: search
+      // Use the simplified payload based on the provided API format
+      const response = await api.post(API_PATHS.activitiesLog, {
+        user_id: Number(userId)
       });
 
-      if (response.data) {
+      console.log('Activity log response:', response.data);
+
+      if (response.data && response.data.activity_logs) {
+        // Set activities from the response
         setActivities(response.data.activity_logs || []);
+        
+        // Calculate pagination info manually since the API might not provide it
+        const totalRecords = response.data.activity_logs.length;
+        const totalPages = Math.ceil(totalRecords / itemsPerPage);
+        
+        // Filter activities based on search term if present
+        let filteredActivities = response.data.activity_logs;
+        if (search) {
+          const searchLower = search.toLowerCase();
+          filteredActivities = filteredActivities.filter(activity => 
+            activity.title.toLowerCase().includes(searchLower) || 
+            activity.module.toLowerCase().includes(searchLower) ||
+            activity.sub_module.toLowerCase().includes(searchLower)
+          );
+        }
+        
+        // Apply pagination to filtered activities
+        const startIdx = (currentPage - 1) * itemsPerPage;
+        const endIdx = startIdx + itemsPerPage;
+        const paginatedActivities = filteredActivities.slice(startIdx, endIdx);
+        
+        setActivities(paginatedActivities);
+        
+        // Update pagination info
         setPaginationInfo({
-          totalRecords: response.data.pagination.total_records,
-          currentPage: response.data.pagination.current_page,
-          totalPages: response.data.pagination.total_pages,
-          recordsPerPage: response.data.pagination.records_per_page,
-          showingRecords: response.data.pagination.showing_records
+          totalRecords: filteredActivities.length,
+          currentPage: currentPage,
+          totalPages: Math.ceil(filteredActivities.length / itemsPerPage),
+          recordsPerPage: itemsPerPage,
+          showingRecords: `${startIdx + 1} to ${Math.min(endIdx, filteredActivities.length)}`
         });
       } else {
         setActivities([]);
@@ -80,18 +87,17 @@ const MyActivity = () => {
           totalRecords: 0,
           currentPage: 1,
           totalPages: 1,
-          recordsPerPage: 25,
+          recordsPerPage: itemsPerPage,
           showingRecords: '0 to 0'
         });
+        
+        if (response.data.detail && response.data.detail !== "Activity logs retrieved successfully") {
+          setError(response.data.detail);
+        }
       }
     } catch (error) {
       console.error('Error fetching activity log:', error);
-      if (error.response?.status === 401) {
-        setError('Session expired. Please login again.');
-        navigate('/login');
-      } else {
-        setError(error.response?.data?.message || 'Failed to fetch activity log');
-      }
+      setError(error.response?.data?.detail || 'Failed to fetch activity log. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -115,22 +121,6 @@ const MyActivity = () => {
     setPage(value);
   };
 
-  const formatDate = (dateString) => {
-    try {
-      return format(new Date(dateString), 'dd MMM yyyy hh:mm a');
-    } catch (error) {
-      return dateString;
-    }
-  };
-
-  if (error) {
-    return (
-      <Alert severity="error" sx={{ mt: 2 }}>
-        {error}
-      </Alert>
-    );
-  }
-
   return (
     <div className="layout-wrapper layout-content-navbar">
       <div className="layout-container">
@@ -141,7 +131,7 @@ const MyActivity = () => {
             <div className="container-xxl flex-grow-1 container-p-y">
               <div className="d-flex justify-content-between align-items-center py-3 mb-4">
                 <h4 className="fw-bold mb-0">Activity Log</h4>
-                {/* <div className="search-container" style={{ maxWidth: '300px', width: '100%' }}>
+                <div className="search-container" style={{ maxWidth: '300px', width: '100%' }}>
                   <div className="input-group">
                     <span className="input-group-text" style={{ backgroundColor: 'transparent' }}>
                       <i className="fas fa-search"></i>
@@ -158,8 +148,15 @@ const MyActivity = () => {
                       }}
                     />
                   </div>
-                </div> */}
+                </div>
               </div>
+              
+              {error && (
+                <Alert severity="error" className="mb-4">
+                  {error}
+                </Alert>
+              )}
+              
               <Card>
                 <CardContent>
                   {loading ? (
@@ -172,17 +169,31 @@ const MyActivity = () => {
                         <Table stickyHeader>
                           <TableHead>
                             <TableRow>
-                              <TableCell style={{ fontWeight: 'bold' , fontSize: '16px'}}>Date & Time</TableCell>
-                              <TableCell style={{ fontWeight: 'bold' , fontSize: '16px'}}>Activity</TableCell>
+                              <TableCell style={{ fontWeight: 'bold', fontSize: '16px'}}>Date & Time</TableCell>
+                              <TableCell style={{ fontWeight: 'bold', fontSize: '16px'}}>Module</TableCell>
+                              <TableCell style={{ fontWeight: 'bold', fontSize: '16px'}}>Sub-Module</TableCell>
+                              <TableCell style={{ fontWeight: 'bold', fontSize: '16px'}}>Activity</TableCell>
+                              <TableCell style={{ fontWeight: 'bold', fontSize: '16px'}}>Outlet ID</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {activities.map((activity) => (
-                              <TableRow key={activity.activity_log_id}>
-                                <TableCell>{formatDate(activity.created_on)}</TableCell>
-                                <TableCell>{activity.title}</TableCell>
+                            {activities.length > 0 ? (
+                              activities.map((activity) => (
+                                <TableRow key={activity.activity_log_id}>
+                                  <TableCell>{activity.created_on}</TableCell>
+                                  <TableCell>{activity.module}</TableCell>
+                                  <TableCell>{activity.sub_module}</TableCell>
+                                  <TableCell>{activity.title}</TableCell>
+                                  <TableCell>{activity.outlet_id}</TableCell>
+                                </TableRow>
+                              ))
+                            ) : (
+                              <TableRow>
+                                <TableCell colSpan={5} align="center">
+                                  No activities found.
+                                </TableCell>
                               </TableRow>
-                            ))}
+                            )}
                           </TableBody>
                         </Table>
                       </TableContainer>

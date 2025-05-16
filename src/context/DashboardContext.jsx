@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
-import { apiEndpoint } from '../config/menuMitraConfig';
 import { api, API_PATHS } from '../config/apiConfig';
 
 const DashboardContext = createContext();

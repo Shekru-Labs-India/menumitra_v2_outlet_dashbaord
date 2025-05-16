@@ -43,6 +43,28 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
+    // Check if this is a POST request with data
+    if (config.method === 'post' && config.data) {
+      // Parse the request data (in case it's a string)
+      let requestData = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
+      
+      // If outlet_id is null or undefined, try to get it from localStorage
+      if (requestData.outlet_id === null || requestData.outlet_id === undefined) {
+        const storedOutletId = localStorage.getItem('outlet_id');
+        if (storedOutletId && storedOutletId !== 'null') {
+          requestData.outlet_id = Number(storedOutletId);
+          console.log('Request interceptor: Using outlet_id from localStorage:', requestData.outlet_id);
+          
+          // Update the config data
+          config.data = typeof config.data === 'string' 
+            ? JSON.stringify(requestData) 
+            : requestData;
+        } else {
+          console.warn('Request interceptor: outlet_id is missing and not found in localStorage');
+        }
+      }
+    }
+    
     return config;
   },
   (error) => Promise.reject(error)
@@ -85,6 +107,9 @@ const API_PATHS = {
   // Common API endpoints
   common: COMMON_PREFIX,
   updateProfile: `${COMMON_PREFIX}/update_profile`,
+  viewProfileDetail: `${COMMON_PREFIX}/view_profile`,
+  updateProfileDetail: `${COMMON_PREFIX}/update_profile`,
+  activitiesLog: `${COMMON_PREFIX}/activities_log`,
   
   // Statistics API endpoints
   outletStatistics: STATISTICS_PREFIX,
@@ -94,6 +119,45 @@ const API_PATHS = {
   orderStatistics: `${STATISTICS_PREFIX}/order_statistics`,
   orderTypeStats: `${STATISTICS_PREFIX}/order_type_statistics`,
   weeklyOrderStats: `${STATISTICS_PREFIX}/weekly_order_stats`,
+  salesPerformance: `${STATISTICS_PREFIX}/sales_performance`,
+  totalCollectionSource: `${STATISTICS_PREFIX}/total_collection_source`,
+  revenueLoss: `${STATISTICS_PREFIX}/revenue_leakage`,
+  paymentMethodCounts: `${STATISTICS_PREFIX}/payment_method_counts`,
+};
+
+/**
+ * Validates request parameters and provides defaults where appropriate
+ * @param {Object} params - Request parameters to validate
+ * @returns {Object} - Validated parameters or null if validation fails
+ */
+export const validateRequestParams = (params) => {
+  // Create a copy of the params object to avoid modifying the original
+  const validParams = { ...params };
+  
+  // Check if user_id is present and valid
+  if (!validParams.user_id) {
+    console.error('Missing required parameter: user_id');
+    return null;
+  }
+  
+  // Check if outlet_id is present
+  if (validParams.outlet_id === null || validParams.outlet_id === undefined) {
+    // Get outlet_id from localStorage as fallback
+    const storedOutletId = localStorage.getItem('outlet_id');
+    if (storedOutletId) {
+      validParams.outlet_id = Number(storedOutletId);
+      console.log('Using outlet_id from localStorage:', validParams.outlet_id);
+    } else {
+      console.error('Missing required parameter: outlet_id');
+      return null;
+    }
+  }
+  
+  // Ensure user_id and outlet_id are numbers
+  validParams.user_id = Number(validParams.user_id);
+  validParams.outlet_id = Number(validParams.outlet_id);
+  
+  return validParams;
 };
 
 export { 
