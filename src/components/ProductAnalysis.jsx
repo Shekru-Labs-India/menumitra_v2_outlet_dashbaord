@@ -1,25 +1,29 @@
 import React, { useState, useEffect } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { api, API_PATHS } from "../config/apiConfig";
+import { API_PATHS } from "../config/apiConfig";
 // Import both GIFs - static and animated
 import aiAnimationGif from "../assets/img/gif/AI-animation-unscreen.gif";
 import aiAnimationStillFrame from "../assets/img/gif/AI-animation-unscreen-still-frame.gif";
-import { useDashboard } from "../context/DashboardContext"; // Import context
+import { useDashboard } from "../context/DashboardContext"; // Import dashboard context
+import { useCacheData } from "../context/CacheDataContext"; // Import cache context
 import { withErrorHandling } from "./common";
 
 function TopSell({ handleApiError }) {
-  // Get data from context
+  // Get data from dashboard context
   const { 
-    salesPerformance_from_context,
-    loading: contextLoading,
-    error: contextError
+    salesPerformance_from_context
   } = useDashboard();
+
+  // Get data from cache context
+  const { 
+    fetchData,
+    getCachedData
+  } = useCacheData();
 
   // State management 
   const [selectedTab, setSelectedTab] = useState("top");
   const [dateRange, setDateRange] = useState("All Time");
-  const [loading, setLoading] = useState(false);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -29,24 +33,32 @@ function TopSell({ handleApiError }) {
     low_selling: []
   });
   const [error, setError] = useState(null);
-  const [userInteracted, setUserInteracted] = useState(false); // Flag to track user interaction
 
-  // Use context data when component mounts
+  // Initial data load from cache and context
   useEffect(() => {
-    if (salesPerformance_from_context) {
+    // First try to get data from cache
+    const cachedData = getCachedData(API_PATHS.salesPerformance);
+    if (cachedData) {
+      processSalesData(cachedData);
+    }
+    // If no cached data, use context data
+    else if (salesPerformance_from_context) {
+      processSalesData(salesPerformance_from_context);
+    }
+    
+    // Fetch fresh data in background
+    fetchSalesData();
+  }, []);
+
+  // Process sales data from API or cache
+  const processSalesData = (data) => {
+    if (data) {
       setSalesData({
-        top_selling: salesPerformance_from_context.top_selling || [],
-        low_selling: salesPerformance_from_context.low_selling || []
+        top_selling: data.top_selling || [],
+        low_selling: data.low_selling || []
       });
     }
-  }, [salesPerformance_from_context]);
-
-  // Set error from context if available
-  useEffect(() => {
-    if (contextError && !userInteracted) {
-      setError(contextError);
-    }
-  }, [contextError, userInteracted]);
+  };
 
   // Simplified effect to handle the animation timing
   useEffect(() => {
@@ -100,65 +112,56 @@ function TopSell({ handleApiError }) {
         end = new Date(today.getFullYear(), today.getMonth(), 0);
         break;
       case "Custom Range":
-        start = startDate;
-        end = endDate;
-        break;
+        if (startDate && endDate) {
+          return {
+            start_date: formatDate(startDate),
+            end_date: formatDate(endDate)
+          };
+        }
+        return {};
       default: // All Time
-        return null;
+        return {};
     }
     
-    return { 
-      start_date: formatDate(start),
-      end_date: formatDate(end)
-    };
+    if (start && end) {
+      return { 
+        start_date: formatDate(start),
+        end_date: formatDate(end)
+      };
+    }
+    
+    return {};
   };
 
-  // Fetch data from API
-  const fetchData = async (range) => {
-    setLoading(true);
-    setError(null);
-    // Set user interaction flag to true
-    setUserInteracted(true);
-    
+  // Fetch sales data using the cache context
+  const fetchSalesData = async (dateFilter = {}, options = {}) => {
     try {
-      // Get user and outlet ID from localStorage
+      setError(null);
+      
+      // Get user and outlet IDs
       const userId = localStorage.getItem('user_id');
       const outletId = localStorage.getItem('outlet_id');
       
       if (!userId || !outletId) {
         setError('User ID or outlet ID not found. Please check your login.');
-        setLoading(false);
         return;
       }
       
-      // Prepare request data using new simplified format
-      const requestData = { 
+      // Prepare request data
+      const requestData = {
         user_id: Number(userId),
-        outlet_id: Number(outletId)
+        outlet_id: Number(outletId),
+        ...dateFilter
       };
       
-      // Add date range if not "All Time" and if both dates are available for custom range
-      const dateParams = getDateRange(range);
-      if (dateParams && (range !== "Custom Range" || (startDate && endDate))) {
-        Object.assign(requestData, dateParams);
-      }
+      // Use the fetchData function from context which handles caching
+      const data = await fetchData(API_PATHS.salesPerformance, requestData, {
+        forceRefresh: options.forceRefresh || false,
+        transformResponse: (response) => response?.detail || response
+      });
       
-      console.log('Sending sales performance request:', requestData);
-      
-      // Make API request using the API instance from apiConfig
-      const response = await api.post(API_PATHS.salesPerformance, requestData);
-      
-      console.log('Sales performance response:', response.data);
-      
-      // Parse and store response data
-      if (response.data) {
-        // Handle nested data structure - the detail field contains the data
-        const responseData = response.data.detail || response.data;
-        
-        setSalesData({
-          top_selling: responseData.top_selling || [],
-          low_selling: responseData.low_selling || []
-        });
+      if (data) {
+        processSalesData(data);
       }
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -168,20 +171,22 @@ function TopSell({ handleApiError }) {
         // If error was not handled by the HOC (not a 403), set local error state
         setError("Failed to load sales data. Please try again.");
       }
-    } finally {
-      setLoading(false);
     }
   };
 
   // Handle date range selection
   const handleDateRangeChange = (range) => {
     setDateRange(range);
-    setShowDatePicker(range === "Custom Range");
     
-    if (range !== "Custom Range") {
+    if (range === "Custom Range") {
+      // Only show date picker, don't reset dates
+      setShowDatePicker(true);
+    } else {
+      // For non-custom ranges, reset dates and fetch data
+      setShowDatePicker(false);
       setStartDate(null);
       setEndDate(null);
-      fetchData(range);
+      fetchSalesData(getDateRange(range));
     }
   };
 
@@ -190,14 +195,14 @@ function TopSell({ handleApiError }) {
     if (startDate && endDate) {
       setDateRange(`${formatDate(startDate)} - ${formatDate(endDate)}`);
       setShowDatePicker(false);
-      fetchData("Custom Range");
+      fetchSalesData(getDateRange("Custom Range"), { forceRefresh: true });
     }
   };
 
-  // Determine current loading state
-  const isLoading = userInteracted ? loading : contextLoading;
-  // Determine current error state
-  const currentError = userInteracted ? error : contextError;
+  // Return null if there's a 403 error (permission denied)
+  if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {
+    return null;
+  }
 
   // Get the current data to display based on selected tab
   const getCurrentData = () => {
@@ -283,8 +288,13 @@ function TopSell({ handleApiError }) {
     );
   };
 
+  const handleReload = () => {
+    setIsGifPlaying(true);
+    fetchSalesData(getDateRange(dateRange), { forceRefresh: true });
+  };
+
   return (
-    <div className="card">
+    <div className="card border" style={{ boxShadow: 'none' }}>
       {/* Header */}
       <div className="card-header d-flex justify-content-between align-items-center">
         <h5 className="card-title mb-0">Products Analysis</h5>
@@ -295,17 +305,13 @@ function TopSell({ handleApiError }) {
           <button
             type="button"
             className="btn btn-icon p-0"
-            onClick={() => {
-              // Always fetch data with current dateRange
-              fetchData(dateRange);
-            }}
-            disabled={isLoading}
+            onClick={handleReload}
             style={{ border: "1px solid var(--bs-primary)" }}
           >
-            <i className={`fas fa-sync-alt ${isLoading ? "fa-spin" : ""}`}></i>
+            <i className="fas fa-sync-alt"></i>
           </button>
 
-          <button
+          {/* <button
             type="button"
             className="btn btn-icon btn-sm p-0"
             style={{
@@ -324,7 +330,7 @@ function TopSell({ handleApiError }) {
               isGifPlaying ? "Animation playing" : "Click to play animation"
             }
           >
-            {/* Using two separate images - static frame and animated */}
+           
             {isGifPlaying ? (
               // Show animated GIF when playing
               <img
@@ -349,7 +355,7 @@ function TopSell({ handleApiError }) {
                 }}
               />
             )}
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -366,7 +372,7 @@ function TopSell({ handleApiError }) {
                 startDate={startDate}
                 endDate={endDate}
                 maxDate={new Date()}
-                className="form-control"
+                className="btn btn-outline-secondary"
                 dateFormat="dd MMM yyyy"
                 placeholderText="DD MMM YYYY"
               />
@@ -378,7 +384,7 @@ function TopSell({ handleApiError }) {
                 endDate={endDate}
                 minDate={startDate}
                 maxDate={new Date()}
-                className="form-control"
+                className="btn btn-outline-secondary"
                 dateFormat="dd MMM yyyy"
                 placeholderText="DD MMM YYYY"
               />
@@ -427,22 +433,14 @@ function TopSell({ handleApiError }) {
         </div>
 
         {/* Error message */}
-        {currentError && (
+        {error && !error.includes('permission') && !error.includes('Permission') && !error.includes('403') && (
           <div className="alert alert-danger" role="alert">
-            {currentError}
+            {error}
           </div>
         )}
 
         {/* Content */}
-        {isLoading ? (
-          <div className="text-center p-3">
-            <div className="spinner-border text-primary" role="status">
-              <span className="visually-hidden">Loading...</span>
-            </div>
-          </div>
-        ) : (
-          renderDataTable()
-        )}
+        {renderDataTable()}
       </div>
     </div>
   );

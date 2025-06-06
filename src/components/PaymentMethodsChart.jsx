@@ -2,37 +2,33 @@ import React, { useState, useEffect } from 'react';
 import ReactApexChart from 'react-apexcharts';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { api, API_PATHS } from '../config/apiConfig';
+import { API_PATHS } from '../config/apiConfig';
 // Import both GIFs - static and animated
 import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
 import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still-frame.gif';
-import { useDashboard } from '../context/DashboardContext'; // Import context
+import { useDashboard } from '../context/DashboardContext'; // Import dashboard context
+import { useCacheData } from '../context/CacheDataContext'; // Import cache context
 import { withErrorHandling } from './common';
 
 const PaymentMethodsChart = ({ handleApiError }) => {
-  // Get data from context
+  // Get data from dashboard context
   const { 
-    totalCollectionSource_from_context,
-    loading: contextLoading
+    totalCollectionSource_from_context
   } = useDashboard();
 
+  // Get data from cache context
+  const { 
+    fetchData,
+    getCachedData
+  } = useCacheData();
+
   const [dateRange, setDateRange] = useState('All Time');
-  const [loading, setLoading] = useState(false);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isGifPlaying, setIsGifPlaying] = useState(false);
-  const [paymentData, setPaymentData] = useState({
-    upi_amount: 0,
-    upi_orders: 0,
-    cash_amount: 0,
-    cash_orders: 0,
-    card_amount: 0,
-    card_orders: 0,
-    complementary_amount: 0,
-    complementary_orders: 0
-  });
-  const [userInteracted, setUserInteracted] = useState(false); // Flag to track user interaction
+  const [paymentData, setPaymentData] = useState({});
+  const [error, setError] = useState('');
   
   // Helper function to format currency in Indian format
   const formatIndianCurrency = (amount) => {
@@ -57,12 +53,37 @@ const PaymentMethodsChart = ({ handleApiError }) => {
     }
   }, [isGifPlaying]);
 
-  // Use context data when component mounts
+  // Initial data load from cache and context
   useEffect(() => {
-    if (totalCollectionSource_from_context) {
-      setPaymentData(totalCollectionSource_from_context);
+    // First try to get data from cache
+    const cachedData = getCachedData(API_PATHS.totalCollectionSource);
+    if (cachedData) {
+      processPaymentData(cachedData);
     }
-  }, [totalCollectionSource_from_context]);
+    // If no cached data, use context data
+    else if (totalCollectionSource_from_context) {
+      processPaymentData(totalCollectionSource_from_context);
+    }
+    
+    // Fetch fresh data in background
+    fetchPaymentData();
+  }, []);
+
+  // Process payment data
+  const processPaymentData = (data) => {
+    if (data) {
+      setPaymentData({
+        upi_amount: data.upi_amount || 0,
+        upi_orders: data.upi_orders || 0,
+        cash_amount: data.cash_amount || 0,
+        cash_orders: data.cash_orders || 0,
+        card_amount: data.card_amount || 0,
+        card_orders: data.card_orders || 0,
+        complementary_amount: data.complementary_amount || 0,
+        complementary_orders: data.complementary_orders || 0
+      });
+    }
+  };
 
   const formatDate = (date) => {
     if (!date) return '';
@@ -75,145 +96,132 @@ const PaymentMethodsChart = ({ handleApiError }) => {
 
   const handleDateRangeChange = (range) => {
     setDateRange(range);
-    setShowDatePicker(range === 'Custom Range');
-    if (range !== 'Custom Range') {
-       setStartDate(null);
-       setEndDate(null);
-        fetchData(range);
+    
+    if (range === 'Custom Range') {
+      // Only show date picker, don't reset dates
+      setShowDatePicker(true);
+    } else {
+      // For non-custom ranges, reset dates and fetch data
+      setShowDatePicker(false);
+      setStartDate(null);
+      setEndDate(null);
+      fetchPaymentData(getDateRange(range));
     }
   };
 
   const handleReload = () => {
-    // Set user interaction flag to true
-    setUserInteracted(true);
+    setIsGifPlaying(true);
     
-    // Check if we have valid startDate and endDate (indicating custom range)
-    if (startDate && endDate) {
-      console.log('Reloading with custom date range:', formatDate(startDate), 'to', formatDate(endDate));
-      // For custom range, explicitly use 'Custom Range'
-      fetchData('Custom Range');
-    } else {
-      // For other ranges, use the current dateRange state
-      console.log('Reloading with standard date range:', dateRange);
-      fetchData(dateRange);
+    // Always fetch fresh data on reload, regardless of the date range
+    fetchPaymentData(getDateRange(dateRange), { forceRefresh: true });
+  };
+
+  // Fetch payment data using the cache context
+  const fetchPaymentData = async (dateFilter = {}, options = {}) => {
+    try {
+      setError('');
+      
+      // Get user and outlet IDs
+      const userId = localStorage.getItem('user_id');
+      const outletId = localStorage.getItem('outlet_id');
+      
+      if (!userId || !outletId) {
+        setError('User ID or outlet ID not found. Please check your login.');
+        return;
+      }
+      
+      // Prepare request data
+      const requestData = {
+        user_id: Number(userId),
+        outlet_id: Number(outletId),
+        ...dateFilter
+      };
+      
+      // Use the fetchData function from context which handles caching
+      const data = await fetchData(API_PATHS.totalCollectionSource, requestData, {
+        forceRefresh: options.forceRefresh || false,
+        transformResponse: (response) => response?.detail || response
+      });
+      
+      if (data) {
+        processPaymentData(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch payment methods data:', error);
+      
+      // Use the handleApiError function from the HOC
+      if (!handleApiError(error)) {
+        // If error was not handled by the HOC (not a 403), set local error state
+        setError('Failed to load payment data. Please try again.');
+      }
     }
   };
 
-  const fetchData = async (range) => {
-    try {
-        setLoading(true);
-        
-        const userId = localStorage.getItem('user_id');
-        const outletId = localStorage.getItem('outlet_id');
-        
-        if (!userId || !outletId) {
-            console.error('User ID or outlet ID not found');
-            setLoading(false);
-            return;
-        }
-        
-        // Prepare request data using new simplified format
-        const requestData = {
-            user_id: Number(userId),
-            outlet_id: Number(outletId)
-        };
-
-        // Add date range if not "All Time"
-        if (range === 'Custom Range' && startDate && endDate) {
-            requestData.start_date = formatDate(startDate);
-            requestData.end_date = formatDate(endDate);
-        } else if (range !== 'All Time') {
-            const dateRange = getDateRange(range);
-            if (dateRange) {
-                requestData.start_date = dateRange.start_date;
-                requestData.end_date = dateRange.end_date;
-            }
-        }
-
-        console.log('Sending total collection source request:', requestData);
-        
-        // Make API request using the API instance from apiConfig
-        const response = await api.post(API_PATHS.totalCollectionSource, requestData);
-        
-        console.log('Total collection source response:', response.data);
-
-        if (response.data?.detail) {
-            // Process the response data from the new format
-            const data = response.data.detail;
-            setPaymentData({
-                upi_amount: data.upi_amount || 0,
-                upi_orders: data.upi_orders || 0,
-                cash_amount: data.cash_amount || 0,
-                cash_orders: data.cash_orders || 0,
-                card_amount: data.card_amount || 0,
-                card_orders: data.card_orders || 0,
-                complementary_amount: data.complementary_amount || 0,
-                complementary_orders: data.complementary_orders || 0
-            });
-        } else {
-            console.error('No data available in response');
-        }
-    } catch (error) {
-        console.error('Failed to fetch payment methods data:', error);
-        
-        // Use the handleApiError function from the HOC
-        if (!handleApiError(error)) {
-            // If error was not handled by the HOC (not a 403), handle it here
-            // For now, just log it, but you could set a local error state if needed
-        }
-    } finally {
-        setLoading(false);
-    }
-};
-
-// Helper function to get date range
-const getDateRange = (range) => {
+  // Helper function to get date range
+  const getDateRange = (range) => {
     const today = new Date();
     let start, end;
     
     switch (range) {
-        case 'Today':
-            start = end = new Date();
-            break;
-        case 'Yesterday':
-            start = end = new Date();
-            start.setDate(start.getDate() - 1);
-            break;
-        case 'Last 7 Days':
-            end = new Date();
-            start = new Date();
-            start.setDate(start.getDate() - 6);
-            break;
-        case 'Last 30 Days':
-            end = new Date();
-            start = new Date();
-            start.setDate(start.getDate() - 29);
-            break;
-        case 'Current Month':
-            start = new Date(today.getFullYear(), today.getMonth(), 1);
-            end = new Date();
-            break;
-        case 'Last Month':
-            start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            end = new Date(today.getFullYear(), today.getMonth(), 0);
-            break;
-        default:
-            return null;
+      case 'Today':
+        start = end = new Date();
+        break;
+      case 'Yesterday':
+        start = end = new Date();
+        start.setDate(start.getDate() - 1);
+        break;
+      case 'Last 7 Days':
+        end = new Date();
+        start = new Date();
+        start.setDate(start.getDate() - 6);
+        break;
+      case 'Last 30 Days':
+        end = new Date();
+        start = new Date();
+        start.setDate(start.getDate() - 29);
+        break;
+      case 'Current Month':
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+        end = new Date();
+        break;
+      case 'Last Month':
+        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        end = new Date(today.getFullYear(), today.getMonth(), 0);
+        break;
+      case 'Custom Range':
+        if (startDate && endDate) {
+          return {
+            start_date: formatDate(startDate),
+            end_date: formatDate(endDate)
+          };
+        }
+        return {};
+      default:
+        return {};
     }
     
-    return {
+    if (start && end) {
+      return {
         start_date: formatDate(start),
         end_date: formatDate(end)
-    };
-};
+      };
+    }
+    
+    return {};
+  };
 
   const handleCustomDateSelect = () => {
     if (startDate && endDate) {
-        setDateRange(`${formatDate(startDate)} - ${formatDate(endDate)}`);
-        setShowDatePicker(false);
-        fetchData('Custom Range');
+      setDateRange(`${formatDate(startDate)} - ${formatDate(endDate)}`);
+      setShowDatePicker(false);
+      fetchPaymentData(getDateRange('Custom Range'), { forceRefresh: true });
     }
   };
+
+  // Return null if there's a 403 error (permission denied)
+  if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {
+    return null;
+  }
 
   // Transform API data to the format expected by our component
   const data = [
@@ -225,11 +233,8 @@ const getDateRange = (range) => {
 
   const total = data.reduce((sum, item) => sum + item.value, 0);
 
-  // Determine current loading state
-  const isLoading = userInteracted ? loading : contextLoading;
-
   return (
-    <div className="card">
+    <div className="card border" style={{ boxShadow: 'none' }}>
       <div className="card-header d-flex justify-content-between align-items-md-center align-items-start">
         <h5 className="card-title mb-0">Total Collections Sources</h5>
         <div className="d-flex align-items-center gap-2">
@@ -280,15 +285,14 @@ const getDateRange = (range) => {
 
           <button
             type="button"
-            className={`btn btn-icon p-0 ${isLoading ? "disabled" : ""}`}
+            className="btn btn-icon p-0"
             onClick={handleReload}
-            disabled={isLoading}
             style={{ border: "1px solid var(--bs-primary)" }}
           >
-            <i className={`fas fa-sync-alt ${isLoading ? "fa-spin" : ""}`}></i>
+            <i className="fas fa-sync-alt"></i>
           </button>
 
-          <button
+          {/* <button
             type="button"
             className="btn btn-icon btn-sm p-0"
             style={{
@@ -307,7 +311,7 @@ const getDateRange = (range) => {
               isGifPlaying ? "Animation playing" : "Click to play animation"
             }
           >
-            {/* Using two separate images - static frame and animated */}
+          
             {isGifPlaying ? (
               // Show animated GIF when playing
               <img
@@ -332,7 +336,7 @@ const getDateRange = (range) => {
                 }}
               />
             )}
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -349,7 +353,7 @@ const getDateRange = (range) => {
                 endDate={endDate}
                 maxDate={new Date()}
                 placeholderText="DD MMM YYYY"
-                className="form-control"
+                className="btn btn-outline-secondary"
                 dateFormat="dd MMM yyyy"
               />
               <DatePicker
@@ -361,7 +365,7 @@ const getDateRange = (range) => {
                 minDate={startDate}
                 maxDate={new Date()}
                 placeholderText="DD MMM YYYY"
-                className="form-control"
+                className="btn btn-outline-secondary"
                 dateFormat="dd MMM yyyy"
               />
             </div>
@@ -375,6 +379,15 @@ const getDateRange = (range) => {
           </div>
         </div>
       )}
+
+      {error && !error.includes('permission') && !error.includes('Permission') && !error.includes('403') && (
+        <div className="card-body">
+          <div className="alert alert-danger" role="alert">
+            {error}
+          </div>
+        </div>
+      )}
+
       <div className="card-body">
         <div className="d-flex justify-content-between mb-3">
           <div>

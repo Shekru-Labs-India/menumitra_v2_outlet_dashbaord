@@ -26,6 +26,9 @@ export const CacheDataProvider = ({ children }) => {
   // Track which endpoints are currently being fetched
   const fetchingRef = useRef({});
   
+  // Track failed attempts to prevent infinite loops
+  const failedAttemptsRef = useRef({});
+  
   // Persist cache to localStorage when component unmounts
   useEffect(() => {
     // Load cached data from localStorage on mount
@@ -91,6 +94,15 @@ export const CacheDataProvider = ({ children }) => {
     const lastFetch = lastFetchTimestampRef.current[endpoint] || 0;
     const isCacheValid = (now - lastFetch) < cacheDuration;
     
+    // Check for recent failed attempts to prevent infinite loops
+    const failedAttempts = failedAttemptsRef.current[endpoint] || { count: 0, timestamp: 0 };
+    const isRecentFailure = (now - failedAttempts.timestamp) < 10000; // 10 seconds cooldown
+    
+    if (failedAttempts.count >= 3 && isRecentFailure) {
+      console.log(`Too many recent failures for ${endpoint}, using cached data and waiting for cooldown`);
+      return cache[endpoint]; // Return cached data and avoid making another request
+    }
+    
     if (!forceRefresh && isCacheValid && cache[endpoint]) {
       console.log(`Using cached data for ${endpoint}, age: ${(now - lastFetch) / 1000}s`);
       return cache[endpoint]; // Return cached data immediately
@@ -132,17 +144,33 @@ export const CacheDataProvider = ({ children }) => {
         // Clear error
         setErrors(prev => ({ ...prev, [endpoint]: null }));
         
+        // Reset failed attempts counter on success
+        failedAttemptsRef.current[endpoint] = { count: 0, timestamp: 0 };
+        
         return transformedData;
       } else {
         throw new Error('Invalid response format');
       }
     } catch (error) {
+      // Update failed attempts counter
+      failedAttemptsRef.current[endpoint] = {
+        count: (failedAttemptsRef.current[endpoint]?.count || 0) + 1,
+        timestamp: now
+      };
+      
       // Don't log 403 errors to reduce console noise
       if (error.response?.status === 403) {
         // Set error but don't log to console
         const errorMessage = error.response?.data?.detail || 'Permission denied';
         setErrors(prev => ({ ...prev, [endpoint]: errorMessage }));
-      } else {
+      } 
+      // Handle 500 errors with special care to prevent infinite loops
+      else if (error.response?.status === 500) {
+        console.error(`Server error (500) from ${endpoint}:`, error);
+        const errorMessage = 'Server error occurred. Please try again later.';
+        setErrors(prev => ({ ...prev, [endpoint]: errorMessage }));
+      }
+      else {
         // Log other errors
         console.error(`Error fetching data from ${endpoint}:`, error);
         
@@ -207,11 +235,17 @@ export const CacheDataProvider = ({ children }) => {
       delete newTimestamps[endpoint];
       lastFetchTimestampRef.current = newTimestamps;
       
+      // Reset failed attempts
+      const newFailedAttempts = { ...failedAttemptsRef.current };
+      delete newFailedAttempts[endpoint];
+      failedAttemptsRef.current = newFailedAttempts;
+      
       console.log(`Cleared cache for ${endpoint}`);
     } else {
       // Clear all cache
       setCache({});
       lastFetchTimestampRef.current = {};
+      failedAttemptsRef.current = {};
       console.log('Cleared all cache');
     }
   }, []);

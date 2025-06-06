@@ -1,50 +1,35 @@
 import React, { useState, useEffect } from 'react'
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { api, API_PATHS } from '../config/apiConfig';
+import { API_PATHS } from '../config/apiConfig';
 // Import both GIFs - static and animated
 import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
 import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still-frame.gif';
-import { useDashboard } from '../context/DashboardContext'; // Import context
+import { useDashboard } from '../context/DashboardContext'; // Import dashboard context
+import { useCacheData } from '../context/CacheDataContext'; // Import cache context
 import Chart from 'react-apexcharts';
 import { withErrorHandling } from './common';
 
 const FoodTypeGraph = ({ handleApiError }) => {
-    // Get data from context
+    // Get data from dashboard context
     const { 
-      foodTypeStatistics_from_context,
-      loading: contextLoading,
-      error: contextError
+      foodTypeStatistics_from_context
     } = useDashboard();
 
+    // Get data from cache context
+    const { 
+      fetchData,
+      getCachedData
+    } = useCacheData();
+
     const [dateRange, setDateRange] = useState('All time');
-    const [loading, setLoading] = useState(false);
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [isGifPlaying, setIsGifPlaying] = useState(false);
     const [foodTypeData, setFoodTypeData] = useState([]);
     const [error, setError] = useState('');
-    const [userInteracted, setUserInteracted] = useState(false); // Flag to track user interaction
-    const [showModal, setShowModal] = useState(false); // New state for modal
-  
-    // Helper function to get auth headers
-    const getAuthHeaders = (includeAuth = true) => {
-        const headers = {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        };
-        
-        // Only add Authorization header if includeAuth is true and token exists
-        if (includeAuth) {
-            const accessToken = localStorage.getItem('access');
-            if (accessToken) {
-                headers['Authorization'] = `Bearer ${accessToken}`;
-            }
-        }
-        
-        return headers;
-    };
+    const [showModal, setShowModal] = useState(false); // State for modal
 
     // Simplified effect to handle the animation timing
     useEffect(() => {
@@ -58,19 +43,21 @@ const FoodTypeGraph = ({ handleApiError }) => {
       }
     }, [isGifPlaying]);
 
-    // Use context data when component mounts
+    // Initial data load from cache and context
     useEffect(() => {
-      if (foodTypeStatistics_from_context) {
+      // First try to get data from cache
+      const cachedData = getCachedData(API_PATHS.foodTypeStats);
+      if (cachedData) {
+        processFoodTypeData(cachedData);
+      }
+      // If no cached data, use context data
+      else if (foodTypeStatistics_from_context) {
         processFoodTypeData(foodTypeStatistics_from_context);
       }
-    }, [foodTypeStatistics_from_context]);
-
-    // Set error from context if available
-    useEffect(() => {
-      if (contextError && !userInteracted) {
-        setError(contextError);
-      }
-    }, [contextError, userInteracted]);
+      
+      // Fetch fresh data in background
+      fetchFoodTypeStats();
+    }, []);
 
     // Function to get week date range
     const getWeekDateRange = (weeksAgo = 0) => {
@@ -166,7 +153,7 @@ const FoodTypeGraph = ({ handleApiError }) => {
 
     const processFoodTypeData = (data) => {
         try {
-            // The new API response has days of the week as keys
+            // The API response has days of the week as keys
             const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
             
             // Create an array of objects with day and food type data
@@ -232,18 +219,30 @@ const FoodTypeGraph = ({ handleApiError }) => {
                 end = week.end;
                 break;
             }
+            case 'Custom Range': {
+                if (startDate && endDate) {
+                    return {
+                        start_date: formatDate(startDate),
+                        end_date: formatDate(endDate)
+                    };
+                }
+                return {};
+            }
             default:
-                return null;
+                return {};
         }
         
-        return {
-            start_date: formatDate(start),
-            end_date: formatDate(end)
-        };
+        if (start && end) {
+            return {
+                start_date: formatDate(start),
+                end_date: formatDate(end)
+            };
+        }
+        
+        return {};
     };
 
     const handleDateRangeChange = (range) => {
-        console.log('Date range changed to:', range);
         setDateRange(range);
         
         if (range === 'Custom Range') {
@@ -254,138 +253,70 @@ const FoodTypeGraph = ({ handleApiError }) => {
             setShowDatePicker(false);
             setStartDate(null);
             setEndDate(null);
-            fetchData(range);
+            fetchFoodTypeStats(getDateRange(range));
         }
     };
 
     const handleReload = () => {
-        console.log('Reloading data...');
-        setUserInteracted(true);
         setIsGifPlaying(true);
         
         // Always fetch fresh data on reload, regardless of the date range
-        fetchData(dateRange);
+        fetchFoodTypeStats(getDateRange(dateRange), { forceRefresh: true });
     };
 
-    // Function to prepare request data based on date range
-    const prepareRequestData = (range) => {
-        const today = new Date();
-        
-        const getDateRange = (range) => {
-            switch(range) {
-                case 'All time': {
-                    // For all time, we'll send an empty date range to get all data
-                    return {
-                        start_date: '',
-                        end_date: ''
-                    };
-                }
-                case 'This week': {
-                    const firstDayOfWeek = new Date(today);
-                    const day = today.getDay(); // 0 is Sunday, 1 is Monday, etc.
-                    const diff = day === 0 ? 6 : day - 1; // Adjust to make Monday the first day
-                    firstDayOfWeek.setDate(today.getDate() - diff);
-                    return {
-                        start_date: formatDate(firstDayOfWeek),
-                        end_date: formatDate(today)
-                    };
-                }
-                case 'Last week': {
-                    const lastWeekEnd = new Date(today);
-                    const day = today.getDay(); // 0 is Sunday, 1 is Monday, etc.
-                    const diff = day === 0 ? 6 : day - 1; // Adjust to make Monday the first day
-                    lastWeekEnd.setDate(today.getDate() - diff - 1); // End of previous week (Sunday)
-                    const lastWeekStart = new Date(lastWeekEnd);
-                    lastWeekStart.setDate(lastWeekEnd.getDate() - 6); // Start of previous week (Monday)
-                    return {
-                        start_date: formatDate(lastWeekStart),
-                        end_date: formatDate(lastWeekEnd)
-                    };
-                }
-                case 'Week 2':
-                case 'Week 3':
-                case 'Week 4': {
-                    const weekNumber = parseInt(range.split(' ')[1]);
-                    const week = getWeekDateRange(weekNumber);
-                    return {
-                        start_date: formatDate(week.start),
-                        end_date: formatDate(week.end)
-                    };
-                }
-                case 'Custom Range': {
-                    if (startDate && endDate) {
-                        return {
-                            start_date: formatDate(startDate),
-                            end_date: formatDate(endDate)
-                        };
-                    }
-                    return {};
-                }
-                default: {
-                    return {};
-                }
-            }
-        };
-
-        return getDateRange(range);
-    };
-
-    const fetchData = async (range) => {
-        setLoading(true);
-        setError('');
-        // Set user interaction flag to true
-        setUserInteracted(true);
-        
+    // Fetch food type stats data using the cache context
+    const fetchFoodTypeStats = async (dateFilter = {}, options = {}) => {
         try {
-            const requestData = prepareRequestData(range);
-            const userId = localStorage.getItem('user_id');
+            setError('');
             
-            // Create the request payload - outlet_id will be handled by the API interceptor
-            const apiRequestData = {
-                user_id: parseInt(userId),
-                ...requestData.start_date && { start_date: requestData.start_date },
-                ...requestData.end_date && { end_date: requestData.end_date }
+            // Get user and outlet IDs
+            const userId = localStorage.getItem('user_id');
+            const outletId = localStorage.getItem('outlet_id');
+            
+            if (!userId || !outletId) {
+                setError('User ID or outlet ID not found. Please check your login.');
+                return;
+            }
+            
+            // Prepare request data
+            const requestData = {
+                user_id: Number(userId),
+                outlet_id: Number(outletId),
+                ...dateFilter
             };
             
-            console.log('API Request Payload:', apiRequestData);
-
-            // Make API request using the API instance
-            const response = await api.post(API_PATHS.foodTypeStats, apiRequestData);
+            // Use the fetchData function from context which handles caching
+            const data = await fetchData(API_PATHS.foodTypeStats, requestData, {
+                forceRefresh: options.forceRefresh || false,
+                transformResponse: (response) => response?.detail || response
+            });
             
-            console.log('API Response:', response.data);
-            
-            if (response.data?.detail) {
-                processFoodTypeData(response.data.detail);
-            } else {
-                console.warn('Invalid response format');
-                setError('Invalid data format received from the server');
+            if (data) {
+                processFoodTypeData(data);
             }
         } catch (error) {
-            console.error('Error fetching food type data:', error);
+            console.error('Failed to fetch food type statistics:', error);
             
             // Use the handleApiError function from the HOC
             if (!handleApiError(error)) {
                 // If error was not handled by the HOC (not a 403), set local error state
                 setError('Failed to load food type statistics. Please try again.');
             }
-        } finally {
-            setLoading(false);
         }
     };
 
     const handleCustomDateSelect = () => {
         if (startDate && endDate) {
-            console.log('Custom date range selected:', formatDate(startDate), 'to', formatDate(endDate));
             setDateRange(`${formatDate(startDate)} - ${formatDate(endDate)}`);
             setShowDatePicker(false);
-            fetchData('Custom Range');
+            fetchFoodTypeStats(getDateRange('Custom Range'), { forceRefresh: true });
         }
     };
 
-    // Determine current loading state
-    const isLoading = userInteracted ? loading : contextLoading;
-    // Determine current error state
-    const currentError = userInteracted ? error : contextError;
+    // Return null if there's a 403 error (permission denied)
+    if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {
+        return null;
+    }
 
     const chartOptions = {
         chart: {
@@ -511,10 +442,8 @@ const FoodTypeGraph = ({ handleApiError }) => {
         }
     ];
 
-    console.log('Chart series data:', chartSeries);
-
     return (
-        <div className="card">
+        <div className="card border" style={{ boxShadow: 'none' }}>
             <div className="card-header d-flex justify-content-between align-items-md-center align-items-start">
                 <h5 className="card-title mb-0">Food Type Analysis</h5>
                 <div className="d-flex align-items-center gap-3">
@@ -550,15 +479,14 @@ const FoodTypeGraph = ({ handleApiError }) => {
 
                     <button
                         type="button"
-                        className={`btn btn-icon p-0 ${isLoading ? 'disabled' : ''}`}
+                        className="btn btn-icon p-0"
                         onClick={handleReload}
-                        disabled={isLoading}
                         style={{ border: '1px solid var(--bs-primary)' }}
                     >
-                        <i className={`fas fa-sync-alt ${isLoading ? 'fa-spin' : ''}`}></i>
+                        <i className="fas fa-sync-alt"></i>
                     </button>
 
-                    <button
+                    {/* <button
                         type="button"
                         className="btn btn-icon btn-sm p-0"
                         style={{ 
@@ -597,7 +525,7 @@ const FoodTypeGraph = ({ handleApiError }) => {
                                 }}
                             />
                         )}
-                    </button>
+                    </button> */}
                 </div>
             </div>
 
@@ -614,7 +542,7 @@ const FoodTypeGraph = ({ handleApiError }) => {
                                 endDate={endDate}
                                 maxDate={new Date()}
                                 placeholderText="DD MMM YYYY"
-                                className="form-control"
+                                className="btn btn-outline-secondary"
                                 dateFormat="dd MMM yyyy"
                             />
                             <DatePicker
@@ -626,7 +554,7 @@ const FoodTypeGraph = ({ handleApiError }) => {
                                 minDate={startDate}
                                 maxDate={new Date()}
                                 placeholderText="DD MMM YYYY"
-                                className="form-control"
+                                className="btn btn-outline-secondary"
                                 dateFormat="dd MMM yyyy"
                             />
                         </div>
@@ -637,48 +565,46 @@ const FoodTypeGraph = ({ handleApiError }) => {
                 </div>
             )}
             
-            {currentError && (
+            {error && !error.includes('permission') && !error.includes('Permission') && !error.includes('403') && (
                 <div className="card-body">
                     <div className="alert alert-danger" role="alert">
-                        {currentError}
+                        {error}
                     </div>
                 </div>
             )}
             
             <div className="card-body">
-                {isLoading ? (
-                    <div className="d-flex justify-content-center align-items-center" style={{ height: '400px' }}>
-                        <div className="spinner-border text-primary" role="status">
-                            <span className="visually-hidden">Loading...</span>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="position-relative">
-                        <button
-                            type="button"
-                            className="btn btn-icon btn-sm btn-outline-primary position-absolute"
-                            style={{ 
-                                top: '-5px', 
-                                right: '55px',
-                                zIndex: 1
-                            }}
-                            onClick={() => setShowModal(true)}
-                            title="Expand Graph"
-                        >
-                            <i className="fas fa-expand"></i>
-                        </button>
+                <div className="position-relative">
+                    <button
+                        type="button"
+                        className="btn btn-icon btn-sm btn-outline-primary position-absolute"
+                        style={{ 
+                            top: '-5px', 
+                            right: '55px',
+                            zIndex: 1
+                        }}
+                        onClick={() => setShowModal(true)}
+                        title="Expand Graph"
+                    >
+                        <i className="fas fa-expand"></i>
+                    </button>
+                    {foodTypeData.length > 0 ? (
                         <Chart
                             options={chartOptions}
                             series={chartSeries}
                             type="bar"
                             height={400}
                         />
-                    </div>
-                )}
+                    ) : (
+                        <div className="text-center p-5">
+                            <p>No food type data available</p>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Modal for expanded graph */}
-            {showModal && (
+            {showModal && foodTypeData.length > 0 && (
                 <div 
                     className="modal fade show" 
                     tabIndex="-1" 

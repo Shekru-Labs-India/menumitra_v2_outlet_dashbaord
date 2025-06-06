@@ -219,7 +219,7 @@ const handleCustomDateSelect = () => {
             <i className={`fas fa-sync-alt ${loading ? 'fa-spin' : ''}`}></i>
           </button>
 
-          <button
+          {/* <button
             type="button"
             className="btn btn-icon btn-sm p-0"
             style={{ 
@@ -236,7 +236,7 @@ const handleCustomDateSelect = () => {
             onClick={() => setIsGifPlaying(true)}
             title={isGifPlaying ? "Animation playing" : "Click to play animation"}
           >
-            {/* Using two separate images - static frame and animated */}
+           
             {isGifPlaying ? (
               // Show animated GIF when playing
               <img 
@@ -261,7 +261,7 @@ const handleCustomDateSelect = () => {
                 }}
               />
             )}
-          </button>
+          </button> */}
         </div>
       </div>
 
