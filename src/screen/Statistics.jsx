@@ -226,25 +226,12 @@ function Statistics() {
   };
 
   // Stats card component with no skeleton loader
-  const StatCard = ({ title, value, icon, color, isPrice }) => (
+  const StatCard = ({ title, value, isPrice }) => (
     <div className="col-md-6 col-lg-3">
-      <div className="card h-100">
-        <div className="card-body">
-          <div className="d-flex align-items-start justify-content-between">
-            <div className="content-left">
-              <span className="fw-medium d-block mb-1">
-                {title}
-              </span>
-              <div className="d-flex align-items-center">
-                <h4 className="mb-0 me-2">{isPrice ? formatIndianCurrency(value) : value}</h4>
-              </div>
-            </div>
-            <div className="avatar">
-              <span className={`avatar-initial rounded bg-label-${color}`}>
-                <i className={icon}></i>
-              </span>
-            </div>
-          </div>
+      <div className="card h-100 border" style={{ boxShadow: 'none' }}>
+        <div className="card-body text-center">
+          <h3 className="mb-1">{isPrice ? formatIndianCurrency(value) : value}</h3>
+          <p className="text-muted mb-0">{title}</p>
         </div>
       </div>
     </div>
@@ -284,7 +271,7 @@ function Statistics() {
                   {/* Statistics Dashboard Card */}
                   <div className="row m-0">
                     <div className="col-12 p-0">
-                      <div className="card rounded-0 border-0 shadow-none">
+                      <div className="card rounded-0 border border-1">
                         <div className="card-header d-flex justify-content-between align-items-md-center align-items-start p-4">
                           <h5 className="card-title mb-0">
                             Statistics Dashboard
@@ -396,29 +383,21 @@ function Statistics() {
                             <StatCard
                               title="Total Orders"
                               value={statistics.total_orders}
-                              icon="fas fa-shopping-cart"
-                              color="primary"
                               isPrice={false}
                             />
                             <StatCard
                               title="Total Revenue"
                               value={statistics.total_revenue}
-                              icon="fas fa-rupee-sign"
-                              color="success"
                               isPrice={true}
                             />
                             <StatCard
                               title="Average Order Value"
                               value={statistics.average_order_value}
-                              icon="fas fa-chart-line"
-                              color="info"
                               isPrice={true}
                             />
                             <StatCard
                               title="Table Turnover"
                               value={statistics.average_turnover_time}
-                              icon="fas fa-chair"
-                              color="danger"
                               isPrice={false}
                             />
                           </div>

@@ -16,7 +16,7 @@ function Header() {
   const [outlets, setOutlets] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [timeElapsed, setTimeElapsed] = useState('0 seconds ago');
+  const [timeElapsed, setTimeElapsed] = useState('0 sec ago');
   const [startTime, setStartTime] = useState(new Date());
   const [isRotating, setIsRotating] = useState(false);
   const [selectOutletError, setSelectOutletError] = useState(null);
@@ -102,7 +102,9 @@ function Header() {
           location: outlet.address,
           status: outlet.is_open ? 'open' : 'closed',
           outlet_id: outlet.outlet_id,
-          outlet_status: outlet.outlet_status
+          outlet_status: outlet.outlet_status,
+          is_test: outlet.is_test || false,
+          is_active: outlet.outlet_status
         }));
         
         setOutlets(transformedOutlets);
@@ -660,6 +662,30 @@ function Header() {
             background-color: #ea54551a;
             color: #ea5455;
           }
+          
+          .status-active {
+            background-color: #7367f01a;
+            color: #7367f0;
+            margin-right: 4px;
+          }
+          
+          .status-inactive {
+            background-color: #82868b1a;
+            color: #82868b;
+            margin-right: 4px;
+          }
+          
+          .status-live {
+            background-color: #00cfe81a;
+            color: #00cfe8;
+            margin-right: 4px;
+          }
+          
+          .status-test {
+            background-color: #ff9f431a;
+            color: #ff9f43;
+            margin-right: 4px;
+          }
         `}
       </style>
 
@@ -769,12 +795,12 @@ function Header() {
             {/* Right aligned items */}
             <ul className="navbar-nav flex-row align-items-center ms-auto">
               {/* Updated Time */}
-              <li className="nav-item me-3 mb-4">
-                <div className="d-flex flex-column align-items-start">
+              <li className="nav-item me-3">
+                <div className="d-flex align-items-center">
                   <button
-                    className="btn btn-icon btn-sm btn-ghost-secondary mb-0"
+                    className="btn btn-icon p-0"
                     onClick={handleRefresh}
-                    style={{ padding: "4px" }}
+                    style={{ border: "1px solid var(--bs-primary)" }}
                   >
                     <i
                       className={`fas fa-sync-alt ${
@@ -782,7 +808,7 @@ function Header() {
                       }`}
                     ></i>
                   </button>
-                  <small className="text-muted">
+                  <small className="text-muted ms-2">
                     Last updated {timeElapsed}
                   </small>
                 </div>
@@ -965,18 +991,31 @@ function Header() {
                           )}
                         </div>
                         <div className="outlet-meta">
-                          <span className="outlet-id">
-                            [ID: {outlet.outlet_id}]
-                          </span>
-                          <span
-                            className={`outlet-status ${
-                              outlet.status === "open"
-                                ? "status-open"
-                                : "status-closed"
-                            }`}
-                          >
-                            {outlet.status === "open" ? "Open" : "Closed"}
-                          </span>
+                          <div className="d-flex flex-wrap gap-1">
+                            <span
+                              className={`outlet-status ${
+                                outlet.is_active ? "status-active" : "status-inactive"
+                              }`}
+                            >
+                              {outlet.is_active ? "Active" : "Inactive"}
+                            </span>
+                            <span
+                              className={`outlet-status ${
+                                outlet.is_test ? "status-test" : "status-live"
+                              }`}
+                            >
+                              {outlet.is_test ? "Test" : "Live"}
+                            </span>
+                            <span
+                              className={`outlet-status ${
+                                outlet.status === "open"
+                                  ? "status-open"
+                                  : "status-closed"
+                              }`}
+                            >
+                              {outlet.status === "open" ? "Open" : "Closed"}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     ))
