@@ -5,65 +5,71 @@ import {
   CardHeader,
   CardTitle,
   CardBody,
-  Table,
   Badge,
-  Spinner,
-  Form,
-  Row,
-  Col,
-  Button
+  Form
 } from 'react-bootstrap';
 import VerticalSidebar from '../../components/VerticalSidebar';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import { ForbiddenAccessMessage } from '../../components/common';
+import { ForbiddenAccessMessage, ReportTable, ReportFilters } from '../../components/common';
 import { useNavigate } from 'react-router-dom';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
 
 const MenuReports = () => {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [menuData, setMenuData] = useState([]);
-  const [filterType, setFilterType] = useState('all');
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [filteredData, setFilteredData] = useState([]);
   const [categories, setCategories] = useState([]);
   const [permissionDenied, setPermissionDenied] = useState(false);
-  const [expandedRows, setExpandedRows] = useState({});
-  const [dateRange, setDateRange] = useState('All Time');
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [loadingCategories, setLoadingCategories] = useState(false);
+  const [dataFetched, setDataFetched] = useState(false);
+  const [filterParams, setFilterParams] = useState(null);
+  const [filterType, setFilterType] = useState('all');
+  const [categoryId, setCategoryId] = useState('');
+  
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchCategories();
   }, []);
 
+  // Update filtered data when filter type or category changes
   useEffect(() => {
-    fetchMenuReport();
-  }, [filterType, selectedCategory, dateRange, startDate, endDate]);
+    if (menuData.length > 0) {
+      applyFilters();
+    }
+  }, [filterType, categoryId, menuData]);
+
+  const applyFilters = () => {
+    let result = [...menuData];
+    
+    // Apply filter by category if applicable
+    if (filterType === 'category' && categoryId) {
+      const categoryIdNum = parseInt(categoryId, 10);
+      console.log('Filtering by category_id:', categoryIdNum);
+      console.log('Sample data item:', result[0]);
+      
+      result = result.filter(item => {
+        const itemCategoryId = parseInt(item.category_id, 10);
+        return itemCategoryId === categoryIdNum;
+      });
+      
+      console.log('Filtered results count:', result.length);
+    }
+    
+    setFilteredData(result);
+  };
 
   const fetchCategories = async () => {
     try {
       setLoadingCategories(true);
-      const response = await api.post(API_PATHS.menuCategoryList, {
-        outlet_id: localStorage.getItem('outlet_id'),
-        user_id: localStorage.getItem('user_id')
-      });
+      // Using the new reportFilterCategory endpoint with GET request
+      const response = await api.get(API_PATHS.reportFilterCategory);
       
-      // Filter out null categories and inactive ones
-      const validCategories = response.data.data.menucat_details.filter(
-        cat => cat.menu_cat_id && cat.is_active
-      );
+      // The API returns an array of categories directly in the detail field
+      const validCategories = response.data.detail || [];
+      console.log('Fetched categories:', validCategories);
       setCategories(validCategories);
-      
-      // If we have categories and filter type is category but no category selected,
-      // automatically select the first category
-      if (validCategories.length > 0 && filterType === 'category' && !selectedCategory) {
-        setSelectedCategory(validCategories[0].menu_cat_id.toString());
-      }
     } catch (err) {
       console.error('Error fetching categories:', err);
       setError('Failed to fetch categories');
@@ -72,47 +78,57 @@ const MenuReports = () => {
     }
   };
 
-  const toggleRow = (menuId) => {
-    setExpandedRows(prev => ({
-      ...prev,
-      [menuId]: !prev[menuId]
-    }));
-  };
-
-  const fetchMenuReport = async () => {
+  const fetchMenuReport = async (params) => {
     try {
       // If filter type is category but no category is selected, don't fetch
-      if (filterType === 'category' && !selectedCategory) {
-        // If we have categories, select the first one
-        if (categories.length > 0) {
-          setSelectedCategory(categories[0].menu_cat_id.toString());
-          return; // Return early, we'll fetch when selectedCategory changes
-        } else if (!loadingCategories) {
-          // If no categories available and not currently loading, switch to 'all' filter
-          setFilterType('all');
-          return; // Return early, we'll fetch when filterType changes
-        } else {
-          // If still loading categories, don't fetch yet
-          return;
-        }
+      if (filterType === 'category' && !categoryId) {
+        setError('Please select a category');
+        return;
       }
       
       setLoading(true);
       setError(null);
       setPermissionDenied(false);
+      setFilterParams(params); // Store the filter params for potential reuse
 
-      const params = {
+      // Set default filter_type if not provided
+      const apiParams = {
         filter_type: filterType,
         outlet_id: localStorage.getItem('outlet_id'),
         user_id: localStorage.getItem('user_id')
       };
 
-      if (filterType === 'category') {
-        params.category_id = selectedCategory;
+      if (filterType === 'category' && categoryId) {
+        apiParams.category_id = parseInt(categoryId, 10);
       }
 
-      const response = await api.post(API_PATHS.menuReport, params);
-      setMenuData(response.data.detail || []);
+      // Add date range parameters if applicable
+      if (params.start_date && params.end_date) {
+        apiParams.start_date = params.start_date.toISOString().split('T')[0];
+        apiParams.end_date = params.end_date.toISOString().split('T')[0];
+      } else if (params.date_range && params.date_range !== 'All Time') {
+        apiParams.date_range = params.date_range;
+      }
+
+      console.log('Fetching menu report with params:', apiParams);
+      const response = await api.post(API_PATHS.menuReport, apiParams);
+      const data = response.data.detail || [];
+      console.log('API response data:', data);
+      
+      // Add unique id to each record for table component
+      const processedData = data.map((item, index) => ({
+        ...item,
+        id: item.menu_id || `menu-${index}`,
+        sr_no: index + 1, // Add serial number
+        // Add formatted portion information
+        portion_details: item.portions && item.portions.length > 0 
+          ? item.portions.map(p => `${p.portion_name} (₹${p.price})`).join(', ')
+          : 'No portions'
+      }));
+      
+      setMenuData(processedData);
+      setFilteredData(processedData);
+      setDataFetched(true);
     } catch (err) {
       console.error('Error fetching menu report:', err);
       
@@ -133,25 +149,165 @@ const MenuReports = () => {
     }
   };
 
-  const handleFilterChange = (e) => {
-    const newFilterType = e.target.value;
-    setFilterType(newFilterType);
-    if (newFilterType === 'all') {
-      setSelectedCategory('');
-    } else if (newFilterType === 'category') {
-      // When switching to category filter, select first category if available
-      if (!selectedCategory && categories.length > 0) {
-        setSelectedCategory(categories[0].menu_cat_id.toString());
-      }
+  const handleRetry = () => {
+    fetchMenuReport({});
+  };
+
+  const handleFilterTypeChange = (e) => {
+    setFilterType(e.target.value);
+    // Reset category selection if not filtering by category
+    if (e.target.value !== 'category') {
+      setCategoryId('');
     }
   };
 
-  const handleCategoryChange = (e) => {
-    setSelectedCategory(e.target.value);
-  };
+  // Define table columns
+  const columns = [
+    {
+      Header: '#',
+      accessor: 'sr_no',
+      width: '50px',
+      Cell: (item) => (
+        <span className="text-muted">{item.sr_no}</span>
+      )
+    },
+    {
+      Header: 'Menu Name',
+      accessor: 'menu_name',
+      width: '140px',
+      Cell: (item) => (
+        <div className="d-flex align-items-center">
+          <span className="fw-semibold text-primary">{item.menu_name}</span>
+        </div>
+      )
+    },
+    {
+      Header: 'Category',
+      accessor: 'category_name',
+      width: '100px',
+      Cell: (item) => (
+        <Badge bg="info" pill className="text-white px-2 py-1">
+          {item.category_name}
+        </Badge>
+      ),
+      exportFormat: (item) => item.category_name
+    },
+    {
+      Header: 'Description',
+      accessor: 'description',
+      width: '180px',
+      Cell: (item) => (
+        <div className="text-truncate" style={{ maxWidth: '180px' }} title={item.description || '-'}>
+          {item.description || '-'}
+        </div>
+      )
+    },
+    {
+      Header: 'Status',
+      accessor: 'is_available',
+      width: '90px',
+      Cell: (item) => (
+        <Badge 
+          bg={item.is_available ? 'success' : 'danger'} 
+          pill
+          className="px-2 py-1"
+        >
+          {item.is_available ? 'Available' : 'Unavailable'}
+        </Badge>
+      ),
+      exportFormat: (item) => item.is_available ? 'Available' : 'Unavailable',
+      sortFunction: (a, b, direction) => {
+        const aValue = a.is_available ? 1 : 0;
+        const bValue = b.is_available ? 1 : 0;
+        return direction === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+    },
+    {
+      Header: 'Created',
+      accessor: 'created_on',
+      width: '100px',
+      Cell: (item) => (
+        <div className="small text-muted">
+          {item.created_on || '-'}
+        </div>
+      )
+    },
+    {
+      Header: 'Updated',
+      accessor: 'updated_on',
+      width: '100px',
+      Cell: (item) => (
+        <div className="small text-muted">
+          {item.updated_on || '-'}
+        </div>
+      )
+    },
+    {
+      Header: 'Portions',
+      accessor: 'portions',
+      width: '240px',
+      Cell: (item) => {
+        if (!item.portions || item.portions.length === 0) {
+          return <span className="text-muted small">No portions</span>;
+        }
+        
+        return (
+          <div className="d-flex flex-wrap gap-1">
+            {item.portions.map(portion => (
+              <div 
+                key={portion.portion_id} 
+                className="border rounded px-2 py-1 d-flex align-items-center" 
+                style={{ 
+                  fontSize: '0.8rem',
+                  backgroundColor: portion.is_available ? '#f8f9fa' : '#f5f5f5'
+                }}
+              >
+                <div className="d-flex flex-column">
+                  <div className="d-flex align-items-center">
+                    <span className="fw-medium">{portion.portion_name}</span>
+                    <Badge bg="primary" pill className="ms-1" style={{ fontSize: '0.7rem' }}>₹{portion.price}</Badge>
+                  </div>
+                  <div className="d-flex align-items-center" style={{ fontSize: '0.7rem' }}>
+                    <span className={`${portion.is_available ? 'text-success' : 'text-danger'}`}>
+                      <i className={`fas fa-circle me-1`} style={{ fontSize: '0.5rem' }}></i>
+                      {portion.is_available ? 'Available' : 'Unavailable'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      },
+      exportFormat: (item) => {
+        if (!item.portions || item.portions.length === 0) return 'No portions';
+        return item.portions.map(p => `${p.portion_name} (₹${p.price})`).join(', ');
+      }
+    }
+  ];
 
-  const handleRetry = () => {
-    fetchMenuReport();
+  // Prepare filter info for export
+  const getFilterInfo = () => {
+    if (!filterParams) {
+      return {
+        'Filter Type': filterType === 'category' ? 'By Category' : 'All Items',
+        'Date Range': 'All Time'
+      };
+    }
+
+    const info = {
+      'Filter Type': filterType === 'category' ? 'By Category' : 'All Items',
+      'Date Range': filterParams.date_range || 'All Time'
+    };
+
+    if (filterType === 'category' && categoryId) {
+      const selectedCategory = categories.find(cat => parseInt(cat.category_id, 10) === parseInt(categoryId, 10));
+      if (selectedCategory) {
+        info['Category'] = selectedCategory.category_name;
+      }
+    }
+
+    return info;
   };
 
   return (
@@ -176,43 +332,21 @@ const MenuReports = () => {
                 </div>
               ) : (
                 <Card>
-                  <CardHeader className="d-flex justify-content-between align-items-center">
-                    <CardTitle>Menu Reports</CardTitle>
-                    <div className="d-flex align-items-center gap-2">
-                      <div className="dropdown">
-                        <button
-                          type="button"
-                          className="btn btn-outline-primary dropdown-toggle"
-                          data-bs-toggle="dropdown"
-                          aria-expanded="false"
-                        >
-                          <i className="fas fa-calendar me-2"></i>
-                          {dateRange}
-                        </button>
-                        <ul className="dropdown-menu dropdown-menu-end">
-                          {['All Time', 'Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'Current Month', 'Last Month'].map((range) => (
-                            <li key={range}>
-                              <a href="javascript:void(0);"
-                                className="dropdown-item d-flex align-items-center"
-                                onClick={() => setDateRange(range)}>
-                                {range}
-                              </a>
-                            </li>
-                          ))}
-                          <li><hr className="dropdown-divider" /></li>
-                          <li>
-                            <a href="javascript:void(0);"
-                              className="dropdown-item d-flex align-items-center"
-                              onClick={() => setShowDatePicker(true)}>
-                              Custom Range
-                            </a>
-                          </li>
-                        </ul>
-                      </div>
+                  <CardHeader className="bg-white">
+                    <CardTitle className="text-center w-100 mb-0 fw-bold text-primary">Menu Reports</CardTitle>
+                  </CardHeader>
 
-                      <Form.Select
+                  <CardBody>
+                    {/* Filters Section */}
+                    <ReportFilters
+                      isLoading={loading}
+                      onSubmit={fetchMenuReport}
+                      defaultDateRange="All Time"
+                    >
+                      {/* Custom Menu Report Filters */}
+                      <Form.Select 
                         value={filterType}
-                        onChange={handleFilterChange}
+                        onChange={handleFilterTypeChange}
                         style={{ width: '200px' }}
                       >
                         <option value="all">All Items</option>
@@ -221,180 +355,36 @@ const MenuReports = () => {
 
                       {filterType === 'category' && (
                         <Form.Select
-                          value={selectedCategory}
-                          onChange={handleCategoryChange}
+                          value={categoryId}
+                          onChange={(e) => setCategoryId(e.target.value)}
                           style={{ width: '200px' }}
                           disabled={loadingCategories || categories.length === 0}
                         >
-                          {loadingCategories ? (
-                            <option>Loading categories...</option>
-                          ) : categories.length === 0 ? (
-                            <option>No categories available</option>
-                          ) : (
-                            <>
-                              {categories.map((category) => (
-                                <option key={category.menu_cat_id} value={category.menu_cat_id}>
-                                  {category.category_name}
-                                </option>
-                              ))}
-                            </>
-                          )}
+                          <option value="">Select a category</option>
+                          {categories.map(category => (
+                            <option key={category.category_id} value={category.category_id}>
+                              {category.category_name}
+                            </option>
+                          ))}
                         </Form.Select>
                       )}
+                    </ReportFilters>
 
-                      <button
-                        type="button"
-                        className={`btn btn-icon p-0 ${loading ? 'disabled' : ''}`}
-                        onClick={handleRetry}
-                        disabled={loading}
-                        style={{ border: '1px solid var(--bs-primary)' }}
-                      >
-                        <i className={`fas fa-sync-alt ${loading ? 'fa-spin' : ''}`}></i>
-                      </button>
-                    </div>
-                  </CardHeader>
-
-                  {showDatePicker && (
-                    <CardBody>
-                      <div className="d-flex flex-column gap-2">
-                        <label>Select Date Range:</label>
-                        <div className="d-flex gap-2">
-                          <DatePicker
-                            selected={startDate}
-                            onChange={(date) => setStartDate(date)}
-                            selectsStart
-                            startDate={startDate}
-                            endDate={endDate}
-                            maxDate={new Date()}
-                            placeholderText="DD MMM YYYY"
-                            className="form-control"
-                            dateFormat="dd MMM yyyy"
-                          />
-                          <DatePicker
-                            selected={endDate}
-                            onChange={(date) => setEndDate(date)}
-                            selectsEnd
-                            startDate={startDate}
-                            endDate={endDate}
-                            minDate={startDate}
-                            maxDate={new Date()}
-                            placeholderText="DD MMM YYYY"
-                            className="form-control"
-                            dateFormat="dd MMM yyyy"
-                          />
-                        </div>
-                        <button 
-                          className="btn btn-primary mt-2" 
-                          onClick={() => setShowDatePicker(false)} 
-                          disabled={!startDate || !endDate}
-                        >
-                          Apply
-                        </button>
+                    {/* Table Section */}
+                    {dataFetched && filteredData.length > 0 ? (
+                      <ReportTable
+                        data={filteredData}
+                        columns={columns}
+                        title="Menu Report"
+                        filterInfo={getFilterInfo()}
+                        enableHorizontalScroll={true}
+                      />
+                    ) : dataFetched && filteredData.length === 0 ? (
+                      <div className="alert alert-info mt-4">
+                        <i className="fas fa-info-circle me-2"></i>
+                        No menu items found for the selected filters. Please try different filter criteria.
                       </div>
-                    </CardBody>
-                  )}
-
-                  <CardBody>
-                    {loading ? (
-                      <div className="text-center py-5">
-                        <Spinner animation="border" role="status">
-                          <span className="visually-hidden">Loading...</span>
-                        </Spinner>
-                      </div>
-                    ) : (
-                      <div className="table-responsive">
-                        <Table className="table-hover">
-                          <thead>
-                            <tr>
-                              <th style={{ width: '5%' }}></th>
-                              <th style={{ width: '20%' }}>Menu Details</th>
-                              <th style={{ width: '15%' }}>Category</th>
-                              <th style={{ width: '25%' }}>Description</th>
-                              <th style={{ width: '10%' }}>Status</th>
-                              <th style={{ width: '15%' }}>Dates</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {menuData.map((menu) => (
-                              <React.Fragment key={menu.menu_id}>
-                                <tr 
-                                  className="cursor-pointer"
-                                  onClick={() => toggleRow(menu.menu_id)}
-                                  style={{ cursor: 'pointer' }}
-                                >
-                                  <td>
-                                    <i className={`fas fa-chevron-${expandedRows[menu.menu_id] ? 'down' : 'right'} transition-all`}></i>
-                                  </td>
-                                  <td>
-                                    <div className="d-flex flex-column">
-                                      <span className="fw-semibold">{menu.menu_name}</span>
-                                     
-                                    </div>
-                                  </td>
-                                  <td>
-                                    <Badge bg="info" className="text-white">
-                                      {menu.category_name}
-                                    </Badge>
-                                  </td>
-                                  <td>
-                                    <p className="mb-0 text-wrap" style={{ maxWidth: '300px' }}>
-                                      {menu.description}
-                                    </p>
-                                  </td>
-                                  <td>
-                                    <Badge bg={menu.is_available ? 'success' : 'danger'}>
-                                      {menu.is_available ? 'Available' : 'Unavailable'}
-                                    </Badge>
-                                  </td>
-                                  <td>
-                                    <div className="d-flex flex-column">
-                                      <small className="text-muted">Created: {menu.created_on}</small>
-                                      <small className="text-muted">Updated: {menu.updated_on || '-'}</small>
-                                    </div>
-                                  </td>
-                                </tr>
-                                <tr>
-                                  <td colSpan="6" className="p-0">
-                                    <div 
-                                      className={`collapse ${expandedRows[menu.menu_id] ? 'show' : ''}`}
-                                      style={{
-                                        transition: 'all 0.3s ease-in-out',
-                                        maxHeight: expandedRows[menu.menu_id] ? '500px' : '0',
-                                        overflow: 'hidden'
-                                      }}
-                                    >
-                                      <div className="p-3 bg-light">
-                                        <h6 className="mb-3">Portions</h6>
-                                        <div className="row g-3">
-                                          {menu.portions.map((portion) => (
-                                            <div key={portion.portion_id} className="col-md-4">
-                                              <div className="card h-100">
-                                                <div className="card-body">
-                                                  <div className="d-flex justify-content-between align-items-center mb-2">
-                                                    <h6 className="card-title mb-0">{portion.portion_name}</h6>
-                                                    <Badge bg="primary">₹{portion.price}</Badge>
-                                                  </div>
-                                                  <div className="d-flex justify-content-between align-items-center">
-                                                    <small className="text-muted">Created: {portion.created_on}</small>
-                                                    <Badge bg={portion.is_available ? 'success' : 'danger'}>
-                                                      {portion.is_available ? 'Available' : 'Unavailable'}
-                                                    </Badge>
-                                                  </div>
-                                                </div>
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </td>
-                                </tr>
-                              </React.Fragment>
-                            ))}
-                          </tbody>
-                        </Table>
-                      </div>
-                    )}
+                    ) : null}
                   </CardBody>
                 </Card>
               )}

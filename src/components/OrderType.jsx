@@ -349,6 +349,11 @@ const OrderType = ({ handleApiError }) => {
   // Determine current error state
   const currentError = userInteracted ? error : contextError;
 
+  // Return null if there's a 403 error (permission denied)
+  if (currentError && (currentError.includes('permission') || currentError.includes('Permission') || currentError.includes('403'))) {
+    return null;
+  }
+
   return (
     <div className="card">
       <div className="card-header d-flex align-items-center justify-content-between">

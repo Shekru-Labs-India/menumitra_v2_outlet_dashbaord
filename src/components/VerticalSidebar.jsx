@@ -230,6 +230,30 @@ function VerticalSidebar() {
               </li>
             </ul>
           </li>
+
+          {/* Statistics */}
+          <li className={`menu-item ${isActive('/statistics') ? 'active' : ''}`}>
+            <Link to="/statistics" className="menu-link">
+              <i className="menu-icon fas fa-chart-pie"></i>
+              <div>Statistics</div>
+            </Link>
+          </li>
+
+          {/* Outlet Details */}
+          <li className={`menu-item ${isActive('/outlet-details') ? 'active' : ''}`}>
+            <Link to="/outlet-details" className="menu-link">
+              <i className="menu-icon fas fa-store"></i>
+              <div>Outlet Details</div>
+            </Link>
+          </li>
+
+          {/* Compare Outlets */}
+          <li className={`menu-item ${isActive('/compare-outlets') ? 'active' : ''}`}>
+            <Link to="/compare-outlets" className="menu-link">
+              <i className="menu-icon fas fa-balance-scale"></i>
+              <div>Compare Outlets</div>
+            </Link>
+          </li>
         </ul>
 
       </aside>

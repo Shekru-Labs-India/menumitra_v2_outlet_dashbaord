@@ -55,6 +55,9 @@ api.interceptors.request.use(
       // Parse the request data (in case it's a string)
       let requestData = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
       
+      // Add app_source parameter
+      requestData.app_source = 'admin';
+      
       // If outlet_id is null or undefined, try to get it from localStorage
       if (requestData.outlet_id === null || requestData.outlet_id === undefined) {
         const storedOutletId = localStorage.getItem('outlet_id');
@@ -69,7 +72,18 @@ api.interceptors.request.use(
         } else {
           console.warn('Request interceptor: outlet_id is missing and not found in localStorage');
         }
+      } else {
+        // Update the config data with app_source even if outlet_id exists
+        config.data = typeof config.data === 'string' 
+          ? JSON.stringify(requestData) 
+          : requestData;
       }
+    } else if (config.method === 'get') {
+      // For GET requests, add app_source as a query parameter
+      config.params = {
+        ...config.params,
+        app_source: 'admin'
+      };
     }
     
     return config;
@@ -156,6 +170,9 @@ const API_PATHS = {
   inventoryReport: `${STATISTICS_PREFIX}/inventory_report`,
   staffReport: `${STATISTICS_PREFIX}/staff_report`,
   customerReport: `${STATISTICS_PREFIX}/customer_report`,
+  reportFilterCategory: `${STATISTICS_PREFIX}/report_filter_category`,
+  reportFilterSupplier: `${STATISTICS_PREFIX}/report_filter_supplier`,
+  reportFilterSection: `${STATISTICS_PREFIX}/report_filter_section`,
 };
 
 /**

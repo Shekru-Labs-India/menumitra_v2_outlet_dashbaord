@@ -1,62 +1,149 @@
 import React, { useState, useEffect } from 'react';
 import { api, API_PATHS } from '../../config/apiConfig';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardBody,
+  Badge,
+  Spinner,
+  Form
+} from 'react-bootstrap';
 import VerticalSidebar from '../../components/VerticalSidebar';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import { ForbiddenAccessMessage } from '../../components/common';
+import { ForbiddenAccessMessage, ReportTable, ReportFilters } from '../../components/common';
 import { useNavigate } from 'react-router-dom';
 
-function InventoryReports() {
-  const [loading, setLoading] = useState(true);
+const InventoryReports = () => {
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [inventoryData, setInventoryData] = useState(null);
+  const [inventoryData, setInventoryData] = useState([]);
+  const [filteredData, setFilteredData] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [dataFetched, setDataFetched] = useState(false);
+  const [filterParams, setFilterParams] = useState(null);
   const [filterType, setFilterType] = useState('all');
   const [supplierId, setSupplierId] = useState('');
   const [inOrOut, setInOrOut] = useState('in');
-  const [expandedRows, setExpandedRows] = useState({});
+  
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchInventoryReport();
-  }, [filterType, supplierId, inOrOut]);
+    fetchSuppliers();
+  }, []);
 
-  const toggleRow = (inventoryId) => {
-    setExpandedRows(prev => ({
-      ...prev,
-      [inventoryId]: !prev[inventoryId]
-    }));
+  // Update filtered data when filter type, supplier ID, or in/out status changes
+  useEffect(() => {
+    if (inventoryData.length > 0) {
+      applyFilters();
+    }
+  }, [filterType, supplierId, inOrOut, inventoryData]);
+
+  const applyFilters = () => {
+    let result = [...inventoryData];
+    
+    // Apply filter by supplier if applicable
+    if (filterType === 'supplier' && supplierId) {
+      const supplierIdNum = parseInt(supplierId, 10);
+      console.log('Filtering by supplier_id:', supplierIdNum);
+      
+      result = result.filter(item => {
+        const itemSupplierId = parseInt(item.supplier.id, 10);
+        return itemSupplierId === supplierIdNum;
+      });
+      
+      console.log('Filtered results count:', result.length);
+    } else if (filterType === 'in_or_out' && inOrOut) {
+      // Apply filter by in/out status
+      result = result.filter(item => item.in_or_out === inOrOut);
+      console.log('Filtered by in/out status:', inOrOut, 'Results:', result.length);
+    }
+    
+    setFilteredData(result);
   };
 
-  const fetchInventoryReport = async () => {
+  const fetchSuppliers = async () => {
     try {
+      setLoadingSuppliers(true);
+      // Using the reportFilterSupplier endpoint with GET request
+      const response = await api.get(API_PATHS.reportFilterSupplier);
+      
+      // The API returns an array of suppliers directly in the detail field
+      const validSuppliers = response.data.detail || [];
+      console.log('Fetched suppliers:', validSuppliers);
+      setSuppliers(validSuppliers);
+    } catch (err) {
+      console.error('Error fetching suppliers:', err);
+      setError('Failed to fetch suppliers');
+    } finally {
+      setLoadingSuppliers(false);
+    }
+  };
+
+  const fetchInventoryReport = async (params) => {
+    try {
+      // If filter type is supplier but no supplier is selected, don't fetch
+      if (filterType === 'supplier' && !supplierId) {
+        setError('Please select a supplier');
+        return;
+      }
+      
       setLoading(true);
       setError(null);
       setPermissionDenied(false);
+      setFilterParams(params); // Store the filter params for potential reuse
 
-      const params = {
+      // Set default filter_type if not provided
+      const apiParams = {
+        filter_type: filterType,
         outlet_id: localStorage.getItem('outlet_id'),
-        user_id: localStorage.getItem('user_id'),
-        filter_type: filterType
+        user_id: localStorage.getItem('user_id')
       };
 
       if (filterType === 'supplier' && supplierId) {
-        params.supplier_id = supplierId;
+        apiParams.supplier_id = parseInt(supplierId, 10);
       } else if (filterType === 'in_or_out') {
-        params.in_or_out = inOrOut;
+        apiParams.in_or_out = inOrOut;
       }
 
-      console.log('Debug - Making API call to:', API_PATHS.inventoryReport);
-      console.log('Debug - With params:', params);
+      // Add date range parameters if applicable
+      if (params.start_date && params.end_date) {
+        apiParams.start_date = params.start_date.toISOString().split('T')[0];
+        apiParams.end_date = params.end_date.toISOString().split('T')[0];
+      } else if (params.date_range && params.date_range !== 'All Time') {
+        apiParams.date_range = params.date_range;
+      }
 
-      const response = await api.post(API_PATHS.inventoryReport, params);
-      console.log('Debug - API Response:', response.data);
+      console.log('Fetching inventory report with params:', apiParams);
+      const response = await api.post(API_PATHS.inventoryReport, apiParams);
       
+      // For inventory reports, the API might return a different structure
+      // We need to extract the inventory items from the response
+      let data = [];
       if (response.data && response.data.detail) {
-        setInventoryData(response.data.detail);
-      } else {
-        throw new Error('Invalid response format');
+        if (response.data.detail.inventory_items) {
+          // If the API returns a nested structure with inventory_items
+          data = response.data.detail.inventory_items || [];
+        } else {
+          // If the API directly returns an array of inventory items
+          data = response.data.detail || [];
+        }
       }
+      
+      console.log('API response data:', data);
+      
+      // Add unique id to each record for table component
+      const processedData = data.map((item, index) => ({
+        ...item,
+        id: item.inventory_id || `inventory-${index}`
+      }));
+      
+      setInventoryData(processedData);
+      setFilteredData(processedData);
+      setDataFetched(true);
     } catch (err) {
       console.error('Error fetching inventory report:', err);
       
@@ -64,7 +151,7 @@ function InventoryReports() {
           err.response?.data?.detail?.includes('permission') ||
           err.response?.data?.detail?.includes('access')) {
         setPermissionDenied(true);
-        setError(err.response?.data?.detail || 'You don\'t have permission to access reports management functionality');
+        setError(err.response?.data?.detail || 'You don\'t have permission to access inventory reports management functionality');
       } else {
         setError(err.response?.data?.detail || 'Failed to fetch inventory report data');
       }
@@ -78,302 +165,301 @@ function InventoryReports() {
   };
 
   const handleRetry = () => {
-    fetchInventoryReport();
+    fetchInventoryReport({});
   };
 
-  if (permissionDenied) {
-    return (
-      <div className="layout-wrapper layout-content-navbar">
-        <div className="layout-container">
-          <VerticalSidebar />
-          <div className="layout-page">
-            <Header />
-            <div className="content-wrapper">
-              <ForbiddenAccessMessage 
-                title="Permission Denied" 
-                message={error}
-                resourceName="Inventory Reports"
-                onRetry={handleRetry}
-                onBack={() => navigate(-1)}
-              />
+  const handleFilterTypeChange = (e) => {
+    setFilterType(e.target.value);
+    // Reset supplier selection if not filtering by supplier
+    if (e.target.value !== 'supplier') {
+      setSupplierId('');
+    }
+    // Reset in/out selection if not filtering by in/out status
+    if (e.target.value !== 'in_or_out') {
+      setInOrOut('in');
+    }
+  };
+
+  // Define table columns
+  const columns = [
+    {
+      Header: 'Item Details',
+      accessor: 'name',
+      width: '20%',
+      Cell: (item) => (
+        <div className="d-flex flex-column">
+          <span className="fw-semibold text-primary">{item.name}</span>
+          <small className="text-muted">{item.description || '-'}</small>
+        </div>
+      )
+    },
+    {
+      Header: 'Category',
+      accessor: 'category',
+      width: '15%',
+      Cell: (item) => (
+        <Badge bg="info" className="text-white">
+          {item.category}
+        </Badge>
+      ),
+      exportFormat: (item) => item.category
+    },
+    {
+      Header: 'Supplier',
+      accessor: 'supplier',
+      width: '15%',
+      Cell: (item) => (
+        <div className="d-flex flex-column">
+          <span>{item.supplier?.name || '-'}</span>
+        </div>
+      ),
+      exportFormat: (item) => item.supplier?.name || '-'
+    },
+    {
+      Header: 'Price',
+      accessor: 'unit_price',
+      width: '10%',
+      Cell: (item) => (
+        <span className="fw-bold">₹{item.unit_price?.toFixed(2) || '0.00'}</span>
+      ),
+      exportFormat: (item) => `₹${item.unit_price?.toFixed(2) || '0.00'}`,
+      sortFunction: (a, b, direction) => {
+        const aPrice = parseFloat(a.unit_price || 0);
+        const bPrice = parseFloat(b.unit_price || 0);
+        return direction === 'asc' ? aPrice - bPrice : bPrice - aPrice;
+      }
+    },
+    {
+      Header: 'Quantity',
+      accessor: 'quantity',
+      width: '10%',
+      Cell: (item) => (
+        <div className="d-flex flex-column">
+          <span>{item.quantity}</span>
+          <small className="text-muted">{item.unit_of_measure}</small>
+        </div>
+      ),
+      exportFormat: (item) => `${item.quantity} ${item.unit_of_measure || ''}`
+    },
+    {
+      Header: 'Status',
+      accessor: 'in_or_out',
+      width: '10%',
+      Cell: (item) => (
+        <Badge 
+          bg={item.in_or_out === 'in' ? 'success' : 'danger'} 
+          className="px-3 py-2"
+        >
+          {item.in_or_out === 'in' ? 'In Stock' : 'Out of Stock'}
+        </Badge>
+      ),
+      exportFormat: (item) => item.in_or_out === 'in' ? 'In Stock' : 'Out of Stock',
+      sortFunction: (a, b, direction) => {
+        const aValue = a.in_or_out === 'in' ? 1 : 0;
+        const bValue = b.in_or_out === 'in' ? 1 : 0;
+        return direction === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+    },
+    {
+      Header: 'Dates',
+      accessor: 'created_on',
+      width: '15%',
+      Cell: (item) => (
+        <div className="d-flex flex-column">
+          <small className="text-muted"><strong>In:</strong> {item.in_date || '-'}</small>
+          <small className="text-muted"><strong>Out:</strong> {item.out_date || '-'}</small>
+        </div>
+      ),
+      exportFormat: (item) => `In: ${item.in_date || '-'}, Out: ${item.out_date || '-'}`
+    }
+  ];
+
+  // Define expandable content for additional inventory details
+  const renderInventoryDetails = (item) => (
+    <>
+      <h6 className="mb-3 text-primary">
+        <i className="fas fa-boxes me-2"></i>
+        Item Information
+      </h6>
+      <div className="row">
+        <div className="col-md-6">
+          <div className="card h-100">
+            <div className="card-body">
+              <div className="d-flex justify-content-between align-items-center mb-2">
+                <span className="fw-bold">Brand:</span>
+                <span>{item.brand_name || '-'}</span>
+              </div>
+              <div className="d-flex justify-content-between align-items-center mb-2">
+                <span className="fw-bold">Reorder Level:</span>
+                <span>{item.reorder_level || '-'}</span>
+              </div>
+              <div className="d-flex justify-content-between align-items-center mb-2">
+                <span className="fw-bold">Tax Rate:</span>
+                <span>{item.tax_rate ? `${(item.tax_rate * 100).toFixed(0)}%` : '-'}</span>
+              </div>
+              <div className="d-flex justify-content-between align-items-center">
+                <span className="fw-bold">Expiration:</span>
+                <span>{item.expiration_date || '-'}</span>
+              </div>
             </div>
-            <Footer />
+          </div>
+        </div>
+        <div className="col-md-6">
+          <div className="card h-100">
+            <div className="card-body">
+              <div className="d-flex justify-content-between align-items-center mb-2">
+                <span className="fw-bold">Created On:</span>
+                <span>{item.created_on || '-'}</span>
+              </div>
+              <div className="d-flex justify-content-between align-items-center mb-2">
+                <span className="fw-bold">Updated On:</span>
+                <span>{item.updated_on || '-'}</span>
+              </div>
+              <div className="d-flex justify-content-between align-items-center">
+                <span className="fw-bold">Entry By:</span>
+                <span>{item.entry_by || '-'}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    );
-  }
+    </>
+  );
+
+  // Prepare filter info for export
+  const getFilterInfo = () => {
+    if (!filterParams) {
+      return {
+        'Filter Type': getFilterTypeLabel(),
+        'Date Range': 'All Time'
+      };
+    }
+
+    const info = {
+      'Filter Type': getFilterTypeLabel(),
+      'Date Range': filterParams.date_range || 'All Time'
+    };
+
+    if (filterType === 'supplier' && supplierId) {
+      const selectedSupplier = suppliers.find(sup => parseInt(sup.supplier_id, 10) === parseInt(supplierId, 10));
+      if (selectedSupplier) {
+        info['Supplier'] = selectedSupplier.name;
+      }
+    } else if (filterType === 'in_or_out') {
+      info['Stock Status'] = inOrOut === 'in' ? 'In Stock' : 'Out of Stock';
+    }
+
+    return info;
+  };
+
+  const getFilterTypeLabel = () => {
+    switch (filterType) {
+      case 'supplier':
+        return 'By Supplier';
+      case 'in_or_out':
+        return 'By Stock Status';
+      default:
+        return 'All Items';
+    }
+  };
 
   return (
     <div className="layout-wrapper layout-content-navbar">
       <div className="layout-container">
         <VerticalSidebar />
-        <div className="layout-page">
+        <div className="layout-page d-flex flex-column min-vh-100">
           <Header />
-          <div className="content-wrapper">
-            <div className="container-xxl flex-grow-1 container-p-y">
-              <div className="row">
-                <div className="col-12">
-                  <div className="card">
-                    <div className="card-header d-flex justify-content-between align-items-center">
-                      <h5 className="mb-0">Inventory Reports</h5>
-                      <div className="d-flex gap-2">
-                        <select 
-                          className="form-select"
-                          value={filterType}
-                          onChange={(e) => setFilterType(e.target.value)}
-                        >
-                          <option value="all">All Items</option>
-                          <option value="supplier">By Supplier</option>
-                          <option value="in_or_out">In/Out Status</option>
-                        </select>
-
-                        {filterType === 'supplier' && (
-                          <input
-                            type="number"
-                            className="form-control"
-                            placeholder="Supplier ID"
-                            value={supplierId}
-                            onChange={(e) => setSupplierId(e.target.value)}
-                          />
-                        )}
-
-                        {filterType === 'in_or_out' && (
-                          <select 
-                            className="form-select"
-                            value={inOrOut}
-                            onChange={(e) => setInOrOut(e.target.value)}
-                          >
-                            <option value="in">In Stock</option>
-                            <option value="out">Out of Stock</option>
-                          </select>
-                        )}
-
-                        <button 
-                          className="btn btn-primary"
-                          onClick={handleRetry}
-                          disabled={loading}
-                        >
-                          {loading ? (
-                            <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                          ) : (
-                            <i className="fas fa-sync-alt me-1"></i>
-                          )}
-                          Refresh
-                        </button>
-                      </div>
-                    </div>
-                    <div className="card-body">
-                      {loading ? (
-                        <div className="text-center py-5">
-                          <div className="spinner-border text-primary" role="status">
-                            <span className="visually-hidden">Loading...</span>
-                          </div>
-                        </div>
-                      ) : error ? (
-                        <div className="alert alert-danger" role="alert">
-                          {error}
-                        </div>
-                      ) : inventoryData && (
-                        <>
-                          <div className="row mb-4">
-                            <div className="col-md-4">
-                              <div className="card bg-primary text-white">
-                                <div className="card-body">
-                                  <h6 className="card-title">Total Items</h6>
-                                  <h3 className="mb-0">{inventoryData.inventory_report.total_items}</h3>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="col-md-4">
-                              <div className="card bg-success text-white">
-                                <div className="card-body">
-                                  <h6 className="card-title">Total Inventory Value</h6>
-                                  <h3 className="mb-0">₹{inventoryData.inventory_report.total_inventory_value.toFixed(2)}</h3>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="col-md-4">
-                              <div className="card bg-warning text-white">
-                                <div className="card-body">
-                                  <h6 className="card-title">Items Below Reorder Level</h6>
-                                  <h3 className="mb-0">{inventoryData.inventory_report.items_below_reorder_level}</h3>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="row mb-4">
-                            <div className="col-md-6">
-                              <div className="card">
-                                <div className="card-header">
-                                  <h5 className="card-title mb-0">Category Breakdown</h5>
-                                </div>
-                                <div className="card-body">
-                                  <div className="table-responsive">
-                                    <table className="table table-bordered">
-                                      <thead>
-                                        <tr>
-                                          <th>Category</th>
-                                          <th>Count</th>
-                                          <th>Total Value</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {Object.entries(inventoryData.inventory_report.category_breakdown).map(([category, data]) => (
-                                          <tr key={category}>
-                                            <td>{category}</td>
-                                            <td>{data.count}</td>
-                                            <td>₹{data.total_value.toFixed(2)}</td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="card">
-                            <div className="card-header">
-                              <h5 className="card-title mb-0">Inventory Details</h5>
-                            </div>
-                            <div className="card-body">
-                              <div className="table-responsive">
-                                <table className="table table-hover">
-                                  <thead>
-                                    <tr>
-                                      <th style={{ width: '5%' }}></th>
-                                      <th style={{ width: '20%' }}>Item Details</th>
-                                      <th style={{ width: '15%' }}>Category</th>
-                                      <th style={{ width: '15%' }}>Supplier</th>
-                                      <th style={{ width: '10%' }}>Price</th>
-                                      <th style={{ width: '10%' }}>Quantity</th>
-                                      <th style={{ width: '10%' }}>Status</th>
-                                      <th style={{ width: '15%' }}>Dates</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {inventoryData.inventory_items.map((item) => (
-                                      <React.Fragment key={item.inventory_id}>
-                                        <tr 
-                                          className="cursor-pointer"
-                                          onClick={() => toggleRow(item.inventory_id)}
-                                          style={{ cursor: 'pointer' }}
-                                        >
-                                          <td>
-                                            <i className={`fas fa-chevron-${expandedRows[item.inventory_id] ? 'down' : 'right'} transition-all`}></i>
-                                          </td>
-                                          <td>
-                                            <div className="d-flex flex-column">
-                                              <span className="fw-semibold">{item.name}</span>
-                                              <small className="text-muted">{item.description}</small>
-                                            </div>
-                                          </td>
-                                          <td>{item.category}</td>
-                                          <td>
-                                            <div className="d-flex flex-column">
-                                              <span>{item.supplier.name}</span>
-                                             
-                                            </div>
-                                          </td>
-                                          <td>₹{item.unit_price.toFixed(2)}</td>
-                                          <td>
-                                            <div className="d-flex flex-column">
-                                              <span>{item.quantity}</span>
-                                              <small className="text-muted">{item.unit_of_measure}</small>
-                                            </div>
-                                          </td>
-                                          <td>
-                                            <span className={`badge bg-${item.in_or_out === 'in' ? 'success' : 'danger'}`}>
-                                              {item.in_or_out === 'in' ? 'In Stock' : 'Out of Stock'}
-                                            </span>
-                                          </td>
-                                          <td>
-                                            <div>In: {item.in_date || '-'}</div>
-                                            <div>Out: {item.out_date || '-'}</div>
-                                          </td>
-                                        </tr>
-                                        <tr>
-                                          <td colSpan="8" className="p-0">
-                                            <div 
-                                              className={`collapse ${expandedRows[item.inventory_id] ? 'show' : ''}`}
-                                              style={{
-                                                transition: 'all 0.3s ease-in-out',
-                                                maxHeight: expandedRows[item.inventory_id] ? '500px' : '0',
-                                                overflow: 'hidden'
-                                              }}
-                                            >
-                                              <div className="p-3 bg-light">
-                                                <div className="row">
-                                                  <div className="col-md-6">
-                                                    <h6 className="mb-3">Item Information</h6>
-                                                    <div className="card">
-                                                      <div className="card-body">
-                                                        <div className="d-flex justify-content-between mb-2">
-                                                          <span>Brand:</span>
-                                                          <span className="fw-semibold">{item.brand_name}</span>
-                                                        </div>
-                                                        <div className="d-flex justify-content-between mb-2">
-                                                          <span>Reorder Level:</span>
-                                                          <span className="fw-semibold">{item.reorder_level}</span>
-                                                        </div>
-                                                        <div className="d-flex justify-content-between mb-2">
-                                                          <span>Tax Rate:</span>
-                                                          <span className="fw-semibold">{(item.tax_rate * 100).toFixed(0)}%</span>
-                                                        </div>
-                                                        <div className="d-flex justify-content-between mb-2">
-                                                          <span>Expiration:</span>
-                                                          <span className="fw-semibold">{item.expiration_date}</span>
-                                                        </div>
-                                                      </div>
-                                                    </div>
-                                                  </div>
-                                                  <div className="col-md-6">
-                                                    <h6 className="mb-3">Additional Details</h6>
-                                                    <div className="card">
-                                                      <div className="card-body">
-                                                        <div className="d-flex justify-content-between mb-2">
-                                                          <span>Created On:</span>
-                                                          <span>{item.created_on}</span>
-                                                        </div>
-                                                        <div className="d-flex justify-content-between mb-2">
-                                                          <span>Updated On:</span>
-                                                          <span>{item.updated_on || '-'}</span>
-                                                        </div>
-                                                        <div className="d-flex justify-content-between mb-2">
-                                                          <span>Entry By:</span>
-                                                          <span>{item.entry_by || '-'}</span>
-                                                        </div>
-                                                      </div>
-                                                    </div>
-                                                  </div>
-                                                </div>
-                                              </div>
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      </React.Fragment>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
+          <div className="content-wrapper flex-grow-1">
+            <div className="container-fluid flex-grow-1 container-p-y">
+              {permissionDenied ? (
+                <ForbiddenAccessMessage 
+                  title="Permission Denied" 
+                  message={error}
+                  resourceName="Inventory Reports"
+                  onRetry={handleRetry}
+                  onBack={() => navigate(-1)}
+                />
+              ) : error ? (
+                <div className="alert alert-danger mb-4" role="alert">
+                  {error}
                 </div>
-              </div>
+              ) : (
+                <Card>
+                  <CardHeader className="bg-white">
+                    <CardTitle className="text-center w-100 mb-0 fw-bold text-primary">Inventory Reports</CardTitle>
+                  </CardHeader>
+
+                  <CardBody>
+                    {/* Filters Section */}
+                    <ReportFilters
+                      isLoading={loading}
+                      onSubmit={fetchInventoryReport}
+                      defaultDateRange="All Time"
+                    >
+                      {/* Custom Inventory Report Filters */}
+                      <Form.Select 
+                        value={filterType}
+                        onChange={handleFilterTypeChange}
+                        style={{ width: '200px' }}
+                      >
+                        <option value="all">All Items</option>
+                        <option value="supplier" disabled={suppliers.length === 0}>By Supplier</option>
+                        <option value="in_or_out">By Stock Status</option>
+                      </Form.Select>
+
+                      {filterType === 'supplier' && (
+                        <Form.Select
+                          value={supplierId}
+                          onChange={(e) => setSupplierId(e.target.value)}
+                          style={{ width: '200px' }}
+                          disabled={loadingSuppliers || suppliers.length === 0}
+                        >
+                          <option value="">Select a supplier</option>
+                          {suppliers.map(supplier => (
+                            <option key={supplier.supplier_id} value={supplier.supplier_id}>
+                              {supplier.name}
+                            </option>
+                          ))}
+                        </Form.Select>
+                      )}
+
+                      {filterType === 'in_or_out' && (
+                        <Form.Select
+                          value={inOrOut}
+                          onChange={(e) => setInOrOut(e.target.value)}
+                          style={{ width: '200px' }}
+                        >
+                          <option value="in">In Stock</option>
+                          <option value="out">Out of Stock</option>
+                        </Form.Select>
+                      )}
+                    </ReportFilters>
+
+                    {/* Table Section */}
+                    {dataFetched && filteredData.length > 0 ? (
+                      <ReportTable
+                        data={filteredData}
+                        columns={columns}
+                        title="Inventory Report"
+                        expandableContent={renderInventoryDetails}
+                        filterInfo={getFilterInfo()}
+                      />
+                    ) : dataFetched && filteredData.length === 0 ? (
+                      <div className="alert alert-info mt-4">
+                        <i className="fas fa-info-circle me-2"></i>
+                        No inventory items found for the selected filters. Please try different filter criteria.
+                      </div>
+                    ) : null}
+                  </CardBody>
+                </Card>
+              )}
             </div>
+            <Footer />
           </div>
-          <Footer />
         </div>
       </div>
     </div>
   );
-}
+};
 
 export default InventoryReports; 

@@ -1,24 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { api, API_PATHS } from '../config/apiConfig';
+import { API_PATHS } from '../config/apiConfig';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 // Import both GIFs - static and animated
 import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
 import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still-frame.gif';
-import { useDashboard } from '../context/DashboardContext'; // Import context
-import Chart from 'react-apexcharts';
+import { useDashboard } from '../context/DashboardContext'; // Import dashboard context
+import { useCacheData } from '../context/CacheDataContext'; // Import cache context
 import { withErrorHandling } from './common';
 
 const OrderAnalytics = ({ handleApiError }) => {
-  // Get data from context
+  // Get data from dashboard context
   const { 
-    orderAnalytics_from_context,
-    loading: contextLoading,
-    error: contextError
+    orderAnalytics_from_context
   } = useDashboard();
 
+  // Get data from cache context
+  const { 
+    fetchData,
+    getCachedData
+  } = useCacheData();
+
   const [dateRange, setDateRange] = useState('All Time');
-  const [loading, setLoading] = useState(false);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -30,25 +33,6 @@ const OrderAnalytics = ({ handleApiError }) => {
     avg_order_time: 0,
     avg_cooking_time: 0
   });
-  const [userInteracted, setUserInteracted] = useState(false); // Flag to track user interaction
-
-  // Helper function to get auth headers
-  const getAuthHeaders = (includeAuth = true) => {
-    const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    };
-    
-    // Only add Authorization header if includeAuth is true and token exists
-    if (includeAuth) {
-      const accessToken = localStorage.getItem('access');
-      if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`;
-      }
-    }
-    
-    return headers;
-  };
 
   // Simplified effect to handle the animation timing
   useEffect(() => {
@@ -62,24 +46,31 @@ const OrderAnalytics = ({ handleApiError }) => {
     }
   }, [isGifPlaying]);
 
-  // Use context data when component mounts
+  // Initial data load from cache and context
   useEffect(() => {
-    if (orderAnalytics_from_context) {
-      setAnalyticsData({
-        avg_first_order_time: orderAnalytics_from_context.first_order_time || '0 mins',
-        avg_last_order_time: orderAnalytics_from_context.last_order_time || '0 mins',
-        avg_order_time: orderAnalytics_from_context.average_order_time || '0 mins',
-        avg_cooking_time: orderAnalytics_from_context.average_cooking_time || '0 mins'
-      });
+    // First try to get data from cache
+    const cachedData = getCachedData(API_PATHS.orderAnalytics);
+    if (cachedData) {
+      updateAnalyticsFromData(cachedData);
     }
-  }, [orderAnalytics_from_context]);
+    // If no cached data, use context data
+    else if (orderAnalytics_from_context) {
+      updateAnalyticsFromData(orderAnalytics_from_context);
+    }
+    
+    // Fetch fresh data in background
+    fetchOrderAnalytics();
+  }, []);
 
-  // Set error from context if available
-  useEffect(() => {
-    if (contextError && !userInteracted) {
-      setError(contextError);
-    }
-  }, [contextError, userInteracted]);
+  // Helper function to update analytics data from API response
+  const updateAnalyticsFromData = (data) => {
+    setAnalyticsData({
+      avg_first_order_time: data.first_order_time || '0 mins',
+      avg_last_order_time: data.last_order_time || '0 mins',
+      avg_order_time: data.average_order_time || '0 mins',
+      avg_cooking_time: data.average_cooking_time || '0 mins'
+    });
+  };
 
   const formatDate = (date) => {
     if (!date) return '';
@@ -91,7 +82,6 @@ const OrderAnalytics = ({ handleApiError }) => {
   };
 
   const handleDateRangeChange = (range) => {
-    console.log('Date range changed to:', range);
     setDateRange(range);
     
     if (range === 'Custom Range') {
@@ -102,26 +92,21 @@ const OrderAnalytics = ({ handleApiError }) => {
       setShowDatePicker(false);
       setStartDate(null);
       setEndDate(null);
-      fetchData(range);
+      fetchOrderAnalytics(getDateRange(range));
     }
   };
 
   const handleReload = () => {
-    console.log('Reloading data...');
-    setUserInteracted(true);
     setIsGifPlaying(true);
     
     // Always fetch fresh data on reload, regardless of the date range
-    fetchData(dateRange);
+    fetchOrderAnalytics(getDateRange(dateRange), { forceRefresh: true });
   };
 
-  const fetchData = async (range) => {
+  // Fetch order analytics data using the cache context
+  const fetchOrderAnalytics = async (dateFilter = {}, options = {}) => {
     try {
-      setLoading(true);
       setError('');
-      
-      // Set user interaction flag to true
-      setUserInteracted(true);
       
       // Get user and outlet IDs
       const userId = localStorage.getItem('user_id');
@@ -129,48 +114,24 @@ const OrderAnalytics = ({ handleApiError }) => {
       
       if (!userId || !outletId) {
         setError('User ID or outlet ID not found. Please check your login.');
-        setLoading(false);
         return;
       }
       
       // Prepare request data
       const requestData = {
         user_id: Number(userId),
-        outlet_id: Number(outletId)
+        outlet_id: Number(outletId),
+        ...dateFilter
       };
       
-      // Add date range if not "All Time"
-      if (range === 'Custom Range' && startDate && endDate) {
-        requestData.start_date = formatDate(startDate);
-        requestData.end_date = formatDate(endDate);
-      } else if (range !== 'All Time') {
-        const dateRange = getDateRange(range);
-        if (dateRange) {
-          requestData.start_date = dateRange.start_date;
-          requestData.end_date = dateRange.end_date;
-        }
-      }
+      // Use the fetchData function from context which handles caching
+      const data = await fetchData(API_PATHS.orderAnalytics, requestData, {
+        forceRefresh: options.forceRefresh || false,
+        transformResponse: (response) => response?.detail || response
+      });
       
-      console.log('Sending order analytics request:', requestData);
-      
-      // Make API request using the API instance from apiConfig
-      const response = await api.post(API_PATHS.orderAnalytics, requestData);
-      
-      console.log('Order analytics response:', response.data);
-      
-      // Process response
-      if (response.data?.detail) {
-        const data = response.data.detail;
-        // Update analytics data from response
-        setAnalyticsData({
-          avg_first_order_time: data.first_order_time || '0 mins',
-          avg_last_order_time: data.last_order_time || '0 mins',
-          avg_order_time: data.average_order_time || '0 mins',
-          avg_cooking_time: data.average_cooking_time || '0 mins'
-        });
-      } else {
-        console.error('Invalid response format');
-        setError('Invalid response format received');
+      if (data) {
+        updateAnalyticsFromData(data);
       }
     } catch (error) {
       console.error('Failed to fetch order analytics:', error);
@@ -180,8 +141,6 @@ const OrderAnalytics = ({ handleApiError }) => {
         // If error was not handled by the HOC (not a 403), set local error state
         setError('Failed to load order analytics. Please try again.');
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -216,32 +175,44 @@ const OrderAnalytics = ({ handleApiError }) => {
         start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
         end = new Date(today.getFullYear(), today.getMonth(), 0);
         break;
+      case 'Custom Range':
+        if (startDate && endDate) {
+          return {
+            start_date: formatDate(startDate),
+            end_date: formatDate(endDate)
+          };
+        }
+        return {};
       default:
-        return null;
+        return {};
     }
     
-    return {
-      start_date: formatDate(start),
-      end_date: formatDate(end)
-    };
+    if (start && end) {
+      return {
+        start_date: formatDate(start),
+        end_date: formatDate(end)
+      };
+    }
+    
+    return {};
   };
 
   const handleCustomDateSelect = () => {
     if (startDate && endDate) {
       setDateRange(`${formatDate(startDate)} - ${formatDate(endDate)}`);
       setShowDatePicker(false);
-      fetchData('Custom Range');
+      fetchOrderAnalytics(getDateRange('Custom Range'), { forceRefresh: true });
     }
   };
 
-  // Determine current loading state
-  const isLoading = userInteracted ? loading : contextLoading;
-  // Determine current error state
-  const currentError = userInteracted ? error : contextError;
+  // Return null if there's a 403 error (permission denied)
+  if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {
+    return null;
+  }
 
   return (
     <div className="col-12 col-md-6 col-lg-6">
-      <div className="card">
+      <div className="card border" style={{ boxShadow: 'none' }}>
         <div className="card-header d-flex justify-content-between align-items-md-center align-items-start">
           <h5 className="card-title mb-0">Order Analytics</h5>
           <div className="d-flex align-items-center gap-2">
@@ -292,12 +263,11 @@ const OrderAnalytics = ({ handleApiError }) => {
 
             <button
               type="button"
-              className={`btn btn-icon p-0 ${isLoading ? "disabled" : ""}`}
+              className="btn btn-icon p-0"
               onClick={handleReload}
-              disabled={isLoading}
               style={{ border: '1px solid var(--bs-primary)' }}
             >
-              <i className={`fas fa-sync-alt ${isLoading ? "fa-spin" : ""}`}></i>
+              <i className="fas fa-sync-alt"></i>
             </button>
 
             <button
@@ -361,7 +331,7 @@ const OrderAnalytics = ({ handleApiError }) => {
                   endDate={endDate}
                   maxDate={new Date()}
                   placeholderText="DD MMM YYYY"
-                  className="form-control"
+                  className="btn btn-outline-secondary"
                   dateFormat="dd MMM yyyy"
                 />
                 <DatePicker
@@ -373,7 +343,7 @@ const OrderAnalytics = ({ handleApiError }) => {
                   minDate={startDate}
                   maxDate={new Date()}
                   placeholderText="DD MMM YYYY"
-                  className="form-control"
+                  className="btn btn-outline-secondary"
                   dateFormat="dd MMM yyyy"
                 />
               </div>
@@ -388,100 +358,76 @@ const OrderAnalytics = ({ handleApiError }) => {
           </div>
         )}
 
-        {currentError && (
+        {error && !error.includes('permission') && !error.includes('Permission') && !error.includes('403') && (
           <div className="card-body">
             <div className="alert alert-danger" role="alert">
-              {currentError}
+              {error}
             </div>
           </div>
         )}
 
         <div className="card-body">
-          {isLoading ? (
-            // Loading skeleton for analytics cards
-            <div className="row g-4">
-              {Array(4).fill(0).map((_, index) => (
-                <div key={index} className="col-md-6">
-                  <div className="d-flex align-items-center mb-4 position-relative" style={{ minHeight: '80px' }}>
-                    <div className="rounded-circle bg-secondary d-flex align-items-center justify-content-center" 
-                         style={{ width: '40px', height: '40px', opacity: 0.5 }}>
-                    </div>
-                    <div className="ms-4 d-flex flex-column">
-                      <div className="bg-secondary mb-2" style={{ width: '120px', height: '18px', opacity: 0.5 }}></div>
-                      <div className="bg-secondary" style={{ width: '80px', height: '16px', opacity: 0.5 }}></div>
-                    </div>
-                    <div className="position-absolute start-0 w-100 h-100 d-flex justify-content-center align-items-center">
-                      <div className="spinner-border spinner-border-sm text-primary" role="status">
-                        <span className="visually-hidden">Loading...</span>
-                      </div>
-                    </div>
-                  </div>
+          <div className="row g-4">
+            <div className="col-md-6">
+              <div className="d-flex align-items-center mb-4 pt-1">
+                <div
+                  className="icon-bg bg-primary rounded-circle d-flex align-items-center justify-content-center"
+                  style={{ width: "40px", height: "40px" }}
+                >
+                  <i className="fas fa-clock text-white"></i>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="row g-4">
-              <div className="col-md-6">
-                <div className="d-flex align-items-center mb-4 pt-1">
-                  <div
-                    className="icon-bg bg-primary rounded-circle d-flex align-items-center justify-content-center"
-                    style={{ width: "40px", height: "40px" }}
-                  >
-                    <i className="fas fa-clock text-white"></i>
-                  </div>
-                  <div className="ms-4 d-flex flex-column">
-                    <h5 className="mb-0">Avg First Order Time</h5>
-                    <p className="mb-0">{analyticsData.avg_first_order_time}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-md-6">
-                <div className="d-flex align-items-center mb-4">
-                  <div
-                    className="icon-bg bg-success rounded-circle d-flex align-items-center justify-content-center"
-                    style={{ width: "40px", height: "40px" }}
-                  >
-                    <i className="fas fa-hourglass-half text-white"></i>
-                  </div>
-                  <div className="ms-4 d-flex flex-column">
-                    <h5 className="mb-0">Avg Last Order Time</h5>
-                    <p className="mb-0">{analyticsData.avg_last_order_time}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-md-6">
-                <div className="d-flex align-items-center mb-4 mb-md-0">
-                  <div
-                    className="icon-bg bg-warning rounded-circle d-flex align-items-center justify-content-center"
-                    style={{ width: "40px", height: "40px" }}
-                  >
-                    <i className="fas fa-tachometer-alt text-white"></i>
-                  </div>
-                  <div className="ms-4 d-flex flex-column">
-                    <h5 className="mb-0">Avg Order Time</h5>
-                    <p className="mb-0">{analyticsData.avg_order_time}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-md-6">
-                <div className="d-flex align-items-center">
-                  <div
-                    className="icon-bg bg-danger rounded-circle d-flex align-items-center justify-content-center"
-                    style={{ width: "40px", height: "40px" }}
-                  >
-                    <i className="fas fa-utensils text-white"></i>
-                  </div>
-                  <div className="ms-4 d-flex flex-column">
-                    <h5 className="mb-0">Avg Cooking Time</h5>
-                    <p className="mb-0">{analyticsData.avg_cooking_time}</p>
-                  </div>
+                <div className="ms-4 d-flex flex-column">
+                  <h5 className="mb-0">Avg First Order Time</h5>
+                  <p className="mb-0">{analyticsData.avg_first_order_time}</p>
                 </div>
               </div>
             </div>
-          )}
+
+            <div className="col-md-6">
+              <div className="d-flex align-items-center mb-4">
+                <div
+                  className="icon-bg bg-success rounded-circle d-flex align-items-center justify-content-center"
+                  style={{ width: "40px", height: "40px" }}
+                >
+                  <i className="fas fa-hourglass-half text-white"></i>
+                </div>
+                <div className="ms-4 d-flex flex-column">
+                  <h5 className="mb-0">Avg Last Order Time</h5>
+                  <p className="mb-0">{analyticsData.avg_last_order_time}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-md-6">
+              <div className="d-flex align-items-center mb-4 mb-md-0">
+                <div
+                  className="icon-bg bg-warning rounded-circle d-flex align-items-center justify-content-center"
+                  style={{ width: "40px", height: "40px" }}
+                >
+                  <i className="fas fa-tachometer-alt text-white"></i>
+                </div>
+                <div className="ms-4 d-flex flex-column">
+                  <h5 className="mb-0">Avg Order Time</h5>
+                  <p className="mb-0">{analyticsData.avg_order_time}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-md-6">
+              <div className="d-flex align-items-center">
+                <div
+                  className="icon-bg bg-danger rounded-circle d-flex align-items-center justify-content-center"
+                  style={{ width: "40px", height: "40px" }}
+                >
+                  <i className="fas fa-utensils text-white"></i>
+                </div>
+                <div className="ms-4 d-flex flex-column">
+                  <h5 className="mb-0">Avg Cooking Time</h5>
+                  <p className="mb-0">{analyticsData.avg_cooking_time}</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
