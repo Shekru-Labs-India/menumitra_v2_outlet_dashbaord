@@ -5,9 +5,13 @@ import { ToastContainer, toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import { useDashboard } from '../context/DashboardContext'
 import { api, API_PATHS } from '../config/apiConfig'
+import { useCacheData } from '../context/CacheDataContext'
+import { useRefreshManager } from '../context/RefreshManager'
+import OutletSearch from './OutletSearch'
 
 function Header() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchField, setSearchField] = useState('name'); // Default search field
   const [selectedOutlet, setSelectedOutlet] = useState('');
   const [isMenuCollapsed, setIsMenuCollapsed] = useState(false);
   const [userName, setUserName] = useState('User');
@@ -29,6 +33,20 @@ function Header() {
   
   // Get refreshDashboard from context
   const { refreshDashboard } = useDashboard();
+
+  // Get cache data functions
+  const { 
+    fetchAnalytics, 
+    fetchOrderAnalytics, 
+    fetchFoodTypeStats, 
+    fetchOrderTypeStats, 
+    fetchOrderStats, 
+    fetchWeeklyOrderStats, 
+    fetchPaymentMethodCounts 
+  } = useCacheData();
+
+  // Get refresh manager functions
+  const { refreshAllData, lastRefreshTime, isRefreshing } = useRefreshManager();
 
   // Function to show toast notifications
   const showToast = (message, type = 'error') => {
@@ -103,7 +121,7 @@ function Header() {
           status: outlet.is_open ? 'open' : 'closed',
           outlet_id: outlet.outlet_id,
           outlet_status: outlet.outlet_status,
-          is_test: outlet.is_test || false,
+          account_type: outlet.account_type || '',
           is_active: outlet.outlet_status
         }));
         
@@ -140,6 +158,101 @@ function Header() {
       setIsLoading(false);
     }
   };
+
+  // Search outlets using the new API
+  const searchOutlets = async () => {
+    if (!searchTerm.trim()) {
+      // If search term is empty, show all outlets
+      fetchOutlets();
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const outletId = localStorage.getItem('outlet_id');
+      const userId = localStorage.getItem('user_id');
+      
+      if (!userId || !outletId) {
+        setError('Authentication failed. Please login again.');
+        return;
+      }
+
+      const response = await api.post(API_PATHS.outletSearch, {
+        outlet_id: outletId,
+        user_id: parseInt(userId),
+        search_field: searchField,
+        search_term: searchTerm
+      });
+
+      if (response.status !== 200) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = response.data;
+      
+      if (data.detail) {
+        // Transform search results to match our outlet format
+        let searchResults = [];
+        
+        if (Array.isArray(data.detail)) {
+          searchResults = data.detail.map(outlet => ({
+            name: outlet.name,
+            location: outlet.address || '',
+            status: outlet.is_open ? 'open' : 'closed',
+            outlet_id: outlet.outlet_id,
+            outlet_status: outlet.outlet_status || false,
+            account_type: outlet.account_type || '',
+            is_active: outlet.outlet_status || false,
+            address: outlet.address || ''
+          }));
+        } else if (data.detail.outlet_id) {
+          // Single result
+          searchResults = [{
+            name: data.detail.name,
+            location: data.detail.address || '',
+            status: data.detail.is_open ? 'open' : 'closed',
+            outlet_id: data.detail.outlet_id,
+            outlet_status: data.detail.outlet_status || false,
+            account_type: data.detail.account_type || '',
+            is_active: data.detail.outlet_status || false,
+            address: data.detail.address || ''
+          }];
+        }
+        
+        setOutlets(searchResults);
+      } else {
+        // No results found
+        setOutlets([]);
+      }
+    } catch (err) {
+      console.error('Error searching outlets:', err);
+      // Fallback to regular fetch if search fails
+      fetchOutlets();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle search field change
+  const handleSearchFieldChange = (field) => {
+    setSearchField(field);
+    if (searchTerm.trim()) {
+      searchOutlets();
+    }
+  };
+
+  // Handle search term change with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (showOutletModal && searchTerm.trim()) {
+        searchOutlets();
+      }
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [searchTerm, searchField, showOutletModal]);
 
   useEffect(() => {
     fetchOutlets();
@@ -212,7 +325,8 @@ function Header() {
       
       showToast(`Outlet "${outlet.name}" selected successfully!`, 'success');
       
-      refreshDashboard();
+      // Use the refreshAllComponents function instead of just refreshDashboard
+      refreshAllComponents();
       
       setTimeout(() => {
         window.location.href = '/dashboard';
@@ -304,30 +418,40 @@ function Header() {
     }
   };
 
-  // Add this new useEffect for time tracking
+  // Effect to update time elapsed since last refresh
   useEffect(() => {
     const timer = setInterval(() => {
       const currentTime = new Date();
-      setTimeElapsed(formatTimeElapsed(startTime, currentTime));
-    }, 1000);
+      setTimeElapsed(formatTimeElapsed(lastRefreshTime, currentTime));
+    }, 500);
 
     return () => clearInterval(timer);
-  }, [startTime]);
+  }, [lastRefreshTime]);
+
+  // Function to refresh all components using the RefreshManager
+  const refreshAllComponents = () => {
+    console.log('Manual refresh triggered from Header');
+    refreshAllData({ forceRefresh: true });
+    // Update the UI immediately to show refresh is happening
+    setStartTime(new Date());
+  };
 
   // Add refresh function with rotation
   const handleRefresh = () => {
     setIsRotating(true);
-    setStartTime(new Date());
     
-    // Show rotating animation for a moment before reload
+    // Refresh all components
+    refreshAllComponents();
+    
+    // Reset rotation after animation completes
     setTimeout(() => {
-      // Reload the page - simplest way to reset all filters and get fresh data
-      window.location.reload();
-    }, 500); // Shorter timeout so the reload happens during the animation
+      setIsRotating(false);
+    }, 1000);
   };
 
   const handleClearSearch = () => {
     setSearchTerm('');
+    fetchOutlets(); // Reset to show all outlets
   };
 
   return (
@@ -801,9 +925,10 @@ function Header() {
                     className="btn btn-icon p-0"
                     onClick={handleRefresh}
                     style={{ border: "1px solid var(--bs-primary)" }}
+                    disabled={isRefreshing}
                   >
                     <i
-                      className={`fas fa-sync-alt ${
+                      className={`fas ${isRefreshing ? "fa-spinner" : "fa-sync-alt"} ${
                         isRotating ? "rotate-animation" : ""
                       }`}
                     ></i>
@@ -833,26 +958,24 @@ function Header() {
                 </a>
                 <ul className="dropdown-menu dropdown-menu-end mt-3 py-2">
                   <li>
-                    <Link className="dropdown-item" to="/profile">
+                   
                       <div className="d-flex align-items-center">
                         <div className="flex-shrink-0 me-2">
-                          <div className="avatar">
-                            <i className="far fa-user-circle fa-2x text-gray"></i>
-                          </div>
+                         
                         </div>
-                        <div className="flex-grow-1">
+                        <div className="flex-grow-1 align-items-center">
                           <h6 className="mb-0 small">{userName}</h6>
                           <small className="text-muted">
                             {storedRole.toUpperCase()}
                           </small>
                         </div>
                       </div>
-                    </Link>
+                   
                   </li>
                   <li>
                     <div className="dropdown-divider" />
                   </li>
-                  <li>
+                  {/* <li>
                     <Link className="dropdown-item" to="/profile">
                       <i className="far fa-user fa-lg me-2" />
                       <span className="align-middle">My Profile</span>
@@ -869,7 +992,7 @@ function Header() {
                       <i className="fas fa-cog fa-lg me-2" />
                       <span className="align-middle">Settings</span>
                     </Link>
-                  </li>
+                  </li> */}
                   <li>
                     <div className="dropdown-divider" />
                   </li>
@@ -902,129 +1025,16 @@ function Header() {
         </div>
       </nav>
 
-      {/* Outlet Selection Modal */}
-      {showOutletModal && (
-        <div className="outlet-modal">
-          <div className="outlet-modal-content">
-            <div className="outlet-modal-header">
-              <h5 className="mb-0">Select Outlet</h5>
-              <button
-                className="btn-close"
-                onClick={() => setShowOutletModal(false)}
-                aria-label="Close"
-              ></button>
-            </div>
-            <div className="outlet-modal-body">
-              {/* Search Bar */}
-              <div className="outlet-search">
-                <i className="fas fa-search"></i>
-                <input
-                  type="text"
-                  placeholder="Search"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                {searchTerm && (
-                  <button className="clear-btn" onClick={handleClearSearch}>
-                    Clear
-                  </button>
-                )}
-              </div>
-
-              {/* Quick Filters */}
-              <div className="quick-filters">
-                {quickFilters.map((filter, index) => (
-                  <button
-                    key={index}
-                    className="quick-filter"
-                    onClick={() => setSearchTerm(filter)}
-                  >
-                    {filter}
-                  </button>
-                ))}
-              </div>
-
-              {/* All Outlets Section */}
-              <div className="outlet-list">
-                <div className="outlet-item">
-                  <i className="fas fa-store outlet-icon"></i>
-                  <span>All Outlet</span>
-                </div>
-
-                {/* Outlet List */}
-                {isLoading ? (
-                  <div className="text-center py-3">Loading outlets...</div>
-                ) : error ? (
-                  <div className="text-center py-3 text-danger">{error}</div>
-                ) : (
-                  outlets
-                    .filter((outlet) => {
-                      const search = searchTerm.toLowerCase();
-                      return (
-                        outlet.name.toLowerCase().includes(search) ||
-                        outlet.outlet_id.toString().includes(search) ||
-                        (outlet.location &&
-                          outlet.location.toLowerCase().includes(search))
-                      );
-                    })
-                    .map((outlet) => (
-                      <div
-                        key={outlet.outlet_id}
-                        className="outlet-item"
-                        onClick={() => {
-                          handleOutletSelect(outlet);
-                          setShowOutletModal(false);
-                        }}
-                      >
-                        <i
-                          className={`fas ${
-                            outlet.outlet_status ? "fa-store" : "fa-store-slash"
-                          } outlet-icon`}
-                        ></i>
-                        <div className="outlet-info">
-                          <span className="outlet-name">{outlet.name}</span>
-                          {outlet.location && (
-                            <span className="outlet-location">
-                              <i className="fas fa-map-marker-alt me-1"></i>
-                              {outlet.location}
-                            </span>
-                          )}
-                        </div>
-                        <div className="outlet-meta">
-                          <div className="d-flex flex-wrap gap-1">
-                            <span
-                              className={`outlet-status ${
-                                outlet.is_active ? "status-active" : "status-inactive"
-                              }`}
-                            >
-                              {outlet.is_active ? "Active" : "Inactive"}
-                            </span>
-                            <span
-                              className={`outlet-status ${
-                                outlet.is_test ? "status-test" : "status-live"
-                              }`}
-                            >
-                              {outlet.is_test ? "Test" : "Live"}
-                            </span>
-                            <span
-                              className={`outlet-status ${
-                                outlet.status === "open"
-                                  ? "status-open"
-                                  : "status-closed"
-                              }`}
-                            >
-                              {outlet.status === "open" ? "Open" : "Closed"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Replace the inline outlet modal with the OutletSearch component */}
+      <OutletSearch 
+        show={showOutletModal}
+        onClose={() => setShowOutletModal(false)}
+        onSelect={(outlet) => {
+          handleOutletSelect(outlet);
+          setShowOutletModal(false);
+        }}
+        title="Select Outlet"
+      />
 
       {/* Show banner only when selected outlet status is false */}
       {selectedOutletData?.outlet_status === false && (

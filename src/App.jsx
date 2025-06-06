@@ -14,6 +14,7 @@ import OutletDetails from './screen/OutletDetails'
 import { ThemeProvider } from './components/ThemeContext'
 import { DashboardProvider } from './context/DashboardContext'
 import { CacheDataProvider } from './context/CacheDataContext'
+import { RefreshManagerProvider } from './context/RefreshManager'
 import MenuReports from './screen/reports/MenuReports'
 import OrderReports from './screen/reports/OrderReports'
 import TableReports from './screen/reports/TableReports'
@@ -32,37 +33,39 @@ function App() {
       <ThemeProvider>
         <DashboardProvider>
           <CacheDataProvider>
-            <div className="layout-wrapper layout-content-navbar">
-              <div className="layout-container">
-                {/* Routes */}
-                <Routes>
-                  {/* Public routes */}
-                  <Route path="/login" element={<LoginScreen />} />
-                  
-                  {/* Protected routes */}
-                  <Route path="/dashboard" element={<HomeScreen />} />
-                  <Route path="/profile" element={<MyProfile />} />
-                  <Route path="/settings" element={<Settings />} /> 
-                  <Route path="/compare-outlets" element={<CompareOutlets />} /> 
-                  <Route path="/statistics" element={<Statistics />} />
-                  <Route path="/outlet-details" element={<OutletDetails />} />
-                  <Route path="/reports/menu" element={<MenuReports />} />
-                  <Route path="/reports/orders" element={<OrderReports />} />
-                  <Route path="/reports/tables" element={<TableReports />} />
-                  <Route path="/reports/coupons" element={<CouponReports />} />
-                  <Route path="/reports/inventory" element={<InventoryReports />} />
-                  <Route path="/reports/staff" element={<StaffReports />} />
-                  <Route path="/reports/customers" element={<CustomerReports />} />
-                  <Route path="/my-activity" element={<MyActivity />} />
-                  
-                  {/* Default redirect to login */}
-                  <Route path="/" element={<Navigate to="/login" replace />} />
-              
-                  {/* 404 - Not Found */}
-                  <Route path="*" element={<Navigate to="/login" replace />} />
-                </Routes>
+            <RefreshManagerProvider>
+              <div className="layout-wrapper layout-content-navbar">
+                <div className="layout-container">
+                  {/* Routes */}
+                  <Routes>
+                    {/* Public routes */}
+                    <Route path="/login" element={<LoginScreen />} />
+                    
+                    {/* Protected routes */}
+                    <Route path="/dashboard" element={<HomeScreen />} />
+                    <Route path="/profile" element={<MyProfile />} />
+                    <Route path="/settings" element={<Settings />} /> 
+                    <Route path="/compare-outlets" element={<CompareOutlets />} /> 
+                    <Route path="/statistics" element={<Statistics />} />
+                    <Route path="/outlet-details" element={<OutletDetails />} />
+                    <Route path="/reports/menu" element={<MenuReports />} />
+                    <Route path="/reports/orders" element={<OrderReports />} />
+                    <Route path="/reports/tables" element={<TableReports />} />
+                    <Route path="/reports/coupons" element={<CouponReports />} />
+                    <Route path="/reports/inventory" element={<InventoryReports />} />
+                    <Route path="/reports/staff" element={<StaffReports />} />
+                    <Route path="/reports/customers" element={<CustomerReports />} />
+                    <Route path="/my-activity" element={<MyActivity />} />
+                    
+                    {/* Default redirect to login */}
+                    <Route path="/" element={<Navigate to="/login" replace />} />
+                
+                    {/* 404 - Not Found */}
+                    <Route path="*" element={<Navigate to="/login" replace />} />
+                  </Routes>
+                </div>
               </div>
-            </div>
+            </RefreshManagerProvider>
           </CacheDataProvider>
         </DashboardProvider>
       </ThemeProvider>

@@ -7,6 +7,7 @@ import { Table } from 'react-bootstrap'
 import { api, API_PATHS } from '../config/apiConfig'
 import { ToastContainer, toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
+import OutletSearch from '../components/OutletSearch'
 
 const CompareOutlets = () => {
   
@@ -21,19 +22,55 @@ const CompareOutlets = () => {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   
-  // Get current outlet from localStorage
+  // Current outlet state
   const [currentOutlet, setCurrentOutlet] = useState({
     name: "Current Outlet",
     location: "Location details",
     id: localStorage.getItem('outlet_id') || "N/A",
-    menus: 12,
-    categories: 8,
-    items: 86,
-    tables: 24,
-    staff: 15,
-    avgRevenue: "₹45,650",
-    avgOrders: 128
+    address: "",
+    installation_statistics: {
+      total_orders: 0,
+      days_since_installation: 0,
+      first_order_date: ""
+    },
+    revenue_statistics: {
+      total_revenue: 0
+    },
+    payment_statistics: {
+      upi: 0,
+      card: 0,
+      cash: 0,
+      complementary: 0,
+      udhari: 0
+    },
+    order_status_statistics: {
+      success: 0,
+      cancelled: 0,
+      kot_orders: 0,
+      complementary_orders: 0,
+      udhari_orders: 0
+    },
+    order_type_statistics: {
+      dine_in: 0,
+      parcel: 0,
+      drive_through: 0,
+      counter: 0
+    },
+    udhari_statistics: {
+      pending: 0,
+      settled: 0
+    },
+    advance_payment_statistics: {
+      settled: 0,
+      partial_payment: 0
+    }
   });
+  
+  // Function to format currency in Indian format
+  const formatIndianCurrency = (amount) => {
+    if (amount === undefined || amount === null) return '₹0';
+    return `₹${Number(amount).toLocaleString('en-IN')}`;
+  };
   
   // Function to show toast notifications
   const showToast = (message, type = 'error') => {
@@ -83,7 +120,61 @@ const CompareOutlets = () => {
     return truncated.trim() + '...';
   };
   
-  // Fetch outlets from API - using the same function as in Header component
+  // Fetch current outlet details
+  const fetchCurrentOutletDetails = async () => {
+    try {
+      setIsLoading(true);
+      
+      const userId = localStorage.getItem('user_id');
+      const outletId = localStorage.getItem('outlet_id');
+      
+      if (!userId || !outletId) {
+        setError('Authentication failed. Please login again.');
+        return;
+      }
+      
+      // First get basic outlet details
+      const outletResponse = await api.post(API_PATHS.outletDetails, {
+        user_id: parseInt(userId),
+        outlet_id: parseInt(outletId)
+      });
+      
+      if (outletResponse.status !== 200) {
+        throw new Error(`HTTP error! status: ${outletResponse.status}`);
+      }
+      
+      const outletData = outletResponse.data;
+      
+      // Then get outlet comparison details
+      const compareResponse = await api.post(API_PATHS.outletCompareDetails, {
+        user_id: parseInt(userId),
+        outlet_id: parseInt(outletId)
+      });
+      
+      if (compareResponse.status !== 200) {
+        throw new Error(`HTTP error! status: ${compareResponse.status}`);
+      }
+      
+      const compareData = compareResponse.data;
+      
+      // Combine the data
+      setCurrentOutlet({
+        name: outletData.detail?.name || "Current Outlet",
+        location: outletData.detail?.address || "Location details",
+        address: outletData.detail?.address || "",
+        id: outletId,
+        ...compareData.detail
+      });
+      
+    } catch (err) {
+      console.error('Error fetching current outlet details:', err);
+      setError('Failed to fetch outlet details. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Fetch outlets from API
   const fetchOutlets = async () => {
     try {
       setIsLoading(true);
@@ -125,26 +216,6 @@ const CompareOutlets = () => {
         }));
         
         setOutlets(transformedOutlets);
-        
-        // If there's a stored outlet_id, update current outlet data
-        const storedOutletId = localStorage.getItem('outlet_id');
-        if (storedOutletId) {
-          const matchingOutlet = transformedOutlets.find(o => o.outlet_id.toString() === storedOutletId);
-          if (matchingOutlet) {
-            setCurrentOutlet({
-              name: matchingOutlet.name,
-              location: matchingOutlet.address,
-              id: matchingOutlet.outlet_id,
-              menus: 12, // Mock data for now
-              categories: 8,
-              items: 86,
-              tables: 24,
-              staff: 15,
-              avgRevenue: "₹45,650",
-              avgOrders: 128
-            });
-          }
-        }
       } else {
         setError(data.detail || 'Failed to fetch outlets');
       }
@@ -156,9 +227,37 @@ const CompareOutlets = () => {
     }
   };
   
+  // Fetch outlet comparison details
+  const fetchOutletCompareDetails = async (outletId) => {
+    try {
+      const userId = localStorage.getItem('user_id');
+      
+      if (!userId || !outletId) {
+        console.error('Missing user ID or outlet ID');
+        return null;
+      }
+      
+      const response = await api.post(API_PATHS.outletCompareDetails, {
+        user_id: parseInt(userId),
+        outlet_id: parseInt(outletId)
+      });
+      
+      if (response.status !== 200) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return response.data.detail || null;
+    } catch (err) {
+      console.error(`Error fetching comparison details for outlet ${outletId}:`, err);
+      showToast(`Failed to fetch details for outlet ID ${outletId}`, 'error');
+      return null;
+    }
+  };
+  
   useEffect(() => {
-    // Fetch outlets when component mounts
+    // Fetch outlets and current outlet details when component mounts
     fetchOutlets();
+    fetchCurrentOutletDetails();
   }, []);
 
   // Open modal to select/change outlet at specific index
@@ -168,17 +267,23 @@ const CompareOutlets = () => {
   };
 
   // Handle outlet selection from modal
-  const handleOutletSelect = (outlet) => {
-    // Create mock data for the selected outlet
+  const handleOutletSelect = async (outlet) => {
+    try {
+      setIsLoading(true);
+      
+      // Fetch outlet comparison details
+      const compareDetails = await fetchOutletCompareDetails(outlet.outlet_id);
+      
+      if (!compareDetails) {
+        showToast(`Failed to fetch comparison data for ${outlet.name}`, 'error');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Create outlet object with comparison data
     const outletWithData = {
       ...outlet,
-      menus: 10 + Math.floor(Math.random() * 5), // Mock data with some variation
-      categories: 6 + Math.floor(Math.random() * 4),
-      items: 70 + Math.floor(Math.random() * 20),
-      tables: 15 + Math.floor(Math.random() * 10),
-      staff: 10 + Math.floor(Math.random() * 8),
-      avgRevenue: `₹${(35000 + Math.floor(Math.random() * 15000)).toLocaleString('en-IN')}`,
-      avgOrders: 100 + Math.floor(Math.random() * 30)
+        ...compareDetails
     };
     
     // If we're editing an existing selection
@@ -193,6 +298,14 @@ const CompareOutlets = () => {
     
     setShowOutletModal(false);
     setCurrentSelectIndex(null);
+      showToast(`Added ${outlet.name} for comparison`, 'success');
+      
+    } catch (err) {
+      console.error('Error selecting outlet:', err);
+      showToast('Failed to select outlet for comparison', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Remove an outlet from comparison
@@ -300,12 +413,37 @@ const CompareOutlets = () => {
     return cells;
   };
 
-  // Generate a metric row
-  const renderMetricRow = (label, key) => {
+  // Generate a metric row with nested path support
+  const renderMetricRow = (label, path) => {
+    // Helper function to get value from nested path
+    const getNestedValue = (obj, path) => {
+      const keys = path.split('.');
+      return keys.reduce((o, key) => (o && o[key] !== undefined) ? o[key] : null, obj);
+    };
+    
+    // Format value based on type
+    const formatValue = (value, path) => {
+      if (value === null || value === undefined) return 'N/A';
+      
+      // Format currency values
+      if (path.includes('revenue') || path.includes('payment') || 
+          path.includes('udhari') || path.includes('advance_payment')) {
+        return formatIndianCurrency(value);
+      }
+      
+      // Format dates
+      if (path.includes('date')) {
+        return value;
+      }
+      
+      // Default number formatting
+      return value.toLocaleString();
+    };
+    
     const cells = [
       <th key="label">{label}</th>,
       <td key="current">
-        <span className="fw-bold">{currentOutlet[key]}</span>
+        <span className="fw-bold">{formatValue(getNestedValue(currentOutlet, path), path)}</span>
       </td>
     ];
     
@@ -313,7 +451,7 @@ const CompareOutlets = () => {
     selectedOutlets.forEach((outlet, index) => {
       cells.push(
         <td key={`outlet-${index}`}>
-          <span className="fw-bold">{outlet[key]}</span>
+          <span className="fw-bold">{formatValue(getNestedValue(outlet, path), path)}</span>
         </td>
       );
     });
@@ -357,39 +495,84 @@ const CompareOutlets = () => {
                           {renderOutletDetailsRow()}
                         </tr>
                         
-                        {/* Menus Row */}
+                        {/* Installation Statistics - removed header row */}
                         <tr>
-                          {renderMetricRow('Menus', 'menus')}
+                          {renderMetricRow('Total Orders', 'installation_statistics.total_orders')}
+                        </tr>
+                        <tr>
+                          {renderMetricRow('Days Since Installation', 'installation_statistics.days_since_installation')}
+                        </tr>
+                        <tr>
+                          {renderMetricRow('First Order Date', 'installation_statistics.first_order_date')}
                         </tr>
                         
-                        {/* Categories Row */}
+                        {/* Revenue Statistics - removed header row */}
                         <tr>
-                          {renderMetricRow('Categories', 'categories')}
+                          {renderMetricRow('Total Revenue', 'revenue_statistics.total_revenue')}
                         </tr>
                         
-                        {/* Items Row */}
+                        {/* Payment Statistics - removed header row */}
                         <tr>
-                          {renderMetricRow('Menu Items', 'items')}
+                          {renderMetricRow('UPI Payments', 'payment_statistics.upi')}
+                        </tr>
+                        <tr>
+                          {renderMetricRow('Card Payments', 'payment_statistics.card')}
+                        </tr>
+                        <tr>
+                          {renderMetricRow('Cash Payments', 'payment_statistics.cash')}
+                        </tr>
+                        <tr>
+                          {renderMetricRow('Complementary', 'payment_statistics.complementary')}
+                        </tr>
+                        <tr>
+                          {renderMetricRow('Udhari', 'payment_statistics.udhari')}
                         </tr>
                         
-                        {/* Tables Row */}
+                        {/* Order Status Statistics - removed header row */}
                         <tr>
-                          {renderMetricRow('Tables', 'tables')}
+                          {renderMetricRow('Successful Orders', 'order_status_statistics.success')}
+                        </tr>
+                        <tr>
+                          {renderMetricRow('Cancelled Orders', 'order_status_statistics.cancelled')}
+                        </tr>
+                        <tr>
+                          {renderMetricRow('KOT Orders', 'order_status_statistics.kot_orders')}
+                        </tr>
+                        <tr>
+                          {renderMetricRow('Complementary Orders', 'order_status_statistics.complementary_orders')}
+                        </tr>
+                        <tr>
+                          {renderMetricRow('Udhari Orders', 'order_status_statistics.udhari_orders')}
                         </tr>
                         
-                        {/* Staff Row */}
+                        {/* Order Type Statistics - removed header row */}
                         <tr>
-                          {renderMetricRow('Staff', 'staff')}
+                          {renderMetricRow('Dine In', 'order_type_statistics.dine_in')}
+                        </tr>
+                        <tr>
+                          {renderMetricRow('Parcel', 'order_type_statistics.parcel')}
+                        </tr>
+                        <tr>
+                          {renderMetricRow('Drive Through', 'order_type_statistics.drive_through')}
+                        </tr>
+                        <tr>
+                          {renderMetricRow('Counter', 'order_type_statistics.counter')}
                         </tr>
                         
-                        {/* Average Revenue Row */}
+                        {/* Udhari Statistics - removed header row */}
                         <tr>
-                          {renderMetricRow('Average Daily Revenue', 'avgRevenue')}
+                          {renderMetricRow('Pending', 'udhari_statistics.pending')}
+                        </tr>
+                        <tr>
+                          {renderMetricRow('Settled', 'udhari_statistics.settled')}
                         </tr>
                         
-                        {/* Average Orders Row */}
+                        {/* Advance Payment Statistics - removed header row */}
                         <tr>
-                          {renderMetricRow('Average Orders per Day', 'avgOrders')}
+                          {renderMetricRow('Settled', 'advance_payment_statistics.settled')}
+                        </tr>
+                        <tr>
+                          {renderMetricRow('Partial Payment', 'advance_payment_statistics.partial_payment')}
                         </tr>
                       </tbody>
                     </Table>
@@ -416,104 +599,16 @@ const CompareOutlets = () => {
         theme="colored"
       />
       
-      {/* Outlet Selection Modal - Similar to the one in Header component */}
-      {showOutletModal && (
-        <div className="outlet-modal">
-          <div className="outlet-modal-content">
-            <div className="outlet-modal-header">
-              <h5 className="mb-0">Select Outlet to Compare</h5>
-              <button
-                className="btn-close"
-                onClick={() => setShowOutletModal(false)}
-                aria-label="Close"
-              ></button>
-            </div>
-            <div className="outlet-modal-body">
-              {/* Search Bar */}
-              <div className="outlet-search">
-                <i className="fas fa-search"></i>
-                <input
-                  type="text"
-                  placeholder="Search outlets"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                {searchTerm && (
-                  <button className="clear-btn" onClick={handleClearSearch}>
-                    <i className="fas fa-times"></i>
-                  </button>
-                )}
-              </div>
-
-              {/* Outlet List */}
-              <div className="outlet-list">
-                {isLoading ? (
-                  <div className="text-center py-3">Loading outlets...</div>
-                ) : error ? (
-                  <div className="text-center py-3 text-danger">{error}</div>
-                ) : (
-                  outlets
-                    .filter((outlet) => {
-                      // Filter out current outlet and already selected outlets
-                      const currentOutletId = localStorage.getItem('outlet_id');
-                      const isCurrentOutlet = outlet.outlet_id.toString() === currentOutletId;
-                      
-                      // Check if this outlet is already selected (excluding the one being edited)
-                      const isAlreadySelected = selectedOutlets.some(
-                        (selectedOutlet, index) => 
-                          index !== currentSelectIndex && 
-                          selectedOutlet.outlet_id === outlet.outlet_id
-                      );
-                      
-                      // Apply search filter
-                      const search = searchTerm.toLowerCase();
-                      const matchesSearch = outlet.name.toLowerCase().includes(search) ||
-                        outlet.outlet_id.toString().includes(search) ||
-                        (outlet.address && outlet.address.toLowerCase().includes(search));
-                      
-                      // Only show outlets that match search and are not current/already selected
-                      return matchesSearch && !isCurrentOutlet && !isAlreadySelected;
-                    })
-                    .map((outlet) => (
-                      <div
-                        key={outlet.outlet_id}
-                        className="outlet-item"
-                        onClick={() => handleOutletSelect(outlet)}
-                      >
-                        <i
-                          className={`fas ${
-                            outlet.outlet_status ? "fa-store" : "fa-store-slash"
-                          } outlet-icon`}
-                        ></i>
-                        <div className="outlet-info">
-                          <span className="outlet-name">{outlet.name}</span>
-                          {outlet.address && (
-                            <span className="outlet-location">
-                              <i className="fas fa-map-marker-alt me-1"></i>
-                              {outlet.address}
-                            </span>
-                          )}
-                        </div>
-                        <div className="outlet-meta">
-                          <span className="outlet-id">
-                            [ID: {outlet.outlet_id}]
-                          </span>
-                          <span
-                            className={`outlet-status ${
-                              outlet.status === "open" ? "status-open" : "status-closed"
-                            }`}
-                          >
-                            {outlet.status === "open" ? "Open" : "Closed"}
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Replace the inline outlet modal with the OutletSearch component */}
+      <OutletSearch
+        show={showOutletModal}
+        onClose={() => setShowOutletModal(false)}
+        onSelect={handleOutletSelect}
+        currentSelectIndex={currentSelectIndex}
+        selectedOutlets={selectedOutlets}
+        isCompareMode={true}
+        title="Select Outlet to Compare"
+      />
       
       {/* CSS for outlet modal - similar to Header component */}
       <style>
@@ -688,6 +783,30 @@ const CompareOutlets = () => {
             color: #ea5455;
           }
           
+          .status-active {
+            background-color: #7367f01a;
+            color: #7367f0;
+            margin-right: 4px;
+          }
+          
+          .status-inactive {
+            background-color: #82868b1a;
+            color: #82868b;
+            margin-right: 4px;
+          }
+          
+          .status-live {
+            background-color: #00cfe81a;
+            color: #00cfe8;
+            margin-right: 4px;
+          }
+          
+          .status-test {
+            background-color: #ff9f431a;
+            color: #ff9f43;
+            margin-right: 4px;
+          }
+          
           .avatar-sm {
             width: 36px;
             height: 36px;
@@ -714,6 +833,52 @@ const CompareOutlets = () => {
           .bg-label-success {
             background-color: rgba(40, 199, 111, 0.16) !important;
             color: #28c76f !important;
+          }
+          
+          /* Remove grey background from header rows */
+          .table-light {
+            background-color: white !important;
+          }
+          
+          /* Clean table styling */
+          .table {
+            border-color: #e9ecef;
+          }
+
+          .table>:not(caption)>*>* {
+            padding: 0.75rem 1rem;
+            background-color: transparent;
+            border-bottom-width: 1px;
+            box-shadow: none;
+          }
+
+          /* Remove background from section headers */
+          .table .table-light {
+            background-color: transparent !important;
+          }
+
+          /* Fix section headers styling */
+          .table .table-light th {
+            padding: 0.75rem 1rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #566a7f;
+            border-bottom: 1px solid #e9ecef;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          
+          /* Style for metric rows */
+          tbody tr th {
+            font-weight: 500;
+            color: #566a7f;
+            background-color: white !important;
+            padding: 0.75rem 1rem;
+          }
+          
+          /* Style for value cells */
+          tbody tr td .fw-bold {
+            color: #566a7f;
           }
         `}
       </style>

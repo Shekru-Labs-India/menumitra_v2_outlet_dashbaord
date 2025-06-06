@@ -53,10 +53,16 @@ const FoodTypeGraph = ({ handleApiError }) => {
       // If no cached data, use context data
       else if (foodTypeStatistics_from_context) {
         processFoodTypeData(foodTypeStatistics_from_context);
+      } else {
+        // If no data is available yet, ensure we have empty data structure
+        setFoodTypeData([]);
       }
       
-      // Fetch fresh data in background
-      fetchFoodTypeStats();
+      // Explicitly call with empty filter for "All time"
+      // This ensures data is loaded on initial mount even with "All time" filter
+      const emptyFilter = {};
+      console.log('FoodTypeGraph - Initial load with empty filter for All time');
+      fetchFoodTypeStats(emptyFilter, { forceRefresh: true });
     }, []);
 
     // Function to get week date range
@@ -228,7 +234,9 @@ const FoodTypeGraph = ({ handleApiError }) => {
                 }
                 return {};
             }
+            case 'All time':
             default:
+                // For 'All time', don't send date parameters
                 return {};
         }
         
@@ -253,7 +261,8 @@ const FoodTypeGraph = ({ handleApiError }) => {
             setShowDatePicker(false);
             setStartDate(null);
             setEndDate(null);
-            fetchFoodTypeStats(getDateRange(range));
+            // Always force refresh when changing date range
+            fetchFoodTypeStats(getDateRange(range), { forceRefresh: true });
         }
     };
 
@@ -285,14 +294,24 @@ const FoodTypeGraph = ({ handleApiError }) => {
                 ...dateFilter
             };
             
+            console.log('FoodTypeGraph - Fetching data with params:', requestData);
+            
             // Use the fetchData function from context which handles caching
             const data = await fetchData(API_PATHS.foodTypeStats, requestData, {
                 forceRefresh: options.forceRefresh || false,
-                transformResponse: (response) => response?.detail || response
+                transformResponse: (response) => {
+                    console.log('FoodTypeGraph - Raw response:', response);
+                    return response?.detail || response;
+                }
             });
             
             if (data) {
+                console.log('FoodTypeGraph - Processed data:', data);
                 processFoodTypeData(data);
+            } else {
+                console.log('FoodTypeGraph - No data returned');
+                // If no data is returned but no error occurred, set empty data
+                setFoodTypeData([]);
             }
         } catch (error) {
             console.error('Failed to fetch food type statistics:', error);
@@ -302,6 +321,9 @@ const FoodTypeGraph = ({ handleApiError }) => {
                 // If error was not handled by the HOC (not a 403), set local error state
                 setError('Failed to load food type statistics. Please try again.');
             }
+            
+            // Even on error, we should ensure we have at least empty data
+            setFoodTypeData([]);
         }
     };
 
@@ -477,14 +499,14 @@ const FoodTypeGraph = ({ handleApiError }) => {
                         </ul>
                     </div>
 
-                    <button
+                    {/* <button
                         type="button"
                         className="btn btn-icon p-0"
                         onClick={handleReload}
                         style={{ border: '1px solid var(--bs-primary)' }}
                     >
                         <i className="fas fa-sync-alt"></i>
-                    </button>
+                    </button> */}
 
                     {/* <button
                         type="button"

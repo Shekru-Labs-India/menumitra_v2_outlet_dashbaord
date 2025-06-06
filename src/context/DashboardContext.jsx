@@ -72,17 +72,27 @@ export const DashboardProvider = ({ children }) => {
     }
   }, [shouldRedirectToLogin]);
 
-  const fetchDashboardData = useCallback(async (dateFilter = {}) => {
+  const fetchDashboardData = useCallback(async (dateFilter = {}, options = {}) => {
+    // Get options with defaults
+    const { forceRefresh = false } = options;
+    
     // Skip if we're already fetching, on login page, or if permission was denied
-    if (isFetchingRef.current || isLoginPage() || permissionDenied) {
-      console.log('Skipping fetch - already in progress, on login page, or permission denied:', 
+    if (isFetchingRef.current && !forceRefresh) {
+      console.log('Skipping fetch - already in progress:', 
                   {isFetching: isFetchingRef.current, isLogin: isLoginPage(), permissionDenied});
       return;
     }
     
-    // Prevent duplicate calls within 2 seconds
+    // Skip if on login page or permission was denied
+    if (isLoginPage() || permissionDenied) {
+      console.log('Skipping fetch - on login page or permission denied:', 
+                  {isLogin: isLoginPage(), permissionDenied});
+      return;
+    }
+    
+    // Prevent duplicate calls within 2 seconds unless forceRefresh is true
     const now = Date.now();
-    if (now - lastFetchTimeRef.current < 2000 && initialFetchCompletedRef.current) {
+    if (!forceRefresh && now - lastFetchTimeRef.current < 2000 && initialFetchCompletedRef.current) {
       console.log('Skipping duplicate API call, last call was', 
                  (now - lastFetchTimeRef.current), 'ms ago');
       return;
@@ -111,9 +121,10 @@ export const DashboardProvider = ({ children }) => {
       const requestBody = {
         user_id: parseInt(userId),
         outlet_id: parseInt(localStorage.getItem('outlet_id') || '1'), // Use stored outlet ID or default to 1
+        ...dateFilter
       };
 
-      console.log('Context API request data:', requestBody);
+      console.log(`Context API request data${forceRefresh ? ' (forced refresh)' : ''}:`, requestBody);
       
       // Make the API call to analytics_reports
       const response = await api.post(`${API_PATHS.analyticsReports}`, requestBody);
@@ -196,15 +207,21 @@ export const DashboardProvider = ({ children }) => {
   }, [fetchDashboardData, isLoginPage, isRecentLogin, permissionDenied]);
 
   // Make sure refreshDashboard is properly memoized with useCallback
-  const refreshDashboard = useCallback((dateFilter = {}) => {
+  const refreshDashboard = useCallback((dateFilter = {}, options = {}) => {
     // Don't try to refresh if permission was denied
     if (permissionDenied) {
       console.log('Refresh requested, but permission was previously denied. Skipping.');
       return;
     }
     
-    console.log('Dashboard refresh requested with filter:', dateFilter);
-    fetchDashboardData(dateFilter);
+    // Add forceRefresh option to ensure data is always refreshed during manual refresh
+    const refreshOptions = { 
+      ...options,
+      forceRefresh: true 
+    };
+    
+    console.log('Dashboard refresh requested with filter:', dateFilter, 'options:', refreshOptions);
+    fetchDashboardData(dateFilter, refreshOptions);
   }, [fetchDashboardData, permissionDenied]);
 
   // Memoize the context value to prevent unnecessary re-renders

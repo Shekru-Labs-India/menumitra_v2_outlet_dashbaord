@@ -65,14 +65,57 @@ const WeeklyOrderStat = ({ handleApiError }) => {
 
   // Process weekly order data
   const processWeeklyData = (data) => {
-    if (!data) return;
+    if (!data) {
+      console.log('No data received in processWeeklyData');
+      return;
+    }
     
-    const { data: weekData, peak_day, low_day } = data;
+    console.log('Processing weekly data:', data);
+    
+    // Check if data is already in the expected format (array of arrays)
+    if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0])) {
+      // Data is directly the array we need
+      const weekData = data;
+      console.log('Data is already in array format:', weekData);
+      
+      // Transform the data into the required format
+      const days = weekData.map(item => item[0]);
+      const orderCounts = weekData.map(item => parseInt(item[1]));
+      
+      console.log('Processed days:', days);
+      console.log('Processed order counts:', orderCounts);
+      
+      setDays(days);
+      setOrderData(orderCounts);
+      
+      // Find peak and low days manually
+      if (orderCounts.length > 0) {
+        const maxValue = Math.max(...orderCounts);
+        const minValue = Math.min(...orderCounts);
+        const maxIndex = orderCounts.indexOf(maxValue);
+        const minIndex = orderCounts.indexOf(minValue);
+        
+        setPeakDay(days[maxIndex] || 'N/A');
+        setMaxOrders(maxValue);
+        setLowPeakDay(days[minIndex] || 'N/A');
+        setMinOrders(minValue);
+      }
+      
+      return;
+    }
+    
+    // Handle the case where data has detail, peak_day and low_day properties
+    const { detail: weekData, peak_day, low_day } = data;
+    
+    console.log('Extracted data:', { weekData, peak_day, low_day });
     
     if (weekData && Array.isArray(weekData)) {
       // Transform the data into the required format
       const days = weekData.map(item => item[0]);
       const orderCounts = weekData.map(item => parseInt(item[1]));
+      
+      console.log('Processed days:', days);
+      console.log('Processed order counts:', orderCounts);
       
       setDays(days);
       setOrderData(orderCounts);
@@ -88,6 +131,8 @@ const WeeklyOrderStat = ({ handleApiError }) => {
         setLowPeakDay(low_day[0]);
         setMinOrders(parseInt(low_day[1]));
       }
+    } else {
+      console.error('Weekly data is not in expected format:', weekData);
     }
   };
 
@@ -111,7 +156,8 @@ const WeeklyOrderStat = ({ handleApiError }) => {
       setShowDatePicker(false);
       setStartDate(null);
       setEndDate(null);
-      fetchWeeklyOrderStats(getDateRange(range));
+      // Always force refresh when changing date range
+      fetchWeeklyOrderStats(getDateRange(range), { forceRefresh: true });
     }
   };
 
@@ -146,7 +192,7 @@ const WeeklyOrderStat = ({ handleApiError }) => {
       // Use the fetchData function from context which handles caching
       const data = await fetchData(API_PATHS.weeklyOrderStats, requestData, {
         forceRefresh: options.forceRefresh || false,
-        transformResponse: (response) => response?.detail || response
+        transformResponse: (response) => response || {}
       });
       
       if (data) {
@@ -408,6 +454,10 @@ const WeeklyOrderStat = ({ handleApiError }) => {
     }
   ];
 
+  console.log('Chart series data:', chartSeries);
+  console.log('Days:', days);
+  console.log('Order data:', orderData);
+
   return (
     <div className="card border" style={{ boxShadow: 'none' }}>
       <div className="card-header d-flex justify-content-between align-items-md-center align-items-start">
@@ -460,14 +510,14 @@ const WeeklyOrderStat = ({ handleApiError }) => {
             </ul>
           </div>
 
-          <button
+          {/* <button
             type="button"
             className="btn btn-icon p-0"
             onClick={handleReload}
             style={{ border: "1px solid var(--bs-primary)" }}
           >
             <i className="fas fa-sync-alt"></i>
-          </button>
+          </button> */}
 
           {/* <button
             type="button"

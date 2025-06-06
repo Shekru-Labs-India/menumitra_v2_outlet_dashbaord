@@ -63,6 +63,29 @@ function Statistics() {
     return `₹${formatted},${lastThree}.${decimalPart}`;
   };
 
+  // Helper function to format turnover time
+  const formatTurnoverTime = (timeStr) => {
+    // Check if the timeStr is in minutes format
+    if (timeStr && typeof timeStr === 'string') {
+      // Extract minutes and seconds if in format "X min Y sec"
+      const minutesSecondsMatch = timeStr.match(/(\d+)\s*min(?:\s*(\d+)\s*sec)?/);
+      if (minutesSecondsMatch) {
+        const minutes = parseInt(minutesSecondsMatch[1], 10);
+        
+        if (!isNaN(minutes)) {
+          // Convert to hours if >= 60 minutes
+          if (minutes >= 60) {
+            const hours = Math.floor(minutes / 60);
+            const remainingMinutes = minutes % 60;
+            return `${hours} hr${hours > 1 ? 's' : ''} ${remainingMinutes > 0 ? remainingMinutes + ' min' : ''}`;
+          }
+        }
+      }
+    }
+    // Return original string if it's not in expected format or less than 60 minutes
+    return timeStr;
+  };
+
   // Load data on initial mount and update from cache
   useEffect(() => {
     // Try to get cached data first
@@ -226,16 +249,26 @@ function Statistics() {
   };
 
   // Stats card component with no skeleton loader
-  const StatCard = ({ title, value, isPrice }) => (
-    <div className="col-md-6 col-lg-3">
-      <div className="card h-100 border" style={{ boxShadow: 'none' }}>
-        <div className="card-body text-center">
-          <h3 className="mb-1">{isPrice ? formatIndianCurrency(value) : value}</h3>
-          <p className="text-muted mb-0">{title}</p>
+  const StatCard = ({ title, value, isPrice }) => {
+    // Format the value based on the card type
+    let displayValue = value;
+    if (isPrice) {
+      displayValue = formatIndianCurrency(value);
+    } else if (title === "Average Turnover Time") {
+      displayValue = formatTurnoverTime(value);
+    }
+    
+    return (
+      <div className="col-md-6 col-lg-3">
+        <div className="card h-100 border" style={{ boxShadow: 'none' }}>
+          <div className="card-body text-center">
+            <h3 className="mb-1">{displayValue}</h3>
+            <p className="text-muted mb-0">{title}</p>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Get error from cache
   const error = getError(API_PATHS.analyticsReports);
@@ -321,7 +354,7 @@ function Statistics() {
                                 </li>
                               </ul>
                             </div>
-                            <button
+                            {/* <button
                               type="button"
                               className={`btn btn-icon p-0 ${loading ? "disabled" : ""}`}
                               onClick={handleReload}
@@ -329,7 +362,7 @@ function Statistics() {
                               style={{ border: "1px solid var(--bs-primary)" }}
                             >
                               <i className={`fas fa-sync-alt ${loading ? "fa-spin" : ""}`}></i>
-                            </button>
+                            </button> */}
                           </div>
                         </div>
 
@@ -396,7 +429,7 @@ function Statistics() {
                               isPrice={true}
                             />
                             <StatCard
-                              title="Table Turnover"
+                              title="Average Turnover Time"
                               value={statistics.average_turnover_time}
                               isPrice={false}
                             />

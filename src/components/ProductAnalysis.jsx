@@ -124,10 +124,10 @@ function TopSell({ handleApiError }) {
     }
     
     if (start && end) {
-      return { 
-        start_date: formatDate(start),
-        end_date: formatDate(end)
-      };
+    return { 
+      start_date: formatDate(start),
+      end_date: formatDate(end)
+    };
     }
     
     return {};
@@ -148,7 +148,7 @@ function TopSell({ handleApiError }) {
       }
       
       // Prepare request data
-      const requestData = {
+      const requestData = { 
         user_id: Number(userId),
         outlet_id: Number(outletId),
         ...dateFilter
@@ -186,7 +186,8 @@ function TopSell({ handleApiError }) {
       setShowDatePicker(false);
       setStartDate(null);
       setEndDate(null);
-      fetchSalesData(getDateRange(range));
+      // Always force refresh when changing date range
+      fetchSalesData(getDateRange(range), { forceRefresh: true });
     }
   };
 
@@ -302,14 +303,14 @@ function TopSell({ handleApiError }) {
           {renderDateOptions()}
 
           {/* Reload button */}
-          <button
+          {/* <button
             type="button"
             className="btn btn-icon p-0"
             onClick={handleReload}
             style={{ border: "1px solid var(--bs-primary)" }}
           >
             <i className="fas fa-sync-alt"></i>
-          </button>
+          </button> */}
 
           {/* <button
             type="button"

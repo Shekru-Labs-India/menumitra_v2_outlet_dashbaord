@@ -118,6 +118,7 @@ const OrderType = ({ handleApiError }) => {
       setStartDate(null);
       setEndDate(null);
       fetchOrderTypeStats(getDateRange(range));
+      fetchOrderTypeStats(getDateRange(range), { forceRefresh: true });
     }
   };
 
@@ -284,14 +285,14 @@ const OrderType = ({ handleApiError }) => {
               </li>
             </ul>
           </div>
-          <button
+          {/* <button
             type="button"
             className="btn btn-icon p-0"
             onClick={handleReload}
             style={{ border: "1px solid var(--bs-primary)" }}
           >
             <i className="fas fa-sync-alt"></i>
-          </button>
+          </button> */}
 
           {/* <button
             type="button"

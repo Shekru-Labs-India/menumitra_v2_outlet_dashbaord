@@ -11,8 +11,39 @@ function OutletStats() {
   oneWeekAgo.setDate(today.getDate() - 7);
   
   const [error, setError] = useState(null);
-  const [outletData, setOutletData] = useState(null);
-  const [allStatsData, setAllStatsData] = useState(null);
+  const [outletData, setOutletData] = useState({
+    outlets: [
+      {
+        id: localStorage.getItem('outlet_id'),
+        statistics: {
+          waiters_count: 0,
+          avg_order_per_week: 0,
+          most_popular_item: {
+            name: "",
+            orders: 0
+          },
+          least_popular_item: {
+            name: "",
+            orders: 0
+          }
+        }
+      }
+    ]
+  });
+  const [allStatsData, setAllStatsData] = useState({
+    order_analytics: {
+      first_order_time: "",
+      last_order_time: "",
+      average_order_time: "",
+      average_cooking_time: ""
+    },
+    order_statistics: {
+      success_orders: 0,
+      cancelled_orders: 0,
+      complementary_orders: 0,
+      KOT_orders: 0
+    }
+  });
   const [startDate, setStartDate] = useState(oneWeekAgo);
   const [endDate, setEndDate] = useState(today);
   
@@ -59,7 +90,7 @@ function OutletStats() {
         transformResponse: (response) => response?.detail || response
       });
       
-      if (data) {
+      if (data && data.outlets && data.outlets.length > 0) {
         setOutletData(data);
         console.log('Outlet data set:', data);
       }
@@ -131,66 +162,6 @@ function OutletStats() {
     return null;
   }
 
-  if (error) {
-    console.log('OutletStats: Error, showing error message:', error);
-    return (
-      <div className="card border" style={{ boxShadow: 'none' }}>
-        <div className="card-body">
-          <div className="alert alert-danger" role="alert">
-            {error}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show a placeholder if we don't have any data yet
-  if (!outletData || !outletData.outlets || !outletData.outlets.length) {
-    return (
-      <div className="card border" style={{ boxShadow: 'none' }}>
-        <div className="card-header d-flex justify-content-between align-items-center">
-          <h5 className="card-title mb-0">Outlet Statistics</h5>
-          <div className="d-flex align-items-center gap-3">
-            <div className="d-flex flex-column">
-              <label className="form-label mb-1">Start Date</label>
-              <DatePicker
-                selected={startDate}
-                onChange={(date) => setStartDate(date)}
-                selectsStart
-                startDate={startDate}
-                endDate={endDate}
-                maxDate={new Date()}
-                placeholderText="DD MMM YYYY"
-                className="btn btn-outline-secondary"
-                dateFormat="dd MMM yyyy"
-              />
-            </div>
-            <div className="d-flex flex-column">
-              <label className="form-label mb-1">End Date</label>
-              <DatePicker
-                selected={endDate}
-                onChange={(date) => setEndDate(date)}
-                selectsEnd
-                startDate={startDate}
-                endDate={endDate}
-                minDate={startDate}
-                maxDate={new Date()}
-                placeholderText="DD MMM YYYY"
-                className="btn btn-outline-secondary"
-                dateFormat="dd MMM yyyy"
-              />
-            </div>
-          </div>
-        </div>
-        <div className="card-body">
-          <div className="alert alert-info" role="alert">
-            No outlet statistics available for the selected date range.
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="card border" style={{ boxShadow: 'none' }}>
       <div className="card-header d-flex justify-content-between align-items-center">
@@ -228,118 +199,58 @@ function OutletStats() {
         </div>
       </div>
       <div className="card-body">
-        {outletData.outlets.map((outlet) => (
-          <div key={outlet.id} className="mb-4">
-            <div className="row g-4">
-              {/* Staff Stats */}
-              <div className="col-md-6 col-lg-3">
-                <div className="card h-100 border" style={{ boxShadow: 'none' }}>
-                  <div className="card-body text-center">
-                    <h3 className="mb-1">{outlet.statistics?.waiters_count || 0}</h3>
-                    <p className="text-muted mb-0">Waiters</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Weekly Orders */}
-              <div className="col-md-6 col-lg-3">
-                <div className="card h-100 border" style={{ boxShadow: 'none' }}>
-                  <div className="card-body text-center">
-                    <h3 className="mb-1">{outlet.statistics?.avg_order_per_week || 0}</h3>
-                    <p className="text-muted mb-0">Avg Orders/Week</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Popular Items */}
-              <div className="col-md-6 col-lg-3">
-                <div className="card h-100 border" style={{ boxShadow: 'none' }}>
-                  <div className="card-body text-center">
-                    <h3 className="mb-1">{outlet.statistics?.most_popular_item?.name || 'N/A'}</h3>
-                    <p className="text-muted mb-0">Most Popular ({outlet.statistics?.most_popular_item?.orders || 0} orders)</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Least Popular Items */}
-              <div className="col-md-6 col-lg-3">
-                <div className="card h-100 border" style={{ boxShadow: 'none' }}>
-                  <div className="card-body text-center">
-                    <h3 className="mb-1">{outlet.statistics?.least_popular_item?.name || 'N/A'}</h3>
-                    <p className="text-muted mb-0">Least Popular ({outlet.statistics?.least_popular_item?.orders || 0} orders)</p>
-                  </div>
+        {error && (
+          <div className="alert alert-danger mb-4" role="alert">
+            {error}
+          </div>
+        )}
+        
+        <div className="mb-4">
+          <div className="row g-4">
+            {/* Staff Stats */}
+            <div className="col-md-6 col-lg-3">
+              <div className="card h-100 border" style={{ boxShadow: 'none' }}>
+                <div className="card-body text-center">
+                  <h3 className="mb-1">{outletData.outlets[0]?.statistics?.waiters_count || 0}</h3>
+                  <p className="text-muted mb-0">Waiters</p>
                 </div>
               </div>
             </div>
 
-            {/* Additional Stats from All Stats API - only show if we have data and no permission denied */}
-            {allStatsData && !allStatsPermissionDenied && (
-              <div className="row mt-4">
-                <div className="col-12">
-                  <div className="card border" style={{ boxShadow: 'none' }}>
-                    <div className="card-header">
-                      <h5 className="card-title mb-0">Detailed Statistics</h5>
-                    </div>
-                    <div className="card-body">
-                      <div className="row g-4">
-                        <div className="col-md-6">
-                          <h6 className="mb-3">Order Analytics</h6>
-                          <div className="table-responsive">
-                            <table className="table table-sm">
-                              <tbody>
-                                <tr>
-                                  <td>First Order Time</td>
-                                  <td>{allStatsData.order_analytics?.first_order_time || 'N/A'}</td>
-                                </tr>
-                                <tr>
-                                  <td>Last Order Time</td>
-                                  <td>{allStatsData.order_analytics?.last_order_time || 'N/A'}</td>
-                                </tr>
-                                <tr>
-                                  <td>Average Order Time</td>
-                                  <td>{allStatsData.order_analytics?.average_order_time || 'N/A'}</td>
-                                </tr>
-                                <tr>
-                                  <td>Average Cooking Time</td>
-                                  <td>{allStatsData.order_analytics?.average_cooking_time || 'N/A'}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                        <div className="col-md-6">
-                          <h6 className="mb-3">Order Statistics</h6>
-                          <div className="table-responsive">
-                            <table className="table table-sm">
-                              <tbody>
-                                <tr>
-                                  <td>Success Orders</td>
-                                  <td>{allStatsData.order_statistics?.success_orders || 0}</td>
-                                </tr>
-                                <tr>
-                                  <td>Cancelled Orders</td>
-                                  <td>{allStatsData.order_statistics?.cancelled_orders || 0}</td>
-                                </tr>
-                                <tr>
-                                  <td>Complementary Orders</td>
-                                  <td>{allStatsData.order_statistics?.complementary_orders || 0}</td>
-                                </tr>
-                                <tr>
-                                  <td>KOT Orders</td>
-                                  <td>{allStatsData.order_statistics?.KOT_orders || 0}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+            {/* Weekly Orders */}
+            <div className="col-md-6 col-lg-3">
+              <div className="card h-100 border" style={{ boxShadow: 'none' }}>
+                <div className="card-body text-center">
+                  <h3 className="mb-1">{outletData.outlets[0]?.statistics?.avg_order_per_week || 0}</h3>
+                  <p className="text-muted mb-0">Avg Orders/Week</p>
                 </div>
               </div>
-            )}
+            </div>
+
+            {/* Popular Items */}
+            <div className="col-md-6 col-lg-3">
+              <div className="card h-100 border" style={{ boxShadow: 'none' }}>
+                <div className="card-body text-center">
+                  <h3 className="mb-1">{outletData.outlets[0]?.statistics?.most_popular_item?.name || 'N/A'}</h3>
+                  <p className="text-muted mb-0">Most Popular ({outletData.outlets[0]?.statistics?.most_popular_item?.orders || 0} orders)</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Least Popular Items */}
+            <div className="col-md-6 col-lg-3">
+              <div className="card h-100 border" style={{ boxShadow: 'none' }}>
+                <div className="card-body text-center">
+                  <h3 className="mb-1">{outletData.outlets[0]?.statistics?.least_popular_item?.name || 'N/A'}</h3>
+                  <p className="text-muted mb-0">Least Popular ({outletData.outlets[0]?.statistics?.least_popular_item?.orders || 0} orders)</p>
+                </div>
+              </div>
+            </div>
           </div>
-        ))}
+
+          {/* Always show detailed statistics section */}
+        
+        </div>
       </div>
     </div>
   );

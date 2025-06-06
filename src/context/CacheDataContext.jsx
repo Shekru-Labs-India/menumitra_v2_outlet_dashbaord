@@ -98,14 +98,17 @@ export const CacheDataProvider = ({ children }) => {
     const failedAttempts = failedAttemptsRef.current[endpoint] || { count: 0, timestamp: 0 };
     const isRecentFailure = (now - failedAttempts.timestamp) < 10000; // 10 seconds cooldown
     
-    if (failedAttempts.count >= 3 && isRecentFailure) {
-      console.log(`Too many recent failures for ${endpoint}, using cached data and waiting for cooldown`);
-      return cache[endpoint]; // Return cached data and avoid making another request
-    }
-    
+    // If forceRefresh is true, always fetch new data regardless of cache status
+    // Otherwise, use cache if it's valid and available
     if (!forceRefresh && isCacheValid && cache[endpoint]) {
       console.log(`Using cached data for ${endpoint}, age: ${(now - lastFetch) / 1000}s`);
       return cache[endpoint]; // Return cached data immediately
+    }
+    
+    // If there are too many recent failures and we're not forcing a refresh, use cache
+    if (!forceRefresh && failedAttempts.count >= 3 && isRecentFailure) {
+      console.log(`Too many recent failures for ${endpoint}, using cached data and waiting for cooldown`);
+      return cache[endpoint]; // Return cached data and avoid making another request
     }
     
     // Mark as fetching
@@ -125,7 +128,7 @@ export const CacheDataProvider = ({ children }) => {
         ...requestData
       };
       
-      console.log(`Fetching data from ${endpoint}`, apiRequestData);
+      console.log(`Fetching data from ${endpoint}${forceRefresh ? ' (forced refresh)' : ''}`, apiRequestData);
       
       // Make the API call
       const response = await api.post(endpoint, apiRequestData);

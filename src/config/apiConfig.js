@@ -173,6 +173,9 @@ const API_PATHS = {
   reportFilterCategory: `${STATISTICS_PREFIX}/report_filter_category`,
   reportFilterSupplier: `${STATISTICS_PREFIX}/report_filter_supplier`,
   reportFilterSection: `${STATISTICS_PREFIX}/report_filter_section`,
+  outletDetails: `${STATISTICS_PREFIX}/outlet_details`,
+  outletCompareDetails: `${STATISTICS_PREFIX}/outlet_compare_details`,
+  outletSearch: `${STATISTICS_PREFIX}/outlet_search`,
 };
 
 /**

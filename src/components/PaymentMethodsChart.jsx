@@ -105,7 +105,8 @@ const PaymentMethodsChart = ({ handleApiError }) => {
       setShowDatePicker(false);
       setStartDate(null);
       setEndDate(null);
-      fetchPaymentData(getDateRange(range));
+      // Always force refresh when changing date range
+      fetchPaymentData(getDateRange(range), { forceRefresh: true });
     }
   };
 
@@ -283,14 +284,14 @@ const PaymentMethodsChart = ({ handleApiError }) => {
             </ul>
           </div>
 
-          <button
+          {/* <button
             type="button"
             className="btn btn-icon p-0"
             onClick={handleReload}
             style={{ border: "1px solid var(--bs-primary)" }}
           >
             <i className="fas fa-sync-alt"></i>
-          </button>
+          </button> */}
 
           {/* <button
             type="button"

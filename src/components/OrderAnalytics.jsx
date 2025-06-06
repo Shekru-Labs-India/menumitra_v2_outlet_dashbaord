@@ -56,10 +56,21 @@ const OrderAnalytics = ({ handleApiError }) => {
     // If no cached data, use context data
     else if (orderAnalytics_from_context) {
       updateAnalyticsFromData(orderAnalytics_from_context);
+    } else {
+      // If no data is available yet, ensure we have default values
+      setAnalyticsData({
+        avg_first_order_time: '0 mins',
+        avg_last_order_time: '0 mins',
+        avg_order_time: '0 mins',
+        avg_cooking_time: '0 mins'
+      });
     }
     
-    // Fetch fresh data in background
-    fetchOrderAnalytics();
+    // Explicitly call with empty filter for "All Time"
+    // This ensures data is loaded on initial mount even with "All Time" filter
+    const emptyFilter = {};
+    console.log('OrderAnalytics - Initial load with empty filter for All Time');
+    fetchOrderAnalytics(emptyFilter, { forceRefresh: true });
   }, []);
 
   // Helper function to update analytics data from API response
@@ -92,7 +103,7 @@ const OrderAnalytics = ({ handleApiError }) => {
       setShowDatePicker(false);
       setStartDate(null);
       setEndDate(null);
-      fetchOrderAnalytics(getDateRange(range));
+      fetchOrderAnalytics(getDateRange(range), { forceRefresh: true });
     }
   };
 
@@ -183,7 +194,11 @@ const OrderAnalytics = ({ handleApiError }) => {
           };
         }
         return {};
+      case 'All Time':
+        // For 'All Time', don't send date parameters
+        return {};
       default:
+        // Default case also returns empty object (no date filtering)
         return {};
     }
     
@@ -261,14 +276,14 @@ const OrderAnalytics = ({ handleApiError }) => {
               </ul>
             </div>
 
-            <button
+            {/* <button
               type="button"
               className="btn btn-icon p-0"
               onClick={handleReload}
               style={{ border: '1px solid var(--bs-primary)' }}
             >
               <i className="fas fa-sync-alt"></i>
-            </button>
+            </button> */}
 
             {/* <button
               type="button"
