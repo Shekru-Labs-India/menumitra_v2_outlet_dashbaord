@@ -11,7 +11,7 @@ import OutletSearch from '../components/OutletSearch'
 
 const CompareOutlets = () => {
   
-  const MAX_COMPARE_OUTLETS = 2;
+  const MAX_COMPARE_OUTLETS = 3;
   
   const [selectedOutlets, setSelectedOutlets] = useState([]);
   const [showOutletModal, setShowOutletModal] = useState(false);
@@ -326,16 +326,46 @@ const CompareOutlets = () => {
       <th key="current">Current Outlet</th>
     ];
     
-    // Add headers for selected outlets
+    // Add headers for selected outlets with change/remove buttons
     selectedOutlets.forEach((outlet, index) => {
       headers.push(
-        <th key={`outlet-${index}`}>{outlet.name}</th>
+        <th key={`outlet-${index}`}>
+          <div className="d-flex align-items-center justify-content-between">
+            <span>{outlet.name}</span>
+            <div>
+              <button 
+                className="btn btn-sm btn-outline-primary"
+                onClick={() => handleOpenSelectModal(index)}
+                title="Change outlet"
+              >
+                <i className="fas fa-exchange-alt"></i>
+              </button>
+              <button 
+                className="btn btn-sm btn-outline-danger ms-2"
+                onClick={() => handleRemoveOutlet(index)}
+                title="Remove outlet"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+          </div>
+        </th>
       );
     });
     
     // Add one more header for the "Select Outlet" button if we haven't reached the max
     if (selectedOutlets.length < MAX_COMPARE_OUTLETS) {
-      headers.push(<th key="add-outlet">Add Outlet</th>);
+      headers.push(
+        <th key="add-outlet">
+          <button 
+            className="btn btn-primary"
+            onClick={() => handleOpenSelectModal(selectedOutlets.length)}
+          >
+            <i className="fas fa-plus me-2"></i>
+            Select Outlet
+          </button>
+        </th>
+      );
     }
     
     return headers;
@@ -360,7 +390,7 @@ const CompareOutlets = () => {
       </td>
     ];
     
-    // Add cells for selected outlets
+    // Add cells for selected outlets without buttons
     selectedOutlets.forEach((outlet, index) => {
       cells.push(
         <td key={`outlet-${index}`}>
@@ -374,22 +404,6 @@ const CompareOutlets = () => {
               <h6 className="mb-0">{outlet.name}</h6>
               <small className="text-muted">{outlet.address}</small>
             </div>
-            <div>
-              <button 
-                className="btn btn-sm btn-outline-primary"
-                onClick={() => handleOpenSelectModal(index)}
-                title="Change outlet"
-              >
-                <i className="fas fa-exchange-alt"></i>
-              </button>
-              <button 
-                className="btn btn-sm btn-outline-danger ms-2"
-                onClick={() => handleRemoveOutlet(index)}
-                title="Remove outlet"
-              >
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
           </div>
         </td>
       );
@@ -397,17 +411,7 @@ const CompareOutlets = () => {
     
     // Add one more cell for the "Select Outlet" button if we haven't reached the max
     if (selectedOutlets.length < MAX_COMPARE_OUTLETS) {
-      cells.push(
-        <td key="add-outlet">
-          <button 
-            className="btn btn-primary"
-            onClick={() => handleOpenSelectModal(selectedOutlets.length)}
-          >
-            <i className="fas fa-plus me-2"></i>
-            Select Outlet
-          </button>
-        </td>
-      );
+      cells.push(<td key="add-outlet"></td>);
     }
     
     return cells;

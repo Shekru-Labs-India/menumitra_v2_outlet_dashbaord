@@ -22,6 +22,10 @@ import CouponReports from './screen/reports/CouponReports'
 import InventoryReports from './screen/reports/InventoryReports'
 import StaffReports from './screen/reports/StaffReports'
 import CustomerReports from './screen/reports/CustomerReports'
+import JoinTableReports from './screen/reports/JoinTableReports'
+import SplitTableReports from './screen/reports/SplitTableReports'
+import OrderStatusReports from './screen/reports/OrderStatusReports'
+import PaymentSettleReports from './screen/reports/PaymentSettleReports'
 
 
 import Settings from './screen/Settings';
@@ -51,6 +55,10 @@ function App() {
                     <Route path="/reports/menu" element={<MenuReports />} />
                     <Route path="/reports/orders" element={<OrderReports />} />
                     <Route path="/reports/tables" element={<TableReports />} />
+                    <Route path="/reports/join-tables" element={<JoinTableReports />} />
+                    <Route path="/reports/split-tables" element={<SplitTableReports />} />
+                    <Route path="/reports/order-status" element={<OrderStatusReports />} />
+                    <Route path="/reports/payment-settle" element={<PaymentSettleReports />} />
                     <Route path="/reports/coupons" element={<CouponReports />} />
                     <Route path="/reports/inventory" element={<InventoryReports />} />
                     <Route path="/reports/staff" element={<StaffReports />} />

@@ -28,6 +28,9 @@ const OutletSearch = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [sortOrder, setSortOrder] = useState('default'); // 'default', 'asc', 'desc'
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'open', 'closed'
+  const [activityFilter, setActivityFilter] = useState('all'); // 'all', 'active', 'inactive'
+  const [accountTypeFilter, setAccountTypeFilter] = useState('all'); // 'all', 'live', 'test'
 
   // Fetch outlets from API
   const fetchOutlets = async () => {
@@ -85,69 +88,73 @@ const OutletSearch = ({
     }
   };
 
-  // Filter outlets based on search term
-  const filterOutlets = () => {
-    if (!searchTerm.trim()) {
-      setOutlets(allOutlets);
-      return;
+  // Apply all filters (search term and dropdown filters)
+  const applyFilters = () => {
+    let filteredOutlets = [...allOutlets];
+    
+    // Apply search term filter
+    if (searchTerm.trim()) {
+      const searchTermLower = searchTerm.toLowerCase();
+      filteredOutlets = filteredOutlets.filter(outlet => {
+        const nameMatch = outlet.name && outlet.name.toLowerCase().includes(searchTermLower);
+        const codeMatch = outlet.outlet_code && outlet.outlet_code.toLowerCase().includes(searchTermLower);
+        const idMatch = outlet.outlet_id && outlet.outlet_id.toString().includes(searchTermLower);
+        const ownerMatch = outlet.owner_name && outlet.owner_name.toLowerCase().includes(searchTermLower);
+        const addressMatch = outlet.address && outlet.address.toLowerCase().includes(searchTermLower);
+        
+        return nameMatch || codeMatch || idMatch || ownerMatch || addressMatch;
+      });
     }
-
-    const searchTermLower = searchTerm.toLowerCase();
-    const filtered = allOutlets.filter(outlet => {
-      // For debugging: check which field matches
-      const nameMatch = outlet.name && outlet.name.toLowerCase().includes(searchTermLower);
-      const codeMatch = outlet.outlet_code && outlet.outlet_code.toLowerCase().includes(searchTermLower);
-      const idMatch = outlet.outlet_id && outlet.outlet_id.toString().includes(searchTermLower);
-      const ownerMatch = outlet.owner_name && outlet.owner_name.toLowerCase().includes(searchTermLower);
-      const addressMatch = outlet.address && outlet.address.toLowerCase().includes(searchTermLower);
-      
-      const isMatch = nameMatch || codeMatch || idMatch || ownerMatch || addressMatch;
-      
-      // Log detailed match info for debugging
-      if (isMatch) {
-        console.log(`Match found for "${searchTermLower}" in outlet:`, {
-          id: outlet.outlet_id,
-          name: outlet.name,
-          code: outlet.outlet_code,
-          matches: {
-            name: nameMatch,
-            code: codeMatch,
-            id: idMatch,
-            owner: ownerMatch,
-            address: addressMatch
-          }
-        });
-      }
-      
-      return isMatch;
-    });
-
-    console.log(`Search term: "${searchTermLower}" - Found ${filtered.length} outlets`);
-    setOutlets(filtered);
+    
+    // Apply status filter (open/closed)
+    if (statusFilter !== 'all') {
+      filteredOutlets = filteredOutlets.filter(outlet => outlet.status === statusFilter);
+    }
+    
+    // Apply activity filter (active/inactive)
+    if (activityFilter !== 'all') {
+      const isActive = activityFilter === 'active';
+      filteredOutlets = filteredOutlets.filter(outlet => outlet.is_active === isActive);
+    }
+    
+    // Apply account type filter (live/test)
+    if (accountTypeFilter !== 'all') {
+      filteredOutlets = filteredOutlets.filter(outlet => outlet.account_type === accountTypeFilter);
+    }
+    
+    setOutlets(filteredOutlets);
   };
 
   // Handle search term change with debounce
   useEffect(() => {
     const timer = setTimeout(() => {
       if (show) {
-        filterOutlets();
+        applyFilters();
       }
     }, 300);
     
     return () => clearTimeout(timer);
-  }, [searchTerm, show, allOutlets]);
+  }, [searchTerm, statusFilter, activityFilter, accountTypeFilter, show, allOutlets]);
 
   // Load outlets when modal is opened
   useEffect(() => {
     if (show) {
       fetchOutlets();
       setSearchTerm('');
+      setStatusFilter('all');
+      setActivityFilter('all');
+      setAccountTypeFilter('all');
     }
   }, [show]);
 
   const handleClearSearch = () => {
     setSearchTerm('');
-    setOutlets(allOutlets);
+  };
+
+  const handleClearFilters = () => {
+    setStatusFilter('all');
+    setActivityFilter('all');
+    setAccountTypeFilter('all');
   };
 
   // Handle sort button click - cycle through sort orders
@@ -192,6 +199,7 @@ const OutletSearch = ({
 
   const sortButtonDetails = getSortButtonDetails();
   const sortedOutlets = getSortedOutlets();
+  const hasActiveFilters = statusFilter !== 'all' || activityFilter !== 'all' || accountTypeFilter !== 'all';
 
   return (
     <div className="outlet-modal">
@@ -203,6 +211,60 @@ const OutletSearch = ({
             display: block;
             margin-top: 0.1rem;
             margin-bottom: 0.1rem;
+          }
+          
+          .filter-container {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+          }
+          
+          .filter-select {
+            flex: 1;
+            min-width: 120px;
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: 1px solid #d8d6de;
+            background-color: white;
+            font-size: 0.9rem;
+          }
+          
+          .filter-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+          }
+          
+          .filter-badge {
+            display: inline-flex;
+            align-items: center;
+            background: #f8f8f8;
+            border-radius: 4px;
+            padding: 2px 8px;
+            margin-right: 5px;
+            font-size: 0.8rem;
+            border: 1px solid #e0e0e0;
+          }
+          
+          .filter-badge .close-badge {
+            margin-left: 5px;
+            cursor: pointer;
+            font-size: 0.7rem;
+          }
+          
+          .clear-filters {
+            color: #7367f0;
+            background: none;
+            border: none;
+            font-size: 0.8rem;
+            cursor: pointer;
+            padding: 2px 5px;
+          }
+          
+          .clear-filters:hover {
+            text-decoration: underline;
           }
         `}
       </style>
@@ -231,6 +293,69 @@ const OutletSearch = ({
               </button>
             )}
           </div>
+
+          {/* Filter Dropdowns */}
+          <div className="filter-container">
+            <select 
+              className="filter-select" 
+              value={statusFilter} 
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">Status: All</option>
+              <option value="open">Open</option>
+              <option value="closed">Closed</option>
+            </select>
+            
+            <select 
+              className="filter-select" 
+              value={activityFilter} 
+              onChange={(e) => setActivityFilter(e.target.value)}
+            >
+              <option value="all">Activity: All</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            
+            <select 
+              className="filter-select" 
+              value={accountTypeFilter} 
+              onChange={(e) => setAccountTypeFilter(e.target.value)}
+            >
+              <option value="all">Account: All</option>
+              <option value="live">Live</option>
+              <option value="test">Test</option>
+            </select>
+          </div>
+
+          {/* Active Filters & Clear Button */}
+          {hasActiveFilters && (
+            <div className="filter-actions">
+              <div className="active-filters">
+                {statusFilter !== 'all' && (
+                  <span className="filter-badge">
+                    Status: {statusFilter}
+                    <i className="fas fa-times close-badge" onClick={() => setStatusFilter('all')}></i>
+                  </span>
+                )}
+                {activityFilter !== 'all' && (
+                  <span className="filter-badge">
+                    {activityFilter === 'active' ? 'Active' : 'Inactive'}
+                    <i className="fas fa-times close-badge" onClick={() => setActivityFilter('all')}></i>
+                  </span>
+                )}
+                {accountTypeFilter !== 'all' && (
+                  <span className="filter-badge">
+                    {accountTypeFilter === 'live' ? 'Live' : 'Test'}
+                    <i className="fas fa-times close-badge" onClick={() => setAccountTypeFilter('all')}></i>
+                  </span>
+                )}
+              </div>
+              <button className="clear-filters" onClick={handleClearFilters}>
+                <i className="fas fa-filter-circle-xmark me-1"></i>
+                Clear all filters
+              </button>
+            </div>
+          )}
 
           {/* All Outlets Section with Sort Button */}
           <div className="d-flex justify-content-between align-items-center mb-2">

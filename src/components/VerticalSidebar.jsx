@@ -204,6 +204,30 @@ function VerticalSidebar() {
                   <div>Table Reports</div>
                 </Link>
               </li>
+              <li className={`menu-item ${isActive('/reports/join-tables') ? 'active' : ''}`}>
+                <Link to="/reports/join-tables" className="menu-link">
+                  <i className="menu-icon fas fa-table-cells"></i>
+                  <div>Join Table Reports</div>
+                </Link>
+              </li>
+              <li className={`menu-item ${isActive('/reports/split-tables') ? 'active' : ''}`}>
+                <Link to="/reports/split-tables" className="menu-link">
+                  <i className="menu-icon fas fa-table-cells-large"></i>
+                  <div>Split Table Reports</div>
+                </Link>
+              </li>
+              <li className={`menu-item ${isActive('/reports/order-status') ? 'active' : ''}`}>
+                <Link to="/reports/order-status" className="menu-link">
+                  <i className="menu-icon fas fa-clipboard-list"></i>
+                  <div>Order Status Reports</div>
+                </Link>
+              </li>
+              <li className={`menu-item ${isActive('/reports/payment-settle') ? 'active' : ''}`}>
+                <Link to="/reports/payment-settle" className="menu-link">
+                  <i className="menu-icon fas fa-money-bill-wave"></i>
+                  <div>Payment Settle Reports</div>
+                </Link>
+              </li>
               <li className={`menu-item ${isActive('/reports/coupons') ? 'active' : ''}`}>
                 <Link to="/reports/coupons" className="menu-link">
                   <i className="menu-icon fas fa-ticket"></i>
