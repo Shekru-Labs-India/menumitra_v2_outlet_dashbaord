@@ -449,13 +449,28 @@ function Header() {
     }, 1000);
   };
 
+  // Set up auto refresh every 1 minute (60000ms)
+  useEffect(() => {
+    const autoRefreshTimer = setInterval(() => {
+      refreshAllComponents();
+    }, 60000); // 1 minute interval
+    
+    return () => clearInterval(autoRefreshTimer);
+  }, []);
+
   const handleClearSearch = () => {
     setSearchTerm('');
     fetchOutlets(); // Reset to show all outlets
   };
 
   return (
-    <div>
+    <div style={{
+      position: "sticky",
+      top: 0,
+      width: "100%",
+      zIndex: 1050,
+      backgroundColor: "white"
+    }}>
       <div 
         style={{
           backgroundColor: '#15a7f3 ',
@@ -834,7 +849,7 @@ function Header() {
           backgroundColor: "white",
           borderBottom: "1px solid rgba(0, 0, 0, 0.1)",
           boxShadow: "0 2px 6px rgba(0, 0, 0, 0.08)",
-          position: "relative",
+          position: "relative", 
           zIndex: 1000,
           paddingTop: "2.5rem",
           paddingBottom: "2.5rem",
@@ -853,7 +868,7 @@ function Header() {
               }
             }
             .rotate-animation {
-              animation: rotate 1s linear;
+              animation: rotate 1s linear infinite;
             }
           `}
         </style>

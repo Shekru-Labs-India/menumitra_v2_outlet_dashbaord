@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api, API_PATHS } from '../../config/apiConfig';
 import {
   Card,
@@ -26,6 +26,31 @@ const OrderReports = () => {
   const [orderType, setOrderType] = useState('');
   
   const navigate = useNavigate();
+
+  // Add useEffect to process data when API response is received
+  useEffect(() => {
+    if (orderData && orderData.orders) {
+      // Add unique id to each order for table component
+      const processedData = orderData.orders.map((order) => ({
+        ...order,
+        id: `order-${order.order_id}`
+      }));
+      
+      setOrderDetails(processedData);
+      console.log('Order details processed:', processedData);
+    }
+  }, [orderData]);
+
+  // Add another useEffect to log when orderDetails changes
+  useEffect(() => {
+    console.log('orderDetails state updated:', orderDetails.length);
+    
+    // If we have data and dataFetched is true, force a re-render
+    if (orderDetails.length > 0 && !dataFetched) {
+      console.log('Setting dataFetched to true because orderDetails has data');
+      setDataFetched(true);
+    }
+  }, [orderDetails, dataFetched]);
 
   const fetchOrderReport = async (params) => {
     try {
@@ -69,15 +94,22 @@ const OrderReports = () => {
       const response = await api.post(API_PATHS.orderReport, apiParams);
       
       if (response.data && response.data.detail) {
-        setOrderData(response.data.detail);
+        // Process the data directly here instead of relying on the useEffect
+        const responseData = response.data.detail;
+        setOrderData(responseData);
         
         // Add unique id to each order for table component
-        const processedData = response.data.detail.orders.map((order) => ({
-          ...order,
-          id: `order-${order.order_id}`
-        }));
+        if (responseData.orders && Array.isArray(responseData.orders)) {
+          const processedData = responseData.orders.map((order) => ({
+            ...order,
+            id: `order-${order.order_id}`
+          }));
+          
+          setOrderDetails(processedData);
+          console.log('Order details processed directly in fetch:', processedData.length);
+        }
         
-        setOrderDetails(processedData);
+        // Set dataFetched flag after all state updates
         setDataFetched(true);
         console.log('Data fetched successfully:', response.data.detail);
       } else {
@@ -125,7 +157,7 @@ const OrderReports = () => {
       Cell: (item) => (
         <div className="d-flex flex-column">
           <span className="fw-semibold text-primary">#{item.order_number}</span>
-          <small className="text-muted">ID: {item.order_id}</small>
+         
         </div>
       ),
       exportFormat: (item) => `#${item.order_number} (ID: ${item.order_id})`
@@ -449,15 +481,22 @@ const OrderReports = () => {
                       </Row>
                     )}
 
-                    {/* Table Section - Only show after data is fetched AND there are order details */}
-                    {dataFetched && orderDetails.length > 0 ? (
-                      <ReportTable
-                        data={orderDetails}
-                        columns={columns}
-                        title="Order Details"
-                        expandableContent={renderOrderItems}
-                        filterInfo={getFilterInfo()}
-                      />
+                    {/* Debug info */}
+                    {console.log('Render conditions:', { dataFetched, orderDetailsLength: orderDetails.length })}
+
+                    {/* Table Section - Show as soon as we have order details data */}
+                    {orderDetails && orderDetails.length > 0 ? (
+                      <>
+                        {console.log('Rendering ReportTable with data:', orderDetails.length)}
+                        <ReportTable
+                          key={`order-table-${orderDetails.length}`}
+                          data={orderDetails}
+                          columns={columns}
+                          title="Order Details"
+                          expandableContent={renderOrderItems}
+                          filterInfo={getFilterInfo()}
+                        />
+                      </>
                     ) : dataFetched ? (
                       <div className="alert alert-info mt-4">
                         <i className="fas fa-info-circle me-2"></i>
