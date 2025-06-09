@@ -47,9 +47,11 @@ const ReportTable = ({
   useEffect(() => {
     // Skip if data hasn't changed
     if (prevDataRef.current === data) return;
+    console.log('ReportTable: Data changed, updating component state', data);
     prevDataRef.current = data;
     
     if (data && data.length > 0) {
+      console.log('ReportTable: Processing data items:', data.length);
       // Initialize all records as selected by default
       const initialSelectedState = {};
       data.forEach(item => {
@@ -65,7 +67,9 @@ const ReportTable = ({
       
       // Set filtered data directly from data
       setFilteredData(data);
+      console.log('ReportTable: Filtered data updated with', data.length, 'items');
     } else {
+      console.log('ReportTable: No data or empty data array');
       setFilteredData([]);
     }
   }, [data, initialSortConfig]);
