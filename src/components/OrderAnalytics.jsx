@@ -24,9 +24,7 @@ const OrderAnalytics = ({ handleApiError }) => {
   const [error, setError] = useState('');
   const [analyticsData, setAnalyticsData] = useState({
     avg_first_order_time: 0,
-    avg_last_order_time: 0,
-    avg_order_time: 0,
-    avg_cooking_time: 0
+    avg_last_order_time: 0
   });
 
   // Simplified effect to handle the animation timing
@@ -55,9 +53,7 @@ const OrderAnalytics = ({ handleApiError }) => {
       // If no data is available yet, ensure we have default values
       setAnalyticsData({
         avg_first_order_time: '0 mins',
-        avg_last_order_time: '0 mins',
-        avg_order_time: '0 mins',
-        avg_cooking_time: '0 mins'
+        avg_last_order_time: '0 mins'
       });
     }
     
@@ -77,9 +73,7 @@ const OrderAnalytics = ({ handleApiError }) => {
   const updateAnalyticsFromData = (data) => {
     setAnalyticsData({
       avg_first_order_time: data.first_order_time || '0 mins',
-      avg_last_order_time: data.last_order_time || '0 mins',
-      avg_order_time: data.average_order_time || '0 mins',
-      avg_cooking_time: data.average_cooking_time || '0 mins'
+      avg_last_order_time: data.last_order_time || '0 mins'
     });
   };
 
@@ -316,36 +310,6 @@ const OrderAnalytics = ({ handleApiError }) => {
                 <div className="ms-4 d-flex flex-column">
                   <h5 className="mb-0">Avg Last Order Time</h5>
                   <p className="mb-0">{analyticsData.avg_last_order_time}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-md-6">
-              <div className="d-flex align-items-center mb-4 mb-md-0">
-                <div
-                  className="icon-bg bg-warning rounded-circle d-flex align-items-center justify-content-center"
-                  style={{ width: "40px", height: "40px" }}
-                >
-                  <i className="fas fa-tachometer-alt text-white"></i>
-                </div>
-                <div className="ms-4 d-flex flex-column">
-                  <h5 className="mb-0">Avg Order Time</h5>
-                  <p className="mb-0">{analyticsData.avg_order_time}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-md-6">
-              <div className="d-flex align-items-center">
-                <div
-                  className="icon-bg bg-danger rounded-circle d-flex align-items-center justify-content-center"
-                  style={{ width: "40px", height: "40px" }}
-                >
-                  <i className="fas fa-utensils text-white"></i>
-                </div>
-                <div className="ms-4 d-flex flex-column">
-                  <h5 className="mb-0">Avg Cooking Time</h5>
-                  <p className="mb-0">{analyticsData.avg_cooking_time}</p>
                 </div>
               </div>
             </div>

@@ -238,7 +238,7 @@ function OutletDetails() {
               </div>
               <span className="ms-2 text-muted" style={{ fontSize: '0.9rem' }}>Days Since Installation</span>
             </div>
-            <h3 className="mb-0 fw-bold text-center mt-2">{data.total_days_since_menumitra_was_installed || 0}</h3>
+            <h3 className="mb-0 fw-bold text-center mt-2">{data.total_days_since_menumitra_was_installed || 0} Days</h3>
           </div>
         </div>
         
@@ -365,45 +365,45 @@ function OutletDetails() {
 
                   <Row className="g-3">
                     <Col md={3}>
-                      <div className="p-3 border rounded" style={{ borderLeft: '3px solid #696cff' }}>
-                        <span className="d-block text-muted mb-1" style={{ fontSize: '0.85rem' }}>Outlet Code</span>
-                        <span className="fw-medium">{outletData.outlet_code || 'N/A'}</span>
+                      <div className="p-3" >
+                        <span className="fw-medium d-block mb-1">{outletData.outlet_code || 'N/A'}</span>
+                        <span className="text-muted" style={{ fontSize: '0.85rem' }}>Outlet Code</span>
                       </div>
                     </Col>
                     <Col md={3}>
-                      <div className="p-3 border rounded" style={{ borderLeft: '3px solid #696cff' }}>
-                        <span className="d-block text-muted mb-1" style={{ fontSize: '0.85rem' }}>Contact Number</span>
-                        <span className="fw-medium">{outletData.mobile || 'N/A'}</span>
+                      <div className="p-3" >
+                        <span className="fw-medium d-block mb-1">{outletData.mobile || 'N/A'}</span>
+                        <span className="text-muted" style={{ fontSize: '0.85rem' }}>Contact Number</span>
                       </div>
                     </Col>
                     <Col md={3}>
-                      <div className="p-3 border rounded" style={{ borderLeft: '3px solid #696cff' }}>
-                        <span className="d-block text-muted mb-1" style={{ fontSize: '0.85rem' }}>Outlet Type</span>
-                        <span className="fw-medium text-capitalize">{outletData.outlet_type || 'N/A'}</span>
+                      <div className="p-3" >
+                        <span className="fw-medium text-capitalize d-block mb-1">{outletData.outlet_type || 'N/A'}</span>
+                        <span className="text-muted" style={{ fontSize: '0.85rem' }}>Outlet Type</span>
                       </div>
                     </Col>
                     <Col md={3}>
-                      <div className="p-3 border rounded" style={{ borderLeft: '3px solid #696cff' }}>
-                        <span className="d-block text-muted mb-1" style={{ fontSize: '0.85rem' }}>Food Type</span>
-                        <span className="fw-medium text-capitalize">{outletData.veg_nonveg || 'N/A'}</span>
+                      <div className="p-3" >
+                        <span className="fw-medium text-capitalize d-block mb-1">{outletData.veg_nonveg || 'N/A'}</span>
+                        <span className="text-muted" style={{ fontSize: '0.85rem' }}>Food Type</span>
                       </div>
                     </Col>
-                    <Col md={4}>
-                      <div className="p-3 border rounded" style={{ borderLeft: '3px solid #696cff' }}>
-                        <span className="d-block text-muted mb-1" style={{ fontSize: '0.85rem' }}>Created On</span>
-                        <span className="fw-medium">{outletData.created_on || 'N/A'}</span>
+                    <Col md={3}>
+                      <div className="p-3" >
+                        <span className="fw-medium d-block mb-1">{outletData.created_on || 'N/A'}</span>
+                        <span className="text-muted" style={{ fontSize: '0.85rem' }}>Created On</span>
                       </div>
                     </Col>
-                    <Col md={4}>
-                      <div className="p-3 border rounded" style={{ borderLeft: '3px solid #696cff' }}>
-                        <span className="d-block text-muted mb-1" style={{ fontSize: '0.85rem' }}>Opening Time</span>
-                        <span className="fw-medium">{formatTime(outletData.opening_time)}</span>
+                    <Col md={3}>
+                      <div className="p-3" >
+                        <span className="fw-medium d-block mb-1">{formatTime(outletData.opening_time)}</span>
+                        <span className="text-muted" style={{ fontSize: '0.85rem' }}>Opening Time</span>
                       </div>
                     </Col>
-                    <Col md={4}>
-                      <div className="p-3 border rounded" style={{ borderLeft: '3px solid #696cff' }}>
-                        <span className="d-block text-muted mb-1" style={{ fontSize: '0.85rem' }}>Closing Time</span>
-                        <span className="fw-medium">{formatTime(outletData.closing_time)}</span>
+                    <Col md={3}>
+                      <div className="p-3" >
+                        <span className="fw-medium d-block mb-1">{formatTime(outletData.closing_time)}</span>
+                        <span className="text-muted" style={{ fontSize: '0.85rem' }}>Closing Time</span>
                       </div>
                     </Col>
                   </Row>
