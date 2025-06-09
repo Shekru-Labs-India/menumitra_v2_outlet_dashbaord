@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { api, API_PATHS } from '../../config/apiConfig';
 import {
   Card,
@@ -16,7 +16,7 @@ import { ForbiddenAccessMessage, ReportTable, ReportFilters } from '../../compon
 import { useNavigate } from 'react-router-dom';
 
 function CouponReports() {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [couponData, setCouponData] = useState(null);
   const [couponDetails, setCouponDetails] = useState([]);
@@ -26,10 +26,6 @@ function CouponReports() {
   const [filterParams, setFilterParams] = useState(null);
   
   const navigate = useNavigate();
-
-  useEffect(() => {
-    fetchCouponReport({});
-  }, []);
 
   const fetchCouponReport = async (params) => {
     try {
@@ -61,6 +57,7 @@ function CouponReports() {
         apiParams.date_range = params.date_range;
       }
 
+      console.log('Making API call with params:', apiParams);
       const response = await api.post(API_PATHS.couponReport, apiParams);
       
       if (response.data && response.data.detail) {
@@ -74,6 +71,7 @@ function CouponReports() {
         
         setCouponDetails(processedData);
         setDataFetched(true);
+        console.log('Data fetched successfully:', response.data.detail);
       } else {
         throw new Error('Invalid response format');
       }
@@ -98,7 +96,18 @@ function CouponReports() {
   };
 
   const handleRetry = () => {
-    fetchCouponReport({});
+    fetchCouponReport(filterParams || {});
+  };
+
+  // Function to check if there's meaningful data to display
+  const hasData = () => {
+    if (!couponData) return false;
+    
+    const report = couponData.coupon_report;
+    return report.total_coupons_used > 0 || 
+           report.total_discount_given > 0 || 
+           report.total_revenue > 0 || 
+           report.average_discount_per_order > 0;
   };
 
   // Define table columns
@@ -355,8 +364,8 @@ function CouponReports() {
                       </select>
                     </ReportFilters>
 
-                    {/* Summary Cards */}
-                    {couponData && (
+                    {/* Summary Cards - Only show after data is fetched AND there is meaningful data */}
+                    {dataFetched && hasData() && (
                       <Row className="mb-4">
                         <Col md={3}>
                           <Card className="h-100">
@@ -393,8 +402,8 @@ function CouponReports() {
                       </Row>
                     )}
 
-                    {/* Coupon Type Breakdown */}
-                    {couponData && (
+                    {/* Coupon Type Breakdown - Only show after data is fetched AND there is meaningful data */}
+                    {dataFetched && hasData() && Object.keys(couponData.coupon_report.coupon_type_breakdown).length > 0 && (
                       <Row className="mb-4">
                         <Col md={6}>
                           <Card>
@@ -431,7 +440,7 @@ function CouponReports() {
                       </Row>
                     )}
 
-                    {/* Table Section */}
+                    {/* Table Section - Only show after data is fetched AND there are coupon details */}
                     {dataFetched && couponDetails.length > 0 ? (
                       <ReportTable
                         data={couponDetails}
@@ -440,7 +449,7 @@ function CouponReports() {
                         expandableContent={renderCouponDetails}
                         filterInfo={getFilterInfo()}
                       />
-                    ) : dataFetched && couponDetails.length === 0 ? (
+                    ) : dataFetched ? (
                       <div className="alert alert-info mt-4">
                         <i className="fas fa-info-circle me-2"></i>
                         No coupon data found for the selected filters. Please try different filter criteria.

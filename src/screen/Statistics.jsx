@@ -302,9 +302,9 @@ function Statistics() {
                   ) : null}
                   
                   {/* Statistics Dashboard Card */}
-                  <div className="row m-0">
+                  <div className="row m-0 mb-4 mx-3">
                     <div className="col-12 p-0">
-                      <div className="card rounded-0 border border-1">
+                      <div className="card rounded-0 border border-1" style={{ boxShadow: 'none' }}>
                         <div className="card-header d-flex justify-content-between align-items-md-center align-items-start p-4">
                           <h5 className="card-title mb-0">
                             Statistics Dashboard
@@ -407,9 +407,7 @@ function Statistics() {
                         )}
 
                         <div className="card-body p-4">
-                          <p className="mb-4">
-                            Select an outlet from the search menu above to view detailed statistics.
-                          </p>
+                          
                           
                           {/* Stats Cards - Always show data (cached or new) */}
                           <div className="row g-4">
@@ -440,7 +438,7 @@ function Statistics() {
                   </div>
 
                   {/* Outlet Stats Section */}
-                  <div className="row m-0">
+                  <div className="row m-0 mx-3">
                     <div className="col-12 p-0">
                       {console.log('Statistics: Rendering OutletStats component')}
                       <OutletStats />
@@ -448,7 +446,7 @@ function Statistics() {
                   </div>
 
                   {/* Charts Section */}
-                  <div className="row g-4 m-0">
+                  <div className="row g-4 m-0 mx-3 mb-4">
                     <div className="col-12 col-md-6 col-lg-6 p-0 pe-md-2">
                       <div className="h-100">
                         <PaymentMethodsChart />
@@ -462,7 +460,7 @@ function Statistics() {
                   </div>
 
                   {/* Sales Section */}
-                  <div className="row g-4 m-0">
+                  <div className="row g-4 m-0 mx-3 mb-4">
                     <div className="col-12 col-md-6 col-lg-6 p-0 pe-md-2">
                       <div className="h-100">
                         <ProductAnalysis />
@@ -476,7 +474,7 @@ function Statistics() {
                   </div>
 
                   {/* Analytics Section */}
-                  <div className="row g-4 m-0">
+                  <div className="row g-4 m-0 mx-3 mb-4">
                     <div className="col-12 col-md-6 col-lg-6 p-0 pe-md-2">
                       <div className="h-100">
                         <OrderType />
@@ -487,8 +485,11 @@ function Statistics() {
                         <WeeklyOrderStat />
                       </div>
                     </div>
-
-                    <div className="row m-0">
+                  </div>
+                  
+                  {/* Order Analytics Section */}
+                  <div className="row m-0 mx-3 mb-4">
+                    <div className="col-12 p-0">
                       <OrderAnalytics />
                     </div>
                   </div>

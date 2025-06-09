@@ -232,7 +232,7 @@ function OutletStats() {
               <div className="card h-100 border" style={{ boxShadow: 'none' }}>
                 <div className="card-body text-center">
                   <h3 className="mb-1">{outletData.outlets[0]?.statistics?.most_popular_item?.name || 'N/A'}</h3>
-                  <p className="text-muted mb-0">Most Popular ({outletData.outlets[0]?.statistics?.most_popular_item?.orders || 0} orders)</p>
+                  <p className="text-muted mb-0">Most Popular Menu ({outletData.outlets[0]?.statistics?.most_popular_item?.orders || 0} orders)</p>
                 </div>
               </div>
             </div>
@@ -242,7 +242,7 @@ function OutletStats() {
               <div className="card h-100 border" style={{ boxShadow: 'none' }}>
                 <div className="card-body text-center">
                   <h3 className="mb-1">{outletData.outlets[0]?.statistics?.least_popular_item?.name || 'N/A'}</h3>
-                  <p className="text-muted mb-0">Least Popular ({outletData.outlets[0]?.statistics?.least_popular_item?.orders || 0} orders)</p>
+                  <p className="text-muted mb-0">Least Popular Menu ({outletData.outlets[0]?.statistics?.least_popular_item?.orders || 0} orders)</p>
                 </div>
               </div>
             </div>
