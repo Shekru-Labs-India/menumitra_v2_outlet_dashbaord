@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react'
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
 import { API_PATHS } from '../config/apiConfig';
 // Import both GIFs - static and animated
 import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
@@ -8,7 +6,7 @@ import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still
 import { useDashboard } from '../context/DashboardContext'; // Import dashboard context
 import { useCacheData } from '../context/CacheDataContext'; // Import cache context
 import Chart from 'react-apexcharts';
-import { withErrorHandling } from './common';
+import { withErrorHandling, DateFilter } from './common';
 
 const FoodTypeGraph = ({ handleApiError }) => {
     // Get data from dashboard context
@@ -22,10 +20,7 @@ const FoodTypeGraph = ({ handleApiError }) => {
       getCachedData
     } = useCacheData();
 
-    const [dateRange, setDateRange] = useState('All time');
-    const [startDate, setStartDate] = useState(null);
-    const [endDate, setEndDate] = useState(null);
-    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [dateRange, setDateRange] = useState('All Time');
     const [isGifPlaying, setIsGifPlaying] = useState(false);
     const [foodTypeData, setFoodTypeData] = useState([]);
     const [error, setError] = useState('');
@@ -58,12 +53,17 @@ const FoodTypeGraph = ({ handleApiError }) => {
         setFoodTypeData([]);
       }
       
-      // Explicitly call with empty filter for "All time"
-      // This ensures data is loaded on initial mount even with "All time" filter
+      // Explicitly call with empty filter for "All Time"
+      // This ensures data is loaded on initial mount even with "All Time" filter
       const emptyFilter = {};
-      console.log('FoodTypeGraph - Initial load with empty filter for All time');
+      console.log('FoodTypeGraph - Initial load with empty filter for All Time');
       fetchFoodTypeStats(emptyFilter, { forceRefresh: true });
     }, []);
+
+    // Update when date range changes
+    useEffect(() => {
+      fetchFoodTypeStats(getDateRange(dateRange), { forceRefresh: true });
+    }, [dateRange]);
 
     // Function to get week date range
     const getWeekDateRange = (weeksAgo = 0) => {
@@ -87,65 +87,6 @@ const FoodTypeGraph = ({ handleApiError }) => {
             start: startOfTargetWeek,
             end: endOfTargetWeek
         };
-    };
-
-    // Function to format date range string
-    const formatDateRangeString = (start, end) => {
-        const formatDate = (date) => {
-            const day = date.getDate().toString().padStart(2, '0');
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const month = months[date.getMonth()];
-            return `${day} ${month}`;
-        };
-        
-        return `${formatDate(start)} - ${formatDate(end)}`;
-    };
-
-    // Function to get date range options
-    const getDateRangeOptions = () => {
-        const options = [];
-        
-        // All time option
-        options.push({
-            label: 'All time',
-            value: 'All time',
-            dateRange: null
-        });
-        
-        // This week
-        const thisWeek = getWeekDateRange(0);
-        options.push({
-            label: 'This week',
-            value: 'This week',
-            dateRange: formatDateRangeString(thisWeek.start, thisWeek.end)
-        });
-        
-        // Last week
-        const lastWeek = getWeekDateRange(1);
-        options.push({
-            label: 'Last week',
-            value: 'Last week',
-            dateRange: formatDateRangeString(lastWeek.start, lastWeek.end)
-        });
-        
-        // Previous weeks (up to 4 weeks ago)
-        for (let i = 2; i <= 4; i++) {
-            const week = getWeekDateRange(i);
-            options.push({
-                label: formatDateRangeString(week.start, week.end),
-                value: `Week ${i}`,
-                dateRange: formatDateRangeString(week.start, week.end)
-            });
-        }
-        
-        // Custom range
-        options.push({
-            label: 'Custom Range',
-            value: 'Custom Range',
-            dateRange: null
-        });
-        
-        return options;
     };
 
     const formatDate = (date) => {
@@ -187,13 +128,37 @@ const FoodTypeGraph = ({ handleApiError }) => {
         let start, end;
         
         switch (range) {
+            case 'Today':
+                start = end = new Date();
+                break;
+            case 'Yesterday':
+                start = end = new Date();
+                start.setDate(start.getDate() - 1);
+                break;
+            case 'Last 7 Days':
+                end = new Date();
+                start = new Date();
+                start.setDate(start.getDate() - 6);
+                break;
+            case 'Last 30 Days':
+                end = new Date();
+                start = new Date();
+                start.setDate(start.getDate() - 29);
+                break;
+            case 'Current Month':
+                start = new Date(today.getFullYear(), today.getMonth(), 1);
+                end = new Date();
+                break;
+            case 'Last Month':
+                start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                end = new Date(today.getFullYear(), today.getMonth(), 0);
+                break;
             case 'This week': {
-                const firstDayOfWeek = new Date(today);
                 const day = today.getDay(); // 0 is Sunday, 1 is Monday, etc.
                 const diff = day === 0 ? 6 : day - 1; // Adjust to make Monday the first day
-                firstDayOfWeek.setDate(today.getDate() - diff);
-                start = firstDayOfWeek;
-                end = today;
+                start = new Date(today);
+                start.setDate(today.getDate() - diff);
+                end = new Date();
                 break;
             }
             case 'Last week': {
@@ -201,42 +166,25 @@ const FoodTypeGraph = ({ handleApiError }) => {
                 const day = today.getDay(); // 0 is Sunday, 1 is Monday, etc.
                 const diff = day === 0 ? 6 : day - 1; // Adjust to make Monday the first day
                 lastWeekEnd.setDate(today.getDate() - diff - 1); // End of previous week (Sunday)
-                const lastWeekStart = new Date(lastWeekEnd);
-                lastWeekStart.setDate(lastWeekEnd.getDate() - 6); // Start of previous week (Monday)
-                start = lastWeekStart;
+                start = new Date(lastWeekEnd);
+                start.setDate(lastWeekEnd.getDate() - 6); // Start of previous week (Monday)
                 end = lastWeekEnd;
                 break;
             }
-            case 'Week 2': {
-                const week = getWeekDateRange(2);
-                start = week.start;
-                end = week.end;
-                break;
-            }
-            case 'Week 3': {
-                const week = getWeekDateRange(3);
-                start = week.start;
-                end = week.end;
-                break;
-            }
-            case 'Week 4': {
-                const week = getWeekDateRange(4);
-                start = week.start;
-                end = week.end;
-                break;
-            }
-            case 'Custom Range': {
-                if (startDate && endDate) {
+            case 'All Time':
+                // For 'All Time', don't send date parameters
+                return {};
+            default:
+                // Check if it's a custom range with format "DD MMM YYYY - DD MMM YYYY"
+                if (range.includes(' - ')) {
+                    const [startStr, endStr] = range.split(' - ');
+                    // These are already formatted dates, so just pass them directly
                     return {
-                        start_date: formatDate(startDate),
-                        end_date: formatDate(endDate)
+                        start_date: startStr,
+                        end_date: endStr
                     };
                 }
-                return {};
-            }
-            case 'All time':
-            default:
-                // For 'All time', don't send date parameters
+                // Default case also returns empty object (no date filtering)
                 return {};
         }
         
@@ -252,18 +200,10 @@ const FoodTypeGraph = ({ handleApiError }) => {
 
     const handleDateRangeChange = (range) => {
         setDateRange(range);
-        
-        if (range === 'Custom Range') {
-            // Only show date picker, don't reset dates
-            setShowDatePicker(true);
-        } else {
-            // For non-custom ranges, reset dates and fetch data
-            setShowDatePicker(false);
-            setStartDate(null);
-            setEndDate(null);
-            // Always force refresh when changing date range
-            fetchFoodTypeStats(getDateRange(range), { forceRefresh: true });
-        }
+    };
+
+    const handleCustomDateSelect = (start, end, formattedRange) => {
+        setDateRange(formattedRange);
     };
 
     const handleReload = () => {
@@ -324,14 +264,6 @@ const FoodTypeGraph = ({ handleApiError }) => {
             
             // Even on error, we should ensure we have at least empty data
             setFoodTypeData([]);
-        }
-    };
-
-    const handleCustomDateSelect = () => {
-        if (startDate && endDate) {
-            setDateRange(`${formatDate(startDate)} - ${formatDate(endDate)}`);
-            setShowDatePicker(false);
-            fetchFoodTypeStats(getDateRange('Custom Range'), { forceRefresh: true });
         }
     };
 
@@ -469,44 +401,20 @@ const FoodTypeGraph = ({ handleApiError }) => {
             <div className="card-header d-flex justify-content-between align-items-md-center align-items-start">
                 <h5 className="card-title mb-0">Food Type Analysis</h5>
                 <div className="d-flex align-items-center gap-3">
-                    <div className="dropdown">
-                        <button
-                            type="button"
-                            className="btn btn-outline-primary dropdown-toggle"
-                            data-bs-toggle="dropdown"
-                            aria-expanded="false"
-                        >
-                            <i className="fas fa-calendar me-2"></i>
-                            {dateRange}
-                        </button>
-                        <ul className="dropdown-menu dropdown-menu-end">
-                            {getDateRangeOptions().map((option) => (
-                                <li key={option.value}>
-                                    <a
-                                        href="javascript:void(0);"
-                                        className="dropdown-item d-flex align-items-center"
-                                        onClick={() => handleDateRangeChange(option.value)}
-                                    >
-                                        <div className="d-flex flex-column">
-                                            <span>{option.label}</span>
-                                            {option.dateRange && (
-                                                <small className="text-muted">{option.dateRange}</small>
-                                            )}
-                                        </div>
-                                    </a>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
+                    <DateFilter 
+                        dateRange={dateRange}
+                        onDateRangeChange={handleDateRangeChange}
+                        onCustomDateSelect={handleCustomDateSelect}
+                    />
 
-                    {/* <button
+                    <button
                         type="button"
                         className="btn btn-icon p-0"
                         onClick={handleReload}
                         style={{ border: '1px solid var(--bs-primary)' }}
                     >
                         <i className="fas fa-sync-alt"></i>
-                    </button> */}
+                    </button>
 
                     {/* <button
                         type="button"
@@ -550,42 +458,6 @@ const FoodTypeGraph = ({ handleApiError }) => {
                     </button> */}
                 </div>
             </div>
-
-            {showDatePicker && (
-                <div className="card-body">
-                    <div className="d-flex flex-column gap-2">
-                        <label>Select Date Range:</label>
-                        <div className="d-flex gap-2">
-                            <DatePicker
-                                selected={startDate}
-                                onChange={(date) => setStartDate(date)}
-                                selectsStart
-                                startDate={startDate}
-                                endDate={endDate}
-                                maxDate={new Date()}
-                                placeholderText="DD MMM YYYY"
-                                className="btn btn-outline-secondary"
-                                dateFormat="dd MMM yyyy"
-                            />
-                            <DatePicker
-                                selected={endDate}
-                                onChange={(date) => setEndDate(date)}
-                                selectsEnd
-                                startDate={startDate}
-                                endDate={endDate}
-                                minDate={startDate}
-                                maxDate={new Date()}
-                                placeholderText="DD MMM YYYY"
-                                className="btn btn-outline-secondary"
-                                dateFormat="dd MMM yyyy"
-                            />
-                        </div>
-                        <button className="btn btn-primary mt-2" onClick={handleCustomDateSelect} disabled={!startDate || !endDate}>
-                            Apply
-                        </button>
-                    </div>
-                </div>
-            )}
             
             {error && !error.includes('permission') && !error.includes('Permission') && !error.includes('403') && (
                 <div className="card-body">

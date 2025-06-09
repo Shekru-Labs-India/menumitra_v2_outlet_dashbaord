@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from "react";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
 import { API_PATHS } from "../config/apiConfig";
 // Import both GIFs - static and animated
 import aiAnimationGif from "../assets/img/gif/AI-animation-unscreen.gif";
 import aiAnimationStillFrame from "../assets/img/gif/AI-animation-unscreen-still-frame.gif";
 import { useDashboard } from "../context/DashboardContext"; // Import dashboard context
 import { useCacheData } from "../context/CacheDataContext"; // Import cache context
-import { withErrorHandling } from "./common";
+import { withErrorHandling, DateFilter } from "./common";
 
 function TopSell({ handleApiError }) {
   // Get data from dashboard context
@@ -24,9 +22,6 @@ function TopSell({ handleApiError }) {
   // State management 
   const [selectedTab, setSelectedTab] = useState("top");
   const [dateRange, setDateRange] = useState("All Time");
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [isGifPlaying, setIsGifPlaying] = useState(false);
   const [salesData, setSalesData] = useState({
     top_selling: [],
@@ -49,6 +44,11 @@ function TopSell({ handleApiError }) {
     // Fetch fresh data in background
     fetchSalesData();
   }, []);
+
+  // Update when date range changes
+  useEffect(() => {
+    fetchSalesData(getDateRange(dateRange), { forceRefresh: true });
+  }, [dateRange]);
 
   // Process sales data from API or cache
   const processSalesData = (data) => {
@@ -111,23 +111,28 @@ function TopSell({ handleApiError }) {
         start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
         end = new Date(today.getFullYear(), today.getMonth(), 0);
         break;
-      case "Custom Range":
-        if (startDate && endDate) {
+      case "All Time":
+        // For 'All Time', don't send date parameters
+        return {};
+      default:
+        // Check if it's a custom range with format "DD MMM YYYY - DD MMM YYYY"
+        if (range.includes(' - ')) {
+          const [startStr, endStr] = range.split(' - ');
+          // These are already formatted dates, so just pass them directly
           return {
-            start_date: formatDate(startDate),
-            end_date: formatDate(endDate)
+            start_date: startStr,
+            end_date: endStr
           };
         }
-        return {};
-      default: // All Time
+        // Default case also returns empty object (no date filtering)
         return {};
     }
     
     if (start && end) {
-    return { 
-      start_date: formatDate(start),
-      end_date: formatDate(end)
-    };
+      return { 
+        start_date: formatDate(start),
+        end_date: formatDate(end)
+      };
     }
     
     return {};
@@ -177,27 +182,15 @@ function TopSell({ handleApiError }) {
   // Handle date range selection
   const handleDateRangeChange = (range) => {
     setDateRange(range);
-    
-    if (range === "Custom Range") {
-      // Only show date picker, don't reset dates
-      setShowDatePicker(true);
-    } else {
-      // For non-custom ranges, reset dates and fetch data
-      setShowDatePicker(false);
-      setStartDate(null);
-      setEndDate(null);
-      // Always force refresh when changing date range
-      fetchSalesData(getDateRange(range), { forceRefresh: true });
-    }
   };
 
-  // Handle custom date selection
-  const handleCustomDateSelect = () => {
-    if (startDate && endDate) {
-      setDateRange(`${formatDate(startDate)} - ${formatDate(endDate)}`);
-      setShowDatePicker(false);
-      fetchSalesData(getDateRange("Custom Range"), { forceRefresh: true });
-    }
+  const handleCustomDateSelect = (start, end, formattedRange) => {
+    setDateRange(formattedRange);
+  };
+
+  const handleReload = () => {
+    setIsGifPlaying(true);
+    fetchSalesData(getDateRange(dateRange), { forceRefresh: true });
   };
 
   // Return null if there's a 403 error (permission denied)
@@ -249,68 +242,26 @@ function TopSell({ handleApiError }) {
     );
   };
 
-  // Render date options dropdown
-  const renderDateOptions = () => {
-    const dateOptions = [
-      "All Time",
-      "Today",
-      "Yesterday",
-      "Last 7 Days",
-      "Last 30 Days",
-      "Current Month",
-      "Last Month",
-      "Custom Range"
-    ];
-    
-    return (
-      <div className="dropdown">
-        <button
-          type="button"
-          className="btn btn-outline-primary dropdown-toggle"
-          data-bs-toggle="dropdown"
-        >
-          <i className="fas fa-calendar me-2"></i>
-          {dateRange}
-        </button>
-        <ul className="dropdown-menu dropdown-menu-end">
-          {dateOptions.map((option) => (
-            <li key={option}>
-              <a
-                href="javascript:void(0);"
-                className="dropdown-item"
-                onClick={() => handleDateRangeChange(option)}
-              >
-                {option}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </div>
-    );
-  };
-
-  const handleReload = () => {
-    setIsGifPlaying(true);
-    fetchSalesData(getDateRange(dateRange), { forceRefresh: true });
-  };
-
   return (
     <div className="card border" style={{ boxShadow: 'none' }}>
       {/* Header */}
       <div className="card-header d-flex justify-content-between align-items-center">
         <h5 className="card-title mb-0">Products Analysis</h5>
         <div className="d-flex align-items-center gap-3">
-          {renderDateOptions()}
+          <DateFilter 
+            dateRange={dateRange}
+            onDateRangeChange={handleDateRangeChange}
+            onCustomDateSelect={handleCustomDateSelect}
+          />
 
-          {/* Reload button */}
-          {/* <button
+          <button
             type="button"
             className="btn btn-icon p-0"
             onClick={handleReload}
             style={{ border: "1px solid var(--bs-primary)" }}
           >
             <i className="fas fa-sync-alt"></i>
-          </button> */}
+          </button>
 
           {/* <button
             type="button"
@@ -359,47 +310,6 @@ function TopSell({ handleApiError }) {
           </button> */}
         </div>
       </div>
-
-      {/* Custom date picker */}
-      {showDatePicker && (
-        <div className="card-body border-bottom">
-          <div className="d-flex flex-column gap-2">
-            <label>Select Date Range:</label>
-            <div className="d-flex gap-2">
-              <DatePicker
-                selected={startDate}
-                onChange={setStartDate}
-                selectsStart
-                startDate={startDate}
-                endDate={endDate}
-                maxDate={new Date()}
-                className="btn btn-outline-secondary"
-                dateFormat="dd MMM yyyy"
-                placeholderText="DD MMM YYYY"
-              />
-              <DatePicker
-                selected={endDate}
-                onChange={setEndDate}
-                selectsEnd
-                startDate={startDate}
-                endDate={endDate}
-                minDate={startDate}
-                maxDate={new Date()}
-                className="btn btn-outline-secondary"
-                dateFormat="dd MMM yyyy"
-                placeholderText="DD MMM YYYY"
-              />
-            </div>
-            <button
-              className="btn btn-primary mt-2"
-              onClick={handleCustomDateSelect}
-              disabled={!startDate || !endDate}
-            >
-              Apply
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Body */}
       <div className="card-body">

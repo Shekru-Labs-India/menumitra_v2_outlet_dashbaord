@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api, API_PATHS } from '../config/apiConfig';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
 import { useCacheData } from '../context/CacheDataContext';
+import DateFilter from './common/DateFilter';
 
 function OutletStats() {
   // Initialize with dates from a week ago to today to ensure we have some data
@@ -44,8 +43,7 @@ function OutletStats() {
       KOT_orders: 0
     }
   });
-  const [startDate, setStartDate] = useState(oneWeekAgo);
-  const [endDate, setEndDate] = useState(today);
+  const [dateRange, setDateRange] = useState('All Time');
   
   // Track permission denied state separately for each API
   const [mainStatsPermissionDenied, setMainStatsPermissionDenied] = useState(false);
@@ -69,17 +67,17 @@ function OutletStats() {
     // Fetch fresh data in background
     fetchOutletStats();
     fetchAllStats();
-  }, [startDate, endDate]);
+  }, [dateRange]);
 
   const fetchOutletStats = async () => {
     try {
       setError(null);
       setMainStatsPermissionDenied(false);
 
+      const dateFilter = getDateRange(dateRange);
       const params = {
         outlet_id: localStorage.getItem('outlet_id'),
-        start_date: formatDate(startDate),
-        end_date: formatDate(endDate)
+        ...dateFilter
       };
 
       console.log('Fetching outlet stats with params:', params);
@@ -141,6 +139,71 @@ function OutletStats() {
     return `${day} ${month} ${year}`;
   };
 
+  const getDateRange = (range) => {
+    const today = new Date();
+    let start, end;
+    
+    switch (range) {
+      case 'Today':
+        start = end = new Date();
+        break;
+      case 'Yesterday':
+        start = end = new Date();
+        start.setDate(start.getDate() - 1);
+        break;
+      case 'Last 7 Days':
+        end = new Date();
+        start = new Date();
+        start.setDate(start.getDate() - 6);
+        break;
+      case 'Last 30 Days':
+        end = new Date();
+        start = new Date();
+        start.setDate(start.getDate() - 29);
+        break;
+      case 'Current Month':
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+        end = new Date();
+        break;
+      case 'Last Month':
+        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        end = new Date(today.getFullYear(), today.getMonth(), 0);
+        break;
+      case 'All Time':
+        // For 'All Time', don't send date parameters
+        return {};
+      default:
+        // Check if it's a custom range with format "DD MMM YYYY - DD MMM YYYY"
+        if (range.includes(' - ')) {
+          const [startStr, endStr] = range.split(' - ');
+          // These are already formatted dates, so just pass them directly
+          return {
+            start_date: startStr,
+            end_date: endStr
+          };
+        }
+        // Default case also returns empty object (no date filtering)
+        return {};
+    }
+    
+    if (start && end) {
+      return {
+        start_date: formatDate(start),
+        end_date: formatDate(end)
+      };
+    }
+    
+    return {};
+  };
+
+  const handleDateRangeChange = (range) => {
+    setDateRange(range);
+  };
+
+  const handleCustomDateSelect = (start, end, formattedRange) => {
+    setDateRange(formattedRange);
+  };
+
   const formatIndianCurrency = (amount) => {
     const num = parseFloat(amount);
     if (isNaN(num) || num === 0) return '₹0.00';
@@ -167,37 +230,14 @@ function OutletStats() {
       <div className="card-header d-flex justify-content-between align-items-center">
         <h5 className="card-title mb-0">Outlet Statistics</h5>
         <div className="d-flex align-items-center gap-3">
-          <div className="d-flex flex-column">
-            <label className="form-label mb-1">Start Date</label>
-            <DatePicker
-              selected={startDate}
-              onChange={(date) => setStartDate(date)}
-              selectsStart
-              startDate={startDate}
-              endDate={endDate}
-              maxDate={new Date()}
-              placeholderText="DD MMM YYYY"
-              className="btn btn-outline-secondary"
-              dateFormat="dd MMM yyyy"
-            />
-          </div>
-          <div className="d-flex flex-column">
-            <label className="form-label mb-1">End Date</label>
-            <DatePicker
-              selected={endDate}
-              onChange={(date) => setEndDate(date)}
-              selectsEnd
-              startDate={startDate}
-              endDate={endDate}
-              minDate={startDate}
-              maxDate={new Date()}
-              placeholderText="DD MMM YYYY"
-              className="btn btn-outline-secondary"
-              dateFormat="dd MMM yyyy"
-            />
-          </div>
+          <DateFilter 
+            dateRange={dateRange}
+            onDateRangeChange={handleDateRangeChange}
+            onCustomDateSelect={handleCustomDateSelect}
+          />
         </div>
       </div>
+      
       <div className="card-body">
         {error && (
           <div className="alert alert-danger mb-4" role="alert">

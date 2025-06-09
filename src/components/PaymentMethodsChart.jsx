@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import ReactApexChart from 'react-apexcharts';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
 import { API_PATHS } from '../config/apiConfig';
 // Import both GIFs - static and animated
 import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
 import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still-frame.gif';
 import { useDashboard } from '../context/DashboardContext'; // Import dashboard context
 import { useCacheData } from '../context/CacheDataContext'; // Import cache context
-import { withErrorHandling } from './common';
+import { withErrorHandling, DateFilter } from './common';
 
 const PaymentMethodsChart = ({ handleApiError }) => {
   // Get data from dashboard context
@@ -23,9 +21,6 @@ const PaymentMethodsChart = ({ handleApiError }) => {
   } = useCacheData();
 
   const [dateRange, setDateRange] = useState('All Time');
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [isGifPlaying, setIsGifPlaying] = useState(false);
   const [paymentData, setPaymentData] = useState({});
   const [error, setError] = useState('');
@@ -69,6 +64,11 @@ const PaymentMethodsChart = ({ handleApiError }) => {
     fetchPaymentData();
   }, []);
 
+  // Update when date range changes
+  useEffect(() => {
+    fetchPaymentData(getDateRange(dateRange), { forceRefresh: true });
+  }, [dateRange]);
+
   // Process payment data
   const processPaymentData = (data) => {
     if (data) {
@@ -96,18 +96,10 @@ const PaymentMethodsChart = ({ handleApiError }) => {
 
   const handleDateRangeChange = (range) => {
     setDateRange(range);
-    
-    if (range === 'Custom Range') {
-      // Only show date picker, don't reset dates
-      setShowDatePicker(true);
-    } else {
-      // For non-custom ranges, reset dates and fetch data
-      setShowDatePicker(false);
-      setStartDate(null);
-      setEndDate(null);
-      // Always force refresh when changing date range
-      fetchPaymentData(getDateRange(range), { forceRefresh: true });
-    }
+  };
+
+  const handleCustomDateSelect = (start, end, formattedRange) => {
+    setDateRange(formattedRange);
   };
 
   const handleReload = () => {
@@ -189,15 +181,20 @@ const PaymentMethodsChart = ({ handleApiError }) => {
         start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
         end = new Date(today.getFullYear(), today.getMonth(), 0);
         break;
-      case 'Custom Range':
-        if (startDate && endDate) {
-          return {
-            start_date: formatDate(startDate),
-            end_date: formatDate(endDate)
-          };
-        }
+      case 'All Time':
+        // For 'All Time', don't send date parameters
         return {};
       default:
+        // Check if it's a custom range with format "DD MMM YYYY - DD MMM YYYY"
+        if (range.includes(' - ')) {
+          const [startStr, endStr] = range.split(' - ');
+          // These are already formatted dates, so just pass them directly
+          return {
+            start_date: startStr,
+            end_date: endStr
+          };
+        }
+        // Default case also returns empty object (no date filtering)
         return {};
     }
     
@@ -209,14 +206,6 @@ const PaymentMethodsChart = ({ handleApiError }) => {
     }
     
     return {};
-  };
-
-  const handleCustomDateSelect = () => {
-    if (startDate && endDate) {
-      setDateRange(`${formatDate(startDate)} - ${formatDate(endDate)}`);
-      setShowDatePicker(false);
-      fetchPaymentData(getDateRange('Custom Range'), { forceRefresh: true });
-    }
   };
 
   // Return null if there's a 403 error (permission denied)
@@ -239,59 +228,20 @@ const PaymentMethodsChart = ({ handleApiError }) => {
       <div className="card-header d-flex justify-content-between align-items-md-center align-items-start">
         <h5 className="card-title mb-0">Total Collections Sources</h5>
         <div className="d-flex align-items-center gap-2">
-          <div className="dropdown">
-            <button
-              type="button"
-              className="btn btn-outline-primary dropdown-toggle"
-              data-bs-toggle="dropdown"
-              aria-expanded="false"
-            >
-              <i className="fas fa-calendar me-2"></i>
-              {dateRange}
-            </button>
-            <ul className="dropdown-menu dropdown-menu-end">
-              {[
-                "All Time",
-                "Today",
-                "Yesterday",
-                "Last 7 Days",
-                "Last 30 Days",
-                "Current Month",
-                "Last Month",
-              ].map((range) => (
-                <li key={range}>
-                  <a
-                    href="javascript:void(0);"
-                    className="dropdown-item d-flex align-items-center"
-                    onClick={() => handleDateRangeChange(range)}
-                  >
-                    {range}
-                  </a>
-                </li>
-              ))}
-              <li>
-                <hr className="dropdown-divider" />
-              </li>
-              <li>
-                <a
-                  href="javascript:void(0);"
-                  className="dropdown-item d-flex align-items-center"
-                  onClick={() => handleDateRangeChange("Custom Range")}
-                >
-                  Custom Range
-                </a>
-              </li>
-            </ul>
-          </div>
+          <DateFilter 
+            dateRange={dateRange}
+            onDateRangeChange={handleDateRangeChange}
+            onCustomDateSelect={handleCustomDateSelect}
+          />
 
-          {/* <button
+          <button
             type="button"
             className="btn btn-icon p-0"
             onClick={handleReload}
             style={{ border: "1px solid var(--bs-primary)" }}
           >
             <i className="fas fa-sync-alt"></i>
-          </button> */}
+          </button>
 
           {/* <button
             type="button"
@@ -340,46 +290,6 @@ const PaymentMethodsChart = ({ handleApiError }) => {
           </button> */}
         </div>
       </div>
-
-      {showDatePicker && (
-        <div className="card-body">
-          <div className="d-flex flex-column gap-2">
-            <label>Select Date Range:</label>
-            <div className="d-flex gap-2">
-              <DatePicker
-                selected={startDate}
-                onChange={(date) => setStartDate(date)}
-                selectsStart
-                startDate={startDate}
-                endDate={endDate}
-                maxDate={new Date()}
-                placeholderText="DD MMM YYYY"
-                className="btn btn-outline-secondary"
-                dateFormat="dd MMM yyyy"
-              />
-              <DatePicker
-                selected={endDate}
-                onChange={(date) => setEndDate(date)}
-                selectsEnd
-                startDate={startDate}
-                endDate={endDate}
-                minDate={startDate}
-                maxDate={new Date()}
-                placeholderText="DD MMM YYYY"
-                className="btn btn-outline-secondary"
-                dateFormat="dd MMM yyyy"
-              />
-            </div>
-            <button
-              className="btn btn-primary mt-2"
-              onClick={handleCustomDateSelect}
-              disabled={!startDate || !endDate}
-            >
-              Apply
-            </button>
-          </div>
-        </div>
-      )}
 
       {error && !error.includes('permission') && !error.includes('Permission') && !error.includes('403') && (
         <div className="card-body">
