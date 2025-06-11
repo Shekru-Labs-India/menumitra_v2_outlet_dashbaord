@@ -194,7 +194,7 @@ function LoginScreen() {
       }
 
       // Make API call to verify OTP with FCM token and device info
-      const response = await axios.post(`${API_PATHS.common}/verify_otp`, {
+      const response = await api.post(`${API_PATHS.common}/verify_otp`, {
         mobile: mobileNumber,
         otp: enteredOtp,
         device_id: deviceId,
