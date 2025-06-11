@@ -10,7 +10,7 @@ const PROD_URL = import.meta.env.VITE_API_URL || 'https://menusmitra.xyz';
 
 // Base URLs for different environments
 const BASE_URL = {
-  dev: '/', // Local development with proxy
+  dev: isDev ? '/' : DEV_URL, // Local development with proxy or direct DEV_URL
   prod: PROD_URL // Production API
 };
 
@@ -21,7 +21,7 @@ const STATISTICS_PREFIX = `${API_PREFIX}/outlet_statistics`;
 
 // Create a base axios instance for API requests
 const api = axios.create({
-  baseURL: isDev ? BASE_URL.dev : BASE_URL.prod,
+  baseURL: MODE === 'development' ? BASE_URL.dev : BASE_URL.prod,
   timeout: 30000,
 });
 
@@ -30,6 +30,7 @@ if (isDev) {
   console.log(`[API Config] Running in ${MODE} mode`);
   console.log(`[API Config] API Prefix: ${API_PREFIX}`);
   console.log(`[API Config] Using proxy: ${isDev}`);
+  console.log(`[API Config] Base URL: ${MODE === 'development' ? BASE_URL.dev : BASE_URL.prod}`);
 }
 
 // Add a request interceptor to include the token in requests
