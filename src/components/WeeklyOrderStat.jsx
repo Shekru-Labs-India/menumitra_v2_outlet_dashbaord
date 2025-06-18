@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactApexChart from 'react-apexcharts';
 import { API_PATHS } from '../config/apiConfig';
 import { useDashboard } from '../context/DashboardContext';
@@ -365,25 +365,24 @@ const WeeklyOrderStat = ({ handleApiError, onVisibilityChange }) => {
     }
   ];
 
-  console.log('Chart series data:', chartSeries);
-  console.log('Days:', days);
-  console.log('Order data:', orderData);
-
   // Make sure the hasData check works properly and loading state is properly set
   const hasData = Array.isArray(orderData) && 
                 orderData.length > 0 && 
                 orderData.some(count => count > 0);
-  
-  // Use useEffect to notify the parent component about visibility
+
+  // Use useEffect to notify the parent component about visibility with a ref to prevent loops  
+  const previousVisibilityRef = useRef(hasData || loading);
   useEffect(() => {
-    if (onVisibilityChange) {
-      onVisibilityChange(hasData || loading);
+    const currentVisibility = hasData || loading;
+    // Only call onVisibilityChange if the visibility has actually changed
+    if (onVisibilityChange && previousVisibilityRef.current !== currentVisibility) {
+      previousVisibilityRef.current = currentVisibility;
+      onVisibilityChange(currentVisibility);
     }
   }, [orderData, loading, onVisibilityChange, hasData]);
 
   // Return early if there's no meaningful data
   if (!hasData && !loading) {
-    console.log('WeeklyOrderStat: No data to display');
     return null;
   }
 

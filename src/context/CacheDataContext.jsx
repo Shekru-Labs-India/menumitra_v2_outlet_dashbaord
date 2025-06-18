@@ -244,9 +244,24 @@ export const CacheDataProvider = ({ children }) => {
     // Get force refresh option and other parameters
     const { forceRefresh = false } = options;
 
+    // Add a protective throttle to prevent excessive calls even if components keep requesting
+    const currentTime = Date.now();
+    const lastFetchTime = lastFetchTimestampRef.current[API_PATHS.getAllStatsWithoutFilter] || 0;
+    const timeSinceLastFetch = currentTime - lastFetchTime;
+    
+    // Strict throttling - at most one request every 3 seconds
+    // This prevents UI freezing due to too many API calls
+    const throttleTime = 3000; // 3 seconds
+    
+    // Skip if this isn't a force refresh and we've fetched recently
+    if (!forceRefresh && timeSinceLastFetch < throttleTime) {
+      // Return cached data immediately without logging to avoid console spam
+      return cache[API_PATHS.getAllStatsWithoutFilter] || null;
+    }
+    
     // Always check if there's an ongoing API call first
     if (fetchingRef.current[API_PATHS.getAllStatsWithoutFilter]) {
-      console.log('🛑 Already fetching all stats, skipping duplicate request');
+      // Return the ongoing promise or cached data without logging to avoid console spam
       return initialRequestPromise || cache[API_PATHS.getAllStatsWithoutFilter] || null;
     }
     
@@ -274,27 +289,16 @@ export const CacheDataProvider = ({ children }) => {
             // Clean up once we're done
             isInitialRequestInProgress = false;
             fetchingRef.current[API_PATHS.getAllStatsWithoutFilter] = false;
+            // Small delay before allowing new requests
+            await new Promise(resolve => setTimeout(resolve, 500));
           }
         })();
         
         return initialRequestPromise;
       } else {
-        // If there's already a request in progress, reuse that promise
-        console.log('🔁 Initial stats request already in progress, reusing existing promise');
+        // If there's already a request in progress, reuse that promise without logging
         return initialRequestPromise || cache[API_PATHS.getAllStatsWithoutFilter] || null;
       }
-    }
-    
-    // Add debounce logic to prevent multiple calls in quick succession
-    const currentTime = Date.now();
-    const lastFetchTime = lastFetchTimestampRef.current[API_PATHS.getAllStatsWithoutFilter] || 0;
-    const timeSinceLastFetch = currentTime - lastFetchTime;
-    const debounceTime = 3000; // 3 seconds debounce
-    
-    // Skip if recently fetched (unless force refresh is requested)
-    if (!forceRefresh && timeSinceLastFetch < debounceTime) {
-      console.log(`⏱️ Skipping fetch, last request was ${timeSinceLastFetch}ms ago (debounce: ${debounceTime}ms)`);
-      return cache[API_PATHS.getAllStatsWithoutFilter] || null;
     }
     
     // For subsequent requests, make a new request

@@ -74,16 +74,23 @@ function Statistics() {
   
   // Function to update component visibility with better logging
   const updateComponentVisibility = (componentName, isVisible) => {
-    console.log(`Component ${componentName} visibility: ${isVisible}`);
+    // Only update if the visibility actually changed to prevent re-renders
     setVisibleComponents(prev => {
+      // If the value hasn't changed, return the same object to prevent re-renders
+      if (prev[componentName] === isVisible) {
+        return prev;
+      }
+      
+      // Otherwise, update with the new visibility
       const updated = {
         ...prev,
         [componentName]: isVisible
       };
       
-      // Log the count of visible components
-      const visibleCount = Object.values(updated).filter(Boolean).length;
-      console.log(`Total visible components: ${visibleCount}/${Object.keys(updated).length}`);
+      // Commenting out logs that cause performance issues
+      // console.log(`Component ${componentName} visibility: ${isVisible}`);
+      // const visibleCount = Object.values(updated).filter(Boolean).length;
+      // console.log(`Total visible components: ${visibleCount}/${Object.keys(updated).length}`);
       
       return updated;
     });
@@ -93,7 +100,8 @@ function Statistics() {
   const hasAnyVisibleComponents = () => {
     const visibleCount = Object.values(visibleComponents).filter(Boolean).length;
     const hasVisible = visibleCount > 0;
-    console.log(`Statistics screen has ${visibleCount} visible components. Showing UI: ${hasVisible}`);
+    // Commenting out log that causes performance issues
+    // console.log(`Statistics screen has ${visibleCount} visible components. Showing UI: ${hasVisible}`);
     return hasVisible;
   };
 
@@ -264,13 +272,14 @@ function Statistics() {
           <Header />
           <div className="content-wrapper flex-grow-1 p-0">
             <div className="container-fluid flex-grow-1 p-0">
-              {console.log('Statistics component permissionDenied state:', permissionDenied)}
+              {/* Comment out console logs that can cause rerender loops */}
+              {/* console.log('Statistics component permissionDenied state:', permissionDenied) */}
               {permissionDenied ? (
                 // Even if permission is denied for some components, we still want to show OutletStats
                 // if that API is working
                 <div className="row m-0">
                   <div className="col-12 p-0">
-                    {console.log('Statistics: Rendering only OutletStats due to permissionDenied')}
+                    {/* console.log('Statistics: Rendering only OutletStats due to permissionDenied') */}
                     <OutletStats onVisibilityChange={visible => updateComponentVisibility('outletStats', visible)} />
                   </div>
                 </div>
@@ -324,7 +333,7 @@ function Statistics() {
                   {/* Outlet Stats Section */}
                   <div className="row m-0 mx-3">
                     <div className="col-12 p-0">
-                      {console.log('Statistics: Rendering OutletStats component')}
+                      {/* console.log('Statistics: Rendering OutletStats component') */}
                       <OutletStats onVisibilityChange={visible => updateComponentVisibility('outletStats', visible)} />
                     </div>
                   </div>
