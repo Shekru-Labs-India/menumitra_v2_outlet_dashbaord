@@ -85,7 +85,7 @@ function LoginScreen() {
           const { role } = response.data;
           
           // Only proceed if role is owner, manager, or captain
-          if (role === 'owner' || role === 'manager' || role === 'captain') {
+          if (role === 'owner' || role === 'manager' || role === 'captain' || role == 'super_owner') {
             setShowOtpForm(true);
             setCountdown(15);
             setResendDisabled(true);

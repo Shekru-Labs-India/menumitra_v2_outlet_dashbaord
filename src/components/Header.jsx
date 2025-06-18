@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import 'animate.css'
 import { ToastContainer, toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
@@ -26,10 +26,10 @@ function Header() {
   const [selectOutletError, setSelectOutletError] = useState(null);
   const [selectedOutletData, setSelectedOutletData] = useState(null);
   const [showOutletModal, setShowOutletModal] = useState(false);
-  const [quickFilters] = useState([
-    
-  ]);
+  const [quickFilters] = useState([]);
+  
   const navigate = useNavigate();
+  const location = useLocation();
   
   // Get refreshDashboard from context
   const { refreshDashboard } = useDashboard();
@@ -42,7 +42,8 @@ function Header() {
     fetchOrderTypeStats, 
     fetchOrderStats, 
     fetchWeeklyOrderStats, 
-    fetchPaymentMethodCounts 
+    fetchPaymentMethodCounts,
+    fetchData
   } = useCacheData();
 
   // Get refresh manager functions
@@ -436,17 +437,131 @@ function Header() {
     setStartTime(new Date());
   };
 
+  // Get the correct refresh function based on the current route
+  const getRefreshFunctionForRoute = () => {
+    const path = location.pathname;
+    console.log(`Getting refresh function for path: ${path}`);
+    
+    // Map routes to their specific refresh functions
+    if (path.includes('/dashboard')) {
+      console.log('Using refreshDashboard for /dashboard');
+      return refreshDashboard;
+    }
+    
+    if (path.includes('/outlet-details')) {
+      console.log('Using outletDetails fetch for /outlet-details');
+      return (dateFilter, options) => fetchData(API_PATHS.outletDetails, dateFilter, options);
+    }
+    
+    if (path.includes('/compare-outlets')) {
+      console.log('Using outletCompareDetails fetch for /compare-outlets');
+      return (dateFilter, options) => fetchData(API_PATHS.outletCompareDetails, dateFilter, options);
+    }
+    
+    if (path.includes('/reports/menu')) {
+      console.log('Using menuReport fetch for /reports/menu');
+      return (dateFilter, options) => fetchData(API_PATHS.menuReport, dateFilter, options);
+    }
+    
+    if (path.includes('/reports/orders')) {
+      console.log('Using orderReport fetch for /reports/orders');
+      return (dateFilter, options) => fetchData(API_PATHS.orderReport, dateFilter, options);
+    }
+    
+    if (path.includes('/reports/tables')) {
+      console.log('Using tableReport fetch for /reports/tables');
+      return (dateFilter, options) => fetchData(API_PATHS.tableReport, dateFilter, options);
+    }
+    
+    if (path.includes('/reports/join-tables')) {
+      console.log('Using joinTableReport fetch for /reports/join-tables');
+      return (dateFilter, options) => fetchData(API_PATHS.joinTableReport, dateFilter, options);
+    }
+    
+    if (path.includes('/reports/split-tables')) {
+      console.log('Using splitTableReport fetch for /reports/split-tables');
+      return (dateFilter, options) => fetchData(API_PATHS.splitTableReport, dateFilter, options);
+    }
+    
+    if (path.includes('/reports/order-status')) {
+      console.log('Using orderStatusReport fetch for /reports/order-status');
+      return (dateFilter, options) => fetchData(API_PATHS.orderStatusReport, dateFilter, options);
+    }
+    
+    if (path.includes('/reports/payment-settle')) {
+      console.log('Using paymentSettleReport fetch for /reports/payment-settle');
+      return (dateFilter, options) => fetchData(API_PATHS.paymentSettleReport, dateFilter, options);
+    }
+    
+    if (path.includes('/reports/coupons')) {
+      console.log('Using couponReport fetch for /reports/coupons');
+      return (dateFilter, options) => fetchData(API_PATHS.couponReport, dateFilter, options);
+    }
+    
+    if (path.includes('/reports/inventory')) {
+      console.log('Using inventoryReport fetch for /reports/inventory');
+      return (dateFilter, options) => fetchData(API_PATHS.inventoryReport, dateFilter, options);
+    }
+    
+    if (path.includes('/reports/staff')) {
+      console.log('Using staffReport fetch for /reports/staff');
+      return (dateFilter, options) => fetchData(API_PATHS.staffReport, dateFilter, options);
+    }
+    
+    if (path.includes('/reports/customers')) {
+      console.log('Using customerReport fetch for /reports/customers');
+      return (dateFilter, options) => fetchData(API_PATHS.customerReport, dateFilter, options);
+    }
+    
+    if (path.includes('/statistics')) {
+      console.log('Using fetchAnalytics for /statistics');
+      return fetchAnalytics;
+    }
+    
+    // Default to refreshDashboard for any other route
+    console.log('No specific refresh function found, using default refreshDashboard');
+    return refreshDashboard;
+  };
+
   // Add refresh function with rotation
   const handleRefresh = () => {
     setIsRotating(true);
     
-    // Refresh all components
-    refreshAllComponents();
+    // Get the specific refresh function for the current route
+    const refreshFunction = getRefreshFunctionForRoute();
     
-    // Reset rotation after animation completes
-    setTimeout(() => {
+    console.log(`Refreshing specific data for route: ${location.pathname}`);
+    
+    // Call the specific refresh function with force refresh option
+    const dateFilter = {}; // Empty date filter for "all time"
+    const options = { forceRefresh: true };
+    
+    try {
+      // Execute the refresh function
+      refreshFunction(dateFilter, options)
+        .then(result => {
+          if (result) {
+            showToast('Data refreshed successfully!', 'success');
+          }
+        })
+        .catch(err => {
+          console.error('Error during refresh:', err);
+          showToast('Failed to refresh data', 'error');
+        })
+        .finally(() => {
+          // Reset rotation after refresh completes or fails
+          setTimeout(() => {
+            setIsRotating(false);
+          }, 500);
+        });
+      
+      // Update the UI immediately to show refresh is happening
+      setStartTime(new Date());
+    } catch (error) {
+      console.error('Error initiating refresh:', error);
+      showToast('Failed to refresh data', 'error');
       setIsRotating(false);
-    }, 1000);
+    }
   };
 
   // Set up auto refresh every 1 minute (60000ms)
@@ -937,20 +1052,24 @@ function Header() {
               <li className="nav-item me-3">
                 <div className="d-flex align-items-center">
                   <button
-                    className="btn btn-icon p-0"
+                    className="btn btn-icon p-2"
                     onClick={handleRefresh}
-                    style={{ border: "1px solid var(--bs-primary)" }}
+                    style={{ 
+                      border: "1px solid var(--bs-primary)",
+                      borderRadius: "4px",
+                      backgroundColor: isRefreshing ? "rgba(105, 108, 255, 0.08)" : "transparent"
+                    }}
                     disabled={isRefreshing}
+                    title="Refresh current page data"
                   >
                     <i
                       className={`fas ${isRefreshing ? "fa-spinner" : "fa-sync-alt"} ${
                         isRotating ? "rotate-animation" : ""
                       }`}
+                      style={{ color: "var(--bs-primary)" }}
                     ></i>
                   </button>
-                  <small className="text-muted ms-2">
-                    Last updated {timeElapsed}
-                  </small>
+                 
                 </div>
               </li>
 
