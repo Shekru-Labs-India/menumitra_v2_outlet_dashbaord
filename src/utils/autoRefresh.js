@@ -5,21 +5,32 @@
 // Constants
 export const REFRESH_INTERVAL = 30000; // 30 seconds
 
+// Track all active refresh timers
+const activeTimers = new Map();
+
 /**
  * Sets up an auto-refresh interval that calls the provided callback function
  * @param {Function} refreshCallback - The function to call on each refresh interval
  * @param {Object} options - Additional options
  * @param {number} options.interval - Custom interval in milliseconds (defaults to REFRESH_INTERVAL)
  * @param {boolean} options.immediate - Whether to execute the callback immediately before setting up the interval
+ * @param {string} options.timerId - Unique ID for this timer (defaults to 'default')
  * @returns {Function} Cleanup function to clear the interval
  */
 export const setupAutoRefresh = (refreshCallback, options = {}) => {
   const { 
     interval = REFRESH_INTERVAL,
-    immediate = false 
+    immediate = false,
+    timerId = 'default'
   } = options;
   
-  console.log(`Setting up auto-refresh timer at ${interval/1000} seconds interval`);
+  // Check if a timer with this ID already exists
+  if (activeTimers.has(timerId)) {
+    console.log(`Auto-refresh timer '${timerId}' already exists, reusing existing timer`);
+    return () => clearAutoRefresh(timerId);
+  }
+  
+  console.log(`Setting up auto-refresh timer '${timerId}' at ${interval/1000} seconds interval`);
   
   // Execute immediately if requested
   if (immediate) {
@@ -31,20 +42,34 @@ export const setupAutoRefresh = (refreshCallback, options = {}) => {
   }
   
   // Set up the interval
-  const timerId = setInterval(() => {
+  const timer = setInterval(() => {
     try {
-      console.log(`Auto-refresh triggered at ${new Date().toISOString()}`);
+      console.log(`Auto-refresh '${timerId}' triggered at ${new Date().toISOString()}`);
       refreshCallback();
     } catch (error) {
-      console.error('Error during auto-refresh:', error);
+      console.error(`Error during auto-refresh '${timerId}':`, error);
     }
   }, interval);
   
+  // Store the timer
+  activeTimers.set(timerId, timer);
+  
   // Return cleanup function
-  return () => {
-    console.log('Clearing auto-refresh timer');
-    clearInterval(timerId);
-  };
+  return () => clearAutoRefresh(timerId);
+};
+
+/**
+ * Clears an auto-refresh timer by ID
+ * @param {string} timerId - The ID of the timer to clear
+ */
+export const clearAutoRefresh = (timerId = 'default') => {
+  if (activeTimers.has(timerId)) {
+    console.log(`Clearing auto-refresh timer '${timerId}'`);
+    clearInterval(activeTimers.get(timerId));
+    activeTimers.delete(timerId);
+    return true;
+  }
+  return false;
 };
 
 /**
@@ -92,6 +117,7 @@ export const refreshMultipleDataSources = async (dataSources, params = {}, optio
 export default {
   REFRESH_INTERVAL,
   setupAutoRefresh,
+  clearAutoRefresh,
   createRefreshOptions,
   refreshMultipleDataSources
 }; 

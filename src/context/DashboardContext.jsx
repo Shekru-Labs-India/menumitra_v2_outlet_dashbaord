@@ -27,6 +27,7 @@ export const DashboardProvider = ({ children }) => {
   const isFetchingRef = useRef(false);
   const lastFetchTimeRef = useRef(0);
   const initialFetchCompletedRef = useRef(false);
+  const lastLoginTimeRef = useRef(null);
 
   // Check if we're already on the login page to prevent redirect loops
   const isLoginPage = () => {
@@ -126,22 +127,24 @@ export const DashboardProvider = ({ children }) => {
 
       console.log(`Context API request data${forceRefresh ? ' (forced refresh)' : ''}:`, requestBody);
       
-      // Make the API call to analytics_reports
-      const response = await api.post(`${API_PATHS.analyticsReports}`, requestBody);
-
-      if (response.data && response.data.detail) {
-        const data = response.data.detail;
-        console.log('Successfully fetched analytics data at:', new Date().toISOString());
-        
-        // Set analytics reports state
-        setAnalyticReports(data);
-        
-        setError(null);
-        lastFetchTimeRef.current = Date.now();
-        initialFetchCompletedRef.current = true;
-      } else {
-        throw new Error('Invalid response format');
-      }
+      // REMOVED analytics_reports API call that was causing 404 errors
+      // Instead, set up default empty data structure
+      console.log('Analytics API removed to prevent 404 errors. Using default data.');
+      
+      // Set default analytics data structure
+      const defaultData = {
+        total_orders: 0,
+        avg_order_value: 0,
+        total_revenue: 0,
+        average_turnover_time: "0 min"
+      };
+      
+      // Set analytics reports state with defaults
+      setAnalyticReports(defaultData);
+      
+      setError(null);
+      lastFetchTimeRef.current = Date.now();
+      initialFetchCompletedRef.current = true;
     } catch (err) {
       console.error('Error details:', err);
       

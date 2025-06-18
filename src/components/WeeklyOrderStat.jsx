@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import ReactApexChart from 'react-apexcharts';
-import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
-import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still-frame.gif';
 import { API_PATHS } from '../config/apiConfig';
 import { useDashboard } from '../context/DashboardContext';
 import { useCacheData } from '../context/CacheDataContext';
-import { withErrorHandling, DateFilter } from './common';
+import { withErrorHandling } from './withErrorHandling';
+import { useGlobalDateFilter } from './Header';
 
-const WeeklyOrderStat = ({ handleApiError }) => {
+const WeeklyOrderStat = ({ handleApiError, onVisibilityChange }) => {
   // Get data from dashboard context
   const {
     weeklyOrderStats_from_context
@@ -15,12 +14,13 @@ const WeeklyOrderStat = ({ handleApiError }) => {
 
   // Get data from cache context
   const { 
-    fetchData,
-    getCachedData
+    getCachedData,
+    fetchAllStats
   } = useCacheData();
 
-  const [dateRange, setDateRange] = useState('All Time');
-  const [isGifPlaying, setIsGifPlaying] = useState(false);
+  // Get global date filter
+  const { dateRange, getDateFilter } = useGlobalDateFilter();
+
   const [days, setDays] = useState(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']);
   const [orderData, setOrderData] = useState([0, 0, 0, 0, 0, 0, 0]);
   const [peakDay, setPeakDay] = useState('');
@@ -29,38 +29,27 @@ const WeeklyOrderStat = ({ handleApiError }) => {
   const [minOrders, setMinOrders] = useState(0);
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
-
-  // Simplified effect to handle the animation timing
-  useEffect(() => {
-    if (isGifPlaying) {
-      // Set a timeout to stop playing after 3 seconds
-      const timer = setTimeout(() => {
-        setIsGifPlaying(false);
-      }, 3000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isGifPlaying]);
+  const [loading, setLoading] = useState(true);
 
   // Initial data load from cache and context
   useEffect(() => {
-    // First try to get data from cache
-    const cachedData = getCachedData(API_PATHS.weeklyOrderStats);
-    if (cachedData) {
-      processWeeklyData(cachedData);
-    }
-    // If no cached data, use context data
+    // First try to get data from the consolidated API cache
+    const allStatsData = getCachedData(API_PATHS.getAllStatsWithoutFilter);
+    if (allStatsData && allStatsData.weekly_order_stats) {
+      processWeeklyData(allStatsData.weekly_order_stats);
+      setLoading(false);
+    } 
+    // If not available in consolidated API, try specific endpoint cache
     else if (weeklyOrderStats_from_context) {
       processWeeklyData(weeklyOrderStats_from_context);
-    }
-    
-    // Fetch fresh data in background
-    fetchWeeklyOrderStats();
+      setLoading(false);
+    } 
+    // Don't trigger a fetch on initial load - rely on the coordinated fetch from CacheDataContext
   }, []);
 
   // Update when date range changes
   useEffect(() => {
-    fetchWeeklyOrderStats(getDateRange(dateRange), { forceRefresh: true });
+    fetchWeeklyData();
   }, [dateRange]);
 
   // Process weekly order data
@@ -105,7 +94,7 @@ const WeeklyOrderStat = ({ handleApiError }) => {
     }
     
     // Handle the case where data has detail, peak_day and low_day properties
-    const { detail: weekData, peak_day, low_day } = data;
+    const { data: weekData, peak_day, low_day } = data;
     
     console.log('Extracted data:', { weekData, peak_day, low_day });
     
@@ -136,32 +125,8 @@ const WeeklyOrderStat = ({ handleApiError }) => {
     }
   };
 
-  const formatDate = (date) => {
-    if (!date) return '';
-    const day = date.getDate().toString().padStart(2, '0');
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const month = months[date.getMonth()];
-    const year = date.getFullYear();
-    return `${day} ${month} ${year}`;
-  };
-
-  const handleDateRangeChange = (range) => {
-    setDateRange(range);
-  };
-
-  const handleCustomDateSelect = (start, end, formattedRange) => {
-    setDateRange(formattedRange);
-  };
-
-  const handleReload = () => {
-    setIsGifPlaying(true);
-    
-    // Always fetch fresh data on reload, regardless of the date range
-    fetchWeeklyOrderStats(getDateRange(dateRange), { forceRefresh: true });
-  };
-
-  // Fetch weekly order stats using the cache context
-  const fetchWeeklyOrderStats = async (dateFilter = {}, options = {}) => {
+  // Fetch weekly order stats using only consolidated API
+  const fetchWeeklyData = async () => {
     try {
       setError('');
       
@@ -174,21 +139,31 @@ const WeeklyOrderStat = ({ handleApiError }) => {
         return;
       }
       
-      // Prepare request data
-      const requestData = {
-        user_id: Number(userId),
-        outlet_id: Number(outletId),
-        ...dateFilter
-      };
+      // Get date filter from global context
+      const dateFilter = getDateFilter();
       
-      // Use the fetchData function from context which handles caching
-      const data = await fetchData(API_PATHS.weeklyOrderStats, requestData, {
-        forceRefresh: options.forceRefresh || false,
-        transformResponse: (response) => response || {}
-      });
+      // First check if we already have data in the cache
+      const cachedAllStats = getCachedData(API_PATHS.getAllStatsWithoutFilter);
+      if (cachedAllStats && cachedAllStats.weekly_order_stats) {
+        // Use cached data instead of making a new request
+        processWeeklyData(cachedAllStats.weekly_order_stats);
+        return;
+      }
       
-      if (data) {
-        processWeeklyData(data);
+      // Use fetchAllStats to get all stats at once with no forceRefresh
+      // to respect the debounce mechanism
+      const allStatsData = await fetchAllStats(dateFilter);
+      
+      if (allStatsData && allStatsData.weekly_order_stats) {
+        processWeeklyData(allStatsData.weekly_order_stats);
+      } else {
+        // Handle empty data case
+        setDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']);
+        setOrderData([0, 0, 0, 0, 0, 0, 0]);
+        setPeakDay('N/A');
+        setMaxOrders(0);
+        setLowPeakDay('N/A');
+        setMinOrders(0);
       }
     } catch (error) {
       console.error('Failed to fetch weekly order stats:', error);
@@ -198,83 +173,15 @@ const WeeklyOrderStat = ({ handleApiError }) => {
         // If error was not handled by the HOC (not a 403), set local error state
         setError('Failed to load weekly order statistics. Please try again.');
       }
+      
+      // Set default data in case of error
+      setDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']);
+      setOrderData([0, 0, 0, 0, 0, 0, 0]);
+      setPeakDay('N/A');
+      setMaxOrders(0);
+      setLowPeakDay('N/A');
+      setMinOrders(0);
     }
-  };
-
-  // Helper function to get date range
-  const getDateRange = (range) => {
-    const today = new Date();
-    let start, end;
-    
-    switch (range) {
-      case 'Today':
-        start = end = new Date();
-        break;
-      case 'Yesterday':
-        start = end = new Date();
-        start.setDate(start.getDate() - 1);
-        break;
-      case 'Last 7 Days':
-        end = new Date();
-        start = new Date();
-        start.setDate(start.getDate() - 6);
-        break;
-      case 'Last 30 Days':
-        end = new Date();
-        start = new Date();
-        start.setDate(start.getDate() - 29);
-        break;
-      case 'Current Month':
-        start = new Date(today.getFullYear(), today.getMonth(), 1);
-        end = new Date();
-        break;
-      case 'Last Month':
-        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        end = new Date(today.getFullYear(), today.getMonth(), 0);
-        break;
-      case 'This week': {
-        const day = today.getDay(); // 0 is Sunday, 1 is Monday, etc.
-        const diff = day === 0 ? 6 : day - 1; // Adjust to make Monday the first day
-        start = new Date(today);
-        start.setDate(today.getDate() - diff);
-        end = new Date();
-        break;
-      }
-      case 'Last week': {
-        const lastWeekEnd = new Date(today);
-        const day = today.getDay(); // 0 is Sunday, 1 is Monday, etc.
-        const diff = day === 0 ? 6 : day - 1; // Adjust to make Monday the first day
-        lastWeekEnd.setDate(today.getDate() - diff - 1); // End of previous week (Sunday)
-        start = new Date(lastWeekEnd);
-        start.setDate(lastWeekEnd.getDate() - 6); // Start of previous week (Monday)
-        end = lastWeekEnd;
-        break;
-      }
-      case 'All Time':
-        // For 'All Time', don't send date parameters
-        return {};
-      default:
-        // Check if it's a custom range with format "DD MMM YYYY - DD MMM YYYY"
-        if (range.includes(' - ')) {
-          const [startStr, endStr] = range.split(' - ');
-          // These are already formatted dates, so just pass them directly
-          return {
-            start_date: startStr,
-            end_date: endStr
-          };
-        }
-        // Default case also returns empty object (no date filtering)
-        return {};
-    }
-    
-    if (start && end) {
-      return {
-        start_date: formatDate(start),
-        end_date: formatDate(end)
-      };
-    }
-    
-    return {};
   };
 
   // Return null if there's a 403 error (permission denied)
@@ -320,6 +227,18 @@ const WeeklyOrderStat = ({ handleApiError }) => {
       fontFamily: 'Helvetica, Arial, sans-serif',
       background: 'transparent',
       parentHeightOffset: 0
+    },
+    noData: {
+      text: 'No data available',
+      align: 'center',
+      verticalAlign: 'middle',
+      offsetX: 0,
+      offsetY: 0,
+      style: {
+        color: '#6c757d',
+        fontSize: '16px',
+        fontFamily: 'Helvetica, Arial, sans-serif'
+      }
     },
     colors: dayColors,
     fill: {
@@ -397,7 +316,10 @@ const WeeklyOrderStat = ({ handleApiError }) => {
         }
       },
       min: 0,
-      max: orderData.length > 0 ? Math.max(...orderData) * 1.2 : 500,
+      // Set a reasonable default max value when all data is 0
+      max: orderData.length > 0 && Math.max(...orderData) > 0 
+          ? Math.max(...orderData) * 1.2 
+          : 10,
       labels: {
         style: {
           fontSize: '10px',
@@ -447,69 +369,28 @@ const WeeklyOrderStat = ({ handleApiError }) => {
   console.log('Days:', days);
   console.log('Order data:', orderData);
 
+  // Make sure the hasData check works properly and loading state is properly set
+  const hasData = Array.isArray(orderData) && 
+                orderData.length > 0 && 
+                orderData.some(count => count > 0);
+  
+  // Use useEffect to notify the parent component about visibility
+  useEffect(() => {
+    if (onVisibilityChange) {
+      onVisibilityChange(hasData || loading);
+    }
+  }, [orderData, loading, onVisibilityChange, hasData]);
+
+  // Return early if there's no meaningful data
+  if (!hasData && !loading) {
+    console.log('WeeklyOrderStat: No data to display');
+    return null;
+  }
+
   return (
     <div className="card border" style={{ boxShadow: 'none' }}>
       <div className="card-header d-flex justify-content-between align-items-md-center align-items-start">
         <h5 className="card-title mb-0">Weekly Order Statistics</h5>
-        <div className="d-flex align-items-center gap-2">
-          <DateFilter 
-            dateRange={dateRange}
-            onDateRangeChange={handleDateRangeChange}
-            onCustomDateSelect={handleCustomDateSelect}
-          />
-
-          <button
-            type="button"
-            className="btn btn-icon p-0"
-            onClick={handleReload}
-            style={{ border: "1px solid var(--bs-primary)" }}
-          >
-            <i className="fas fa-sync-alt"></i>
-          </button>
-
-          {/* <button
-            type="button"
-            className="btn btn-icon btn-sm p-0"
-            style={{
-              width: "40px",
-              height: "40px",
-              borderRadius: "50%",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              overflow: "hidden",
-              position: "relative",
-              border: "1px solid #e9ecef",
-            }}
-            onClick={() => setIsGifPlaying(true)}
-            title={
-              isGifPlaying ? "Animation playing" : "Click to play animation"
-            }
-          >
-            {isGifPlaying ? (
-              <img
-                src={aiAnimationGif}
-                alt="AI Animation (Playing)"
-                style={{
-                  width: "24px",
-                  height: "24px",
-                  objectFit: "contain",
-                }}
-              />
-            ) : (
-              <img
-                src={aiAnimationStillFrame}
-                alt="AI Animation (Click to play)"
-                style={{
-                  width: "24px",
-                  height: "24px",
-                  objectFit: "contain",
-                  opacity: 0.9,
-                }}
-              />
-            )}
-          </button> */}
-        </div>
       </div>
 
       {error && !error.includes('permission') && !error.includes('Permission') && !error.includes('403') && (

@@ -1,14 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { API_PATHS } from '../config/apiConfig';
-import 'remixicon/fonts/remixicon.css';
-// Import both GIFs - static and animated
-import aiAnimationGif from '../assets/img/gif/AI-animation-unscreen.gif';
-import aiAnimationStillFrame from '../assets/img/gif/AI-animation-unscreen-still-frame.gif';
-import { useDashboard } from '../context/DashboardContext'; // Import dashboard context
-import { useCacheData } from '../context/CacheDataContext'; // Import cache context
-import { withErrorHandling, DateFilter } from './common';
+import { useDashboard } from '../context/DashboardContext';
+import { useCacheData } from '../context/CacheDataContext';
+import { withErrorHandling } from './withErrorHandling';
+import { useGlobalDateFilter } from './Header';
 
-const OrderType = ({ handleApiError }) => {
+const OrderType = ({ handleApiError, onVisibilityChange }) => {
   // Get data from dashboard context
   const { 
     orderTypeStatistics_from_context
@@ -16,33 +13,23 @@ const OrderType = ({ handleApiError }) => {
 
   // Get data from cache context
   const { 
-    fetchData,
-    getCachedData
+    getCachedData,
+    fetchAllStats
   } = useCacheData();
 
-  const [dateRange, setDateRange] = useState('All Time');
-  const [isGifPlaying, setIsGifPlaying] = useState(false);
+  // Get global date filter
+  const { dateRange, getDateFilter } = useGlobalDateFilter();
+
   const [orderTypes, setOrderTypes] = useState([]);
   const [error, setError] = useState('');
-
-  // Simplified effect to handle the animation timing
-  useEffect(() => {
-    if (isGifPlaying) {
-      // Set a timeout to stop playing after 3 seconds
-      const timer = setTimeout(() => {
-        setIsGifPlaying(false);
-      }, 3000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isGifPlaying]);
+  const [loading, setLoading] = useState(true);
 
   // Initial data load from cache and context
   useEffect(() => {
-    // First try to get data from cache
-    const cachedData = getCachedData(API_PATHS.orderTypeStats);
-    if (cachedData) {
-      processOrderTypeData(cachedData);
+    // First check if data is available from the consolidated API cache
+    const allStatsData = getCachedData(API_PATHS.getAllStatsWithoutFilter);
+    if (allStatsData && allStatsData.order_type_statistics) {
+      processOrderTypeData(allStatsData.order_type_statistics);
     }
     // If no cached data, use context data
     else if (orderTypeStatistics_from_context) {
@@ -55,7 +42,7 @@ const OrderType = ({ handleApiError }) => {
 
   // Update when date range changes
   useEffect(() => {
-    fetchOrderTypeStats(getDateRange(dateRange), { forceRefresh: true });
+    fetchOrderTypeStats();
   }, [dateRange]);
 
   // Process order type data from API or cache
@@ -95,34 +82,11 @@ const OrderType = ({ handleApiError }) => {
       // If no valid data, set empty array
       setOrderTypes([]);
     }
+    setLoading(false);
   };
 
-  const formatDate = (date) => {
-    if (!date) return '';
-    const day = date.getDate().toString().padStart(2, '0');
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const month = months[date.getMonth()];
-    const year = date.getFullYear();
-    return `${day} ${month} ${year}`;
-  };
-
-  const handleDateRangeChange = (range) => {
-    setDateRange(range);
-  };
-
-  const handleCustomDateSelect = (start, end, formattedRange) => {
-    setDateRange(formattedRange);
-  };
-
-  const handleReload = () => {
-    setIsGifPlaying(true);
-    
-    // Always fetch fresh data on reload, regardless of the date range
-    fetchOrderTypeStats(getDateRange(dateRange), { forceRefresh: true });
-  };
-
-  // Fetch order type stats data using the cache context
-  const fetchOrderTypeStats = async (dateFilter = {}, options = {}) => {
+  // Fetch order type stats data using the consolidated API
+  const fetchOrderTypeStats = async () => {
     try {
       setError('');
       
@@ -135,21 +99,16 @@ const OrderType = ({ handleApiError }) => {
         return;
       }
       
-      // Prepare request data
-      const requestData = {
-        user_id: Number(userId),
-        outlet_id: Number(outletId),
-        ...dateFilter
-      };
+      // Get date filter from global context
+      const dateFilter = getDateFilter();
       
-      // Use the fetchData function from context which handles caching
-      const data = await fetchData(API_PATHS.orderTypeStats, requestData, {
-        forceRefresh: options.forceRefresh || false,
-        transformResponse: (response) => response?.detail || response
+      // Use fetchAllStats to get all stats at once
+      const allStatsData = await fetchAllStats(dateFilter, {
+        forceRefresh: true
       });
       
-      if (data) {
-        processOrderTypeData(data);
+      if (allStatsData && allStatsData.order_type_statistics) {
+        processOrderTypeData(allStatsData.order_type_statistics);
       }
     } catch (error) {
       console.error('Failed to fetch order type statistics:', error);
@@ -162,63 +121,28 @@ const OrderType = ({ handleApiError }) => {
     }
   };
 
-  // Helper function to get date range
-  const getDateRange = (range) => {
-    const today = new Date();
-    let start, end;
-    
-    switch (range) {
-      case 'Today':
-        start = end = new Date();
-        break;
-      case 'Yesterday':
-        start = end = new Date();
-        start.setDate(start.getDate() - 1);
-        break;
-      case 'Last 7 Days':
-        end = new Date();
-        start = new Date();
-        start.setDate(start.getDate() - 6);
-        break;
-      case 'Last 30 Days':
-        end = new Date();
-        start = new Date();
-        start.setDate(start.getDate() - 29);
-        break;
-      case 'Current Month':
-        start = new Date(today.getFullYear(), today.getMonth(), 1);
-        end = new Date();
-        break;
-      case 'Last Month':
-        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        end = new Date(today.getFullYear(), today.getMonth(), 0);
-        break;
-      case 'All Time':
-        // For 'All Time', don't send date parameters
-        return {};
-      default:
-        // Check if it's a custom range with format "DD MMM YYYY - DD MMM YYYY"
-        if (range.includes(' - ')) {
-          const [startStr, endStr] = range.split(' - ');
-          // These are already formatted dates, so just pass them directly
-          return {
-            start_date: startStr,
-            end_date: endStr
-          };
-        }
-        // Default case also returns empty object (no date filtering)
-        return {};
-    }
-    
-    if (start && end) {
-      return {
-        start_date: formatDate(start),
-        end_date: formatDate(end)
-      };
-    }
-    
-    return {};
+  // ApexCharts options
+  const chartOptions = {
+    // ... existing chart options ...
   };
+
+  // Improve data check to properly handle both array and object data structures
+  const hasData = Array.isArray(orderTypes) 
+    ? (orderTypes.length > 0 && orderTypes.some(type => type && type.count > 0))
+    : (orderTypes && Object.values(orderTypes).some(count => typeof count === 'number' && count > 0));
+
+  // Notify parent about visibility
+  useEffect(() => {
+    if (onVisibilityChange) {
+      onVisibilityChange(hasData || loading);
+    }
+  }, [orderTypes, loading, onVisibilityChange, hasData]);
+
+  // Add clear console log for debugging
+  if (!hasData && !loading) {
+    console.log('OrderType: No data to display');
+    return null;
+  }
 
   // Return null if there's a 403 error (permission denied)
   if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {
@@ -229,67 +153,6 @@ const OrderType = ({ handleApiError }) => {
     <div className="card border" style={{ boxShadow: 'none' }}>
       <div className="card-header d-flex align-items-center justify-content-between">
         <h5 className="card-title mb-0">Order Type Statistics</h5>
-        <div className="d-flex gap-2">
-          <DateFilter 
-            dateRange={dateRange}
-            onDateRangeChange={handleDateRangeChange}
-            onCustomDateSelect={handleCustomDateSelect}
-          />
-          <button
-            type="button"
-            className="btn btn-icon p-0"
-            onClick={handleReload}
-            style={{ border: "1px solid var(--bs-primary)" }}
-          >
-            <i className="fas fa-sync-alt"></i>
-          </button>
-
-          {/* <button
-            type="button"
-            className="btn btn-icon btn-sm p-0"
-            style={{
-              width: "40px",
-              height: "40px",
-              borderRadius: "50%",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              overflow: "hidden",
-              position: "relative",
-              border: "1px solid #e9ecef",
-            }}
-            onClick={() => setIsGifPlaying(true)}
-            title={
-              isGifPlaying ? "Animation playing" : "Click to play animation"
-            }
-          >
-         
-            {isGifPlaying ? (
-              // Show animated GIF when playing
-              <img
-                src={aiAnimationGif}
-                alt="AI Animation (Playing)"
-                style={{
-                  width: "24px",
-                  height: "24px",
-                  objectFit: "contain",
-                }}
-              />
-            ) : (
-              // Show static frame when not playing
-              <img
-                src={aiAnimationStillFrame}
-                alt="AI Animation (Click to play)"
-                style={{
-                  width: "24px",
-                  height: "24px",
-                  objectFit: "contain",
-                  opacity: 0.9,
-                }}
-              />
-            )}
-          </button> */}
-        </div>
       </div>
 
       {error && !error.includes('permission') && !error.includes('Permission') && !error.includes('403') && (

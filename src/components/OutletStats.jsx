@@ -1,299 +1,252 @@
 import React, { useState, useEffect } from 'react';
-import { api, API_PATHS } from '../config/apiConfig';
+import { API_PATHS } from '../config/apiConfig';
+import { useDashboard } from '../context/DashboardContext';
 import { useCacheData } from '../context/CacheDataContext';
-import DateFilter from './common/DateFilter';
+import { withErrorHandling } from './withErrorHandling';
+import { useGlobalDateFilter } from './Header';
 
-function OutletStats() {
-  // Initialize with dates from a week ago to today to ensure we have some data
-  const today = new Date();
-  const oneWeekAgo = new Date();
-  oneWeekAgo.setDate(today.getDate() - 7);
-  
-  const [error, setError] = useState(null);
-  const [outletData, setOutletData] = useState({
-    outlets: [
-      {
-        id: localStorage.getItem('outlet_id'),
-        statistics: {
-          waiters_count: 0,
-          avg_order_per_week: 0,
-          most_popular_item: {
-            name: "",
-            orders: 0
-          },
-          least_popular_item: {
-            name: "",
-            orders: 0
-          }
-        }
-      }
-    ]
+const OutletStats = ({ handleApiError, onVisibilityChange }) => {
+  // Get data from dashboard context
+  const { 
+    outletPerformance_from_context
+  } = useDashboard();
+
+  // Get data from cache context
+  const { 
+    getCachedData,
+    fetchAllStats
+  } = useCacheData();
+
+  // Get global date filter
+  const { dateRange, getDateFilter } = useGlobalDateFilter();
+
+  const [outletStats, setOutletStats] = useState([]);
+  const [error, setError] = useState('');
+  const [sortConfig, setSortConfig] = useState({
+    key: 'revenue',
+    direction: 'descending'
   });
-  const [allStatsData, setAllStatsData] = useState({
-    order_analytics: {
-      first_order_time: "",
-      last_order_time: "",
-      average_order_time: "",
-      average_cooking_time: ""
-    },
-    order_statistics: {
-      success_orders: 0,
-      cancelled_orders: 0,
-      complementary_orders: 0,
-      KOT_orders: 0
-    }
-  });
-  const [dateRange, setDateRange] = useState('All Time');
-  
-  // Track permission denied state separately for each API
-  const [mainStatsPermissionDenied, setMainStatsPermissionDenied] = useState(false);
-  const [allStatsPermissionDenied, setAllStatsPermissionDenied] = useState(false);
 
-  // Get cache data context
-  const { fetchData, getCachedData } = useCacheData();
+  // Initialize the loading state
+  const [loading, setLoading] = useState(true);
 
+  // Initial data load from cache and context
   useEffect(() => {
-    // Check for cached data first
-    const cachedOutletStats = getCachedData(API_PATHS.getOutletStats);
-    if (cachedOutletStats) {
-      setOutletData(cachedOutletStats);
+    // First check if data is available from the consolidated API cache
+    const allStatsData = getCachedData(API_PATHS.getAllStatsWithoutFilter);
+    if (allStatsData && allStatsData.outlet_performance) {
+      processOutletData(allStatsData.outlet_performance);
     }
-    
-    const cachedAllStats = getCachedData(API_PATHS.getAllStatsWithoutFilter);
-    if (cachedAllStats) {
-      setAllStatsData(cachedAllStats);
+    // If no cached data, use context data
+    else if (outletPerformance_from_context) {
+      processOutletData(outletPerformance_from_context);
     }
     
     // Fetch fresh data in background
-    fetchOutletStats();
-    fetchAllStats();
+    fetchOutletData();
+
+    // Add loading state management
+    setLoading(false);
+  }, []);
+
+  // Update when date range changes
+  useEffect(() => {
+    fetchOutletData();
   }, [dateRange]);
 
-  const fetchOutletStats = async () => {
-    try {
-      setError(null);
-      setMainStatsPermissionDenied(false);
-
-      const dateFilter = getDateRange(dateRange);
-      const params = {
-        outlet_id: localStorage.getItem('outlet_id'),
-        ...dateFilter
-      };
-
-      console.log('Fetching outlet stats with params:', params);
-      
-      // Use the fetchData function from context which handles caching
-      const data = await fetchData(API_PATHS.getOutletStats, params, { 
-        forceRefresh: true,
-        transformResponse: (response) => response?.detail || response
-      });
-      
-      if (data && data.outlets && data.outlets.length > 0) {
-        setOutletData(data);
-        console.log('Outlet data set:', data);
-      }
-    } catch (err) {
-      if (err.response?.status === 403) {
-        setMainStatsPermissionDenied(true);
-      } else {
-        console.error('Error fetching outlet stats:', err);
-        setError(err.response?.data?.detail || 'Failed to fetch outlet statistics');
-      }
+  // Process outlet data from API response
+  const processOutletData = (data) => {
+    if (data && Array.isArray(data)) {
+      setOutletStats(data);
+    } else {
+      setOutletStats([]);
     }
   };
 
-  const fetchAllStats = async () => {
-    try {
-      const params = {
-        user_id: localStorage.getItem('user_id'),
-        outlet_id: localStorage.getItem('outlet_id')
-      };
-
-      console.log('Fetching all stats with params:', params);
-      
-      // Use the fetchData function from context which handles caching
-      const data = await fetchData(API_PATHS.getAllStatsWithoutFilter, params, {
-        forceRefresh: true,
-        transformResponse: (response) => response?.detail || response
-      });
-      
-      if (data) {
-        setAllStatsData(data);
-        console.log('All stats data set:', data);
-      }
-    } catch (err) {
-      if (err.response?.status === 403) {
-        setAllStatsPermissionDenied(true);
-      } else {
-        console.error('Error fetching all stats:', err);
-      }
-    }
-  };
-
-  const formatDate = (date) => {
-    if (!date) return '';
-    const day = date.getDate().toString().padStart(2, '0');
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const month = months[date.getMonth()];
-    const year = date.getFullYear();
-    return `${day} ${month} ${year}`;
-  };
-
-  const getDateRange = (range) => {
-    const today = new Date();
-    let start, end;
-    
-    switch (range) {
-      case 'Today':
-        start = end = new Date();
-        break;
-      case 'Yesterday':
-        start = end = new Date();
-        start.setDate(start.getDate() - 1);
-        break;
-      case 'Last 7 Days':
-        end = new Date();
-        start = new Date();
-        start.setDate(start.getDate() - 6);
-        break;
-      case 'Last 30 Days':
-        end = new Date();
-        start = new Date();
-        start.setDate(start.getDate() - 29);
-        break;
-      case 'Current Month':
-        start = new Date(today.getFullYear(), today.getMonth(), 1);
-        end = new Date();
-        break;
-      case 'Last Month':
-        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        end = new Date(today.getFullYear(), today.getMonth(), 0);
-        break;
-      case 'All Time':
-        // For 'All Time', don't send date parameters
-        return {};
-      default:
-        // Check if it's a custom range with format "DD MMM YYYY - DD MMM YYYY"
-        if (range.includes(' - ')) {
-          const [startStr, endStr] = range.split(' - ');
-          // These are already formatted dates, so just pass them directly
-          return {
-            start_date: startStr,
-            end_date: endStr
-          };
-        }
-        // Default case also returns empty object (no date filtering)
-        return {};
-    }
-    
-    if (start && end) {
-      return {
-        start_date: formatDate(start),
-        end_date: formatDate(end)
-      };
-    }
-    
-    return {};
-  };
-
-  const handleDateRangeChange = (range) => {
-    setDateRange(range);
-  };
-
-  const handleCustomDateSelect = (start, end, formattedRange) => {
-    setDateRange(formattedRange);
-  };
-
+  // Helper function to format price in Indian currency format
   const formatIndianCurrency = (amount) => {
     const num = parseFloat(amount);
-    if (isNaN(num) || num === 0) return '₹0.00';
-    
-    const [integerPart, decimalPart = '00'] = num.toFixed(2).split('.');
-    if (integerPart.length <= 3) {
-      return `₹${integerPart}.${decimalPart}`;
-    }
-    
-    const lastThree = integerPart.substring(integerPart.length - 3);
-    const otherNumbers = integerPart.substring(0, integerPart.length - 3);
-    const formatted = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ',');
-    return `₹${formatted},${lastThree}.${decimalPart}`;
+    if (isNaN(num)) return '₹0';
+    return num.toLocaleString('en-IN', { 
+      style: 'currency', 
+      currency: 'INR',
+      maximumFractionDigits: 0
+    });
   };
 
-  // Only return null if the main stats API has permission denied
-  if (mainStatsPermissionDenied) {
-    console.log('OutletStats: Main stats permission denied, returning null');
+  // Fetch outlet data using the consolidated API
+  const fetchOutletData = async () => {
+    try {
+      setError('');
+      
+      // Get user and outlet IDs
+      const userId = localStorage.getItem('user_id');
+      const outletId = localStorage.getItem('outlet_id');
+      
+      if (!userId || !outletId) {
+        setError('User ID or outlet ID not found. Please check your login.');
+        return;
+      }
+      
+      // Get date filter from global context
+      const dateFilter = getDateFilter();
+      
+      // Use fetchAllStats to get all stats at once
+      const allStatsData = await fetchAllStats(dateFilter, {
+        forceRefresh: true
+      });
+      
+      if (allStatsData && allStatsData.outlet_performance) {
+        processOutletData(allStatsData.outlet_performance);
+      }
+    } catch (error) {
+      console.error('Failed to fetch outlet data:', error);
+      
+      // Use the handleApiError function from the HOC
+      if (!handleApiError(error)) {
+        // If error was not handled by the HOC (not a 403), set local error state
+        setError('Failed to load outlet performance data. Please try again.');
+      }
+    }
+  };
+
+  // Handle sorting
+  const requestSort = (key) => {
+    let direction = 'ascending';
+    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // Get sorted data
+  const getSortedData = () => {
+    if (!outletStats || outletStats.length === 0) return [];
+
+    const sortableData = [...outletStats];
+    sortableData.sort((a, b) => {
+      if (a[sortConfig.key] < b[sortConfig.key]) {
+        return sortConfig.direction === 'ascending' ? -1 : 1;
+      }
+      if (a[sortConfig.key] > b[sortConfig.key]) {
+        return sortConfig.direction === 'ascending' ? 1 : -1;
+      }
+      return 0;
+    });
+    return sortableData;
+  };
+
+  // Update the useEffect that processes data
+  useEffect(() => {
+    // If there's no meaningful data, notify parent component via onVisibilityChange
+    const hasData = !!outletStats && 
+                   outletStats.last_day_order_count > 0 ||
+                   outletStats.last_month_order_count > 0 || 
+                   outletStats.this_month_order_count > 0;
+    
+    if (onVisibilityChange) {
+      onVisibilityChange(hasData || loading);
+    }
+  }, [outletStats]);
+
+  // Check if data is meaningful before rendering
+  const hasData = !!outletStats && 
+                 (outletStats.last_day_order_count > 0 ||
+                 outletStats.last_month_order_count > 0 || 
+                 outletStats.this_month_order_count > 0);
+  
+  // Return null if there's no meaningful data or it's not done loading
+  if (!hasData && !loading) {
+    return null;
+  }
+
+  // Return null if there's a 403 error (permission denied)
+  if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {
     return null;
   }
 
   return (
     <div className="card border" style={{ boxShadow: 'none' }}>
       <div className="card-header d-flex justify-content-between align-items-center">
-        <h5 className="card-title mb-0">Outlet Statistics</h5>
-        <div className="d-flex align-items-center gap-3">
-          <DateFilter 
-            dateRange={dateRange}
-            onDateRangeChange={handleDateRangeChange}
-            onCustomDateSelect={handleCustomDateSelect}
-          />
-        </div>
+        <h5 className="card-title mb-0">Outlet Performance</h5>
       </div>
-      
-      <div className="card-body">
-        {error && (
-          <div className="alert alert-danger mb-4" role="alert">
+
+      {error && !error.includes('permission') && !error.includes('Permission') && !error.includes('403') && (
+        <div className="card-body">
+          <div className="alert alert-danger" role="alert">
             {error}
           </div>
-        )}
-        
-        <div className="mb-4">
-          <div className="row g-4">
-            {/* Staff Stats */}
-            <div className="col-md-6 col-lg-3">
-              <div className="card h-100 border" style={{ boxShadow: 'none' }}>
-                <div className="card-body text-center">
-                  <h3 className="mb-1">{outletData.outlets[0]?.statistics?.waiters_count || 0}</h3>
-                  <p className="text-muted mb-0">Waiters</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Weekly Orders */}
-            <div className="col-md-6 col-lg-3">
-              <div className="card h-100 border" style={{ boxShadow: 'none' }}>
-                <div className="card-body text-center">
-                  <h3 className="mb-1">{outletData.outlets[0]?.statistics?.avg_order_per_week || 0}</h3>
-                  <p className="text-muted mb-0">Avg Orders/Week</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Popular Items */}
-            <div className="col-md-6 col-lg-3">
-              <div className="card h-100 border" style={{ boxShadow: 'none' }}>
-                <div className="card-body text-center">
-                  <h3 className="mb-1">{outletData.outlets[0]?.statistics?.most_popular_item?.name || 'N/A'}</h3>
-                  <p className="text-muted mb-0">Most Popular Menu ({outletData.outlets[0]?.statistics?.most_popular_item?.orders || 0} orders)</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Least Popular Items */}
-            <div className="col-md-6 col-lg-3">
-              <div className="card h-100 border" style={{ boxShadow: 'none' }}>
-                <div className="card-body text-center">
-                  <h3 className="mb-1">{outletData.outlets[0]?.statistics?.least_popular_item?.name || 'N/A'}</h3>
-                  <p className="text-muted mb-0">Least Popular Menu ({outletData.outlets[0]?.statistics?.least_popular_item?.orders || 0} orders)</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Always show detailed statistics section */}
-        
         </div>
+      )}
+
+      <div className="card-body">
+        {outletStats.length > 0 ? (
+          <div className="table-responsive">
+            <table className="table table-hover">
+              <thead>
+                <tr>
+                  <th>Outlet Name</th>
+                  <th 
+                    className="text-end sortable-header" 
+                    onClick={() => requestSort('orders')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    Orders
+                    {sortConfig.key === 'orders' && (
+                      <i className={`ms-1 fas fa-sort-${sortConfig.direction === 'ascending' ? 'up' : 'down'}`}></i>
+                    )}
+                  </th>
+                  <th 
+                    className="text-end sortable-header" 
+                    onClick={() => requestSort('items')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    Items
+                    {sortConfig.key === 'items' && (
+                      <i className={`ms-1 fas fa-sort-${sortConfig.direction === 'ascending' ? 'up' : 'down'}`}></i>
+                    )}
+                  </th>
+                  <th 
+                    className="text-end sortable-header" 
+                    onClick={() => requestSort('revenue')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    Revenue
+                    {sortConfig.key === 'revenue' && (
+                      <i className={`ms-1 fas fa-sort-${sortConfig.direction === 'ascending' ? 'up' : 'down'}`}></i>
+                    )}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {getSortedData().map((outlet) => (
+                  <tr key={outlet.outlet_id}>
+                    <td>
+                      <div className="d-flex align-items-center">
+                        <div className="avatar avatar-sm me-2">
+                          <div className="avatar-initial rounded-circle bg-label-primary">
+                            {outlet.outlet_name.charAt(0).toUpperCase()}
+                          </div>
+                        </div>
+                        <div className="fw-medium">{outlet.outlet_name}</div>
+                      </div>
+                    </td>
+                    <td className="text-end">{outlet.orders}</td>
+                    <td className="text-end">{outlet.items}</td>
+                    <td className="text-end">{formatIndianCurrency(outlet.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center p-5">
+            <p>No outlet performance data available for the selected time period</p>
+          </div>
+        )}
       </div>
     </div>
   );
-}
+};
 
-export default OutletStats; 
+export default withErrorHandling(OutletStats); 

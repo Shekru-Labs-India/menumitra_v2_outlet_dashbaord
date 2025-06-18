@@ -154,7 +154,6 @@ const API_PATHS = {
   outletStatistics: STATISTICS_PREFIX,
   getOutletStats: `${STATISTICS_PREFIX}/get_outlet_stats`,
   getAllStatsWithoutFilter: `${STATISTICS_PREFIX}/get_all_stats_without_filter`,
-  analyticsReports: `${STATISTICS_PREFIX}/analytics_reports`,
   foodTypeStats: `${STATISTICS_PREFIX}/food_type_statistics`,
   orderAnalytics: `${STATISTICS_PREFIX}/order_analytics`,
   orderStatistics: `${STATISTICS_PREFIX}/order_statistics`,

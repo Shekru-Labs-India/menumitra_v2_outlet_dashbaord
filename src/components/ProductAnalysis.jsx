@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { API_PATHS } from "../config/apiConfig";
-// Import both GIFs - static and animated
-import aiAnimationGif from "../assets/img/gif/AI-animation-unscreen.gif";
-import aiAnimationStillFrame from "../assets/img/gif/AI-animation-unscreen-still-frame.gif";
-import { useDashboard } from "../context/DashboardContext"; // Import dashboard context
-import { useCacheData } from "../context/CacheDataContext"; // Import cache context
-import { withErrorHandling, DateFilter } from "./common";
+import { useDashboard } from "../context/DashboardContext";
+import { useCacheData } from "../context/CacheDataContext";
+import { withErrorHandling } from "./withErrorHandling";
+import { useGlobalDateFilter } from "./Header";
 
-function TopSell({ handleApiError }) {
+const ProductAnalysis = ({ handleApiError }) => {
   // Get data from dashboard context
   const { 
     salesPerformance_from_context
@@ -15,133 +13,65 @@ function TopSell({ handleApiError }) {
 
   // Get data from cache context
   const { 
-    fetchData,
-    getCachedData
+    getCachedData,
+    fetchAllStats
   } = useCacheData();
 
-  // State management 
-  const [selectedTab, setSelectedTab] = useState("top");
-  const [dateRange, setDateRange] = useState("All Time");
-  const [isGifPlaying, setIsGifPlaying] = useState(false);
-  const [salesData, setSalesData] = useState({
-    top_selling: [],
-    low_selling: []
-  });
-  const [error, setError] = useState(null);
+  // Get global date filter
+  const { dateRange, getDateFilter } = useGlobalDateFilter();
+
+  const [topProducts, setTopProducts] = useState([]);
+  const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('quantity');
+  const [loading, setLoading] = useState(true);
 
   // Initial data load from cache and context
   useEffect(() => {
-    // First try to get data from cache
-    const cachedData = getCachedData(API_PATHS.salesPerformance);
-    if (cachedData) {
-      processSalesData(cachedData);
+    // First check if data is available from the consolidated API cache
+    const allStatsData = getCachedData(API_PATHS.getAllStatsWithoutFilter);
+    if (allStatsData && allStatsData.sales_performance) {
+      processProductData(allStatsData.sales_performance);
     }
     // If no cached data, use context data
     else if (salesPerformance_from_context) {
-      processSalesData(salesPerformance_from_context);
+      processProductData(salesPerformance_from_context);
     }
     
     // Fetch fresh data in background
-    fetchSalesData();
+    fetchProductData();
   }, []);
 
   // Update when date range changes
   useEffect(() => {
-    fetchSalesData(getDateRange(dateRange), { forceRefresh: true });
+    fetchProductData();
   }, [dateRange]);
 
-  // Process sales data from API or cache
-  const processSalesData = (data) => {
-    if (data) {
-      setSalesData({
-        top_selling: data.top_selling || [],
-        low_selling: data.low_selling || []
-      });
+  // Process product data from API response
+  const processProductData = (data) => {
+    if (data && Array.isArray(data)) {
+      setTopProducts(data);
+    } else {
+      setTopProducts([]);
     }
+    setLoading(false);
   };
 
-  // Simplified effect to handle the animation timing
-  useEffect(() => {
-    if (isGifPlaying) {
-      // Set a timeout to stop playing after 3 seconds
-      const timer = setTimeout(() => {
-        setIsGifPlaying(false);
-      }, 3000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [isGifPlaying]);
-
-  // Format date for display (e.g., "01 Jan 2023")
-  const formatDate = (date) => {
-    if (!date) return "";
-    const day = date.getDate().toString().padStart(2, "0");
-    const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][date.getMonth()];
-    return `${day} ${month} ${date.getFullYear()}`;
+  // Helper function to format price in Indian currency format
+  const formatIndianCurrency = (amount) => {
+    const num = parseFloat(amount);
+    if (isNaN(num)) return '₹0';
+    return num.toLocaleString('en-IN', { 
+      style: 'currency', 
+      currency: 'INR',
+      maximumFractionDigits: 0
+    });
   };
 
-  // Get date range parameters based on selected option
-  const getDateRange = (range) => {
-    const today = new Date();
-    let start, end;
-    
-    switch (range) {
-      case "Today":
-        start = end = new Date();
-        break;
-      case "Yesterday":
-        start = end = new Date();
-        start.setDate(start.getDate() - 1);
-        break;
-      case "Last 7 Days":
-        end = new Date();
-        start = new Date();
-        start.setDate(start.getDate() - 6);
-        break;
-      case "Last 30 Days":
-        end = new Date();
-        start = new Date();
-        start.setDate(start.getDate() - 29);
-        break;
-      case "Current Month":
-        start = new Date(today.getFullYear(), today.getMonth(), 1);
-        end = new Date();
-        break;
-      case "Last Month":
-        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        end = new Date(today.getFullYear(), today.getMonth(), 0);
-        break;
-      case "All Time":
-        // For 'All Time', don't send date parameters
-        return {};
-      default:
-        // Check if it's a custom range with format "DD MMM YYYY - DD MMM YYYY"
-        if (range.includes(' - ')) {
-          const [startStr, endStr] = range.split(' - ');
-          // These are already formatted dates, so just pass them directly
-          return {
-            start_date: startStr,
-            end_date: endStr
-          };
-        }
-        // Default case also returns empty object (no date filtering)
-        return {};
-    }
-    
-    if (start && end) {
-      return { 
-        start_date: formatDate(start),
-        end_date: formatDate(end)
-      };
-    }
-    
-    return {};
-  };
-
-  // Fetch sales data using the cache context
-  const fetchSalesData = async (dateFilter = {}, options = {}) => {
+  // Fetch product data using the consolidated API
+  const fetchProductData = async () => {
     try {
-      setError(null);
+      setLoading(true);
+      setError('');
       
       // Get user and outlet IDs
       const userId = localStorage.getItem('user_id');
@@ -149,213 +79,167 @@ function TopSell({ handleApiError }) {
       
       if (!userId || !outletId) {
         setError('User ID or outlet ID not found. Please check your login.');
+        setLoading(false);
         return;
       }
       
-      // Prepare request data
-      const requestData = { 
-        user_id: Number(userId),
-        outlet_id: Number(outletId),
-        ...dateFilter
-      };
+      // Get date filter from global context
+      const dateFilter = getDateFilter();
       
-      // Use the fetchData function from context which handles caching
-      const data = await fetchData(API_PATHS.salesPerformance, requestData, {
-        forceRefresh: options.forceRefresh || false,
-        transformResponse: (response) => response?.detail || response
+      // Use fetchAllStats to get all stats at once
+      const allStatsData = await fetchAllStats(dateFilter, {
+        forceRefresh: true
       });
       
-      if (data) {
-        processSalesData(data);
+      if (allStatsData && allStatsData.sales_performance) {
+        processProductData(allStatsData.sales_performance);
+      } else {
+        setTopProducts([]);
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("Error fetching data:", err);
+    } catch (error) {
+      console.error('Failed to fetch product data:', error);
       
       // Use the handleApiError function from the HOC
-      if (!handleApiError(err)) {
+      if (!handleApiError(error)) {
         // If error was not handled by the HOC (not a 403), set local error state
-        setError("Failed to load sales data. Please try again.");
+        setError('Failed to load product data. Please try again.');
       }
+      setLoading(false);
     }
   };
 
-  // Handle date range selection
-  const handleDateRangeChange = (range) => {
-    setDateRange(range);
-  };
+  // Sort products based on active tab
+  const getSortedProducts = () => {
+    if (!topProducts || !Array.isArray(topProducts)) return [];
 
-  const handleCustomDateSelect = (start, end, formattedRange) => {
-    setDateRange(formattedRange);
-  };
+    // Clone the array to avoid mutating the original
+    const sortedProducts = [...topProducts];
 
-  const handleReload = () => {
-    setIsGifPlaying(true);
-    fetchSalesData(getDateRange(dateRange), { forceRefresh: true });
+    // Sort based on the active tab
+    if (activeTab === 'quantity') {
+      sortedProducts.sort((a, b) => b.quantity - a.quantity);
+    } else {
+      sortedProducts.sort((a, b) => b.revenue - a.revenue);
+    }
+
+    // Take only the top 10 items
+    return sortedProducts.slice(0, 10);
   };
 
   // Return null if there's a 403 error (permission denied)
   if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {
     return null;
   }
-
-  // Get the current data to display based on selected tab
-  const getCurrentData = () => {
-    return salesData[selectedTab === "top" ? "top_selling" : "low_selling"];
-  };
-
-  // Render data table
-  const renderDataTable = () => {
-    const data = getCurrentData();
-    
-    if (data.length === 0) {
-      return (
-        <div className="text-center text-muted p-3">
-          No products data available for the selected period
-        </div>
-      );
-    }
-    
-    // Check if total_quantity exists in the data
-    const hasQuantity = data.length > 0 && 'total_quantity' in data[0];
-    
-    return (
-      <div className="table-responsive">
-        <table className="table table-hover">
-          <thead>
-            <tr>
-              <th>Menu Name</th>
-              <th>Sales Count</th>
-              {hasQuantity && <th>Total Quantity</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((product) => (
-              <tr key={product.item_id}>
-                <td>{product.name}</td>
-                <td>{product.sales_count}</td>
-                {hasQuantity && <td>{product.total_quantity}</td>}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
+  
+  // Check if data is meaningful before rendering (at least one valid item in topSelling or lowSelling)
+  const hasTopSellingData = topProducts && 
+                           Array.isArray(topProducts) && 
+                           topProducts.length > 0 &&
+                           topProducts.some(item => item && item.product_name && item.quantity > 0);
+  
+  const hasLowSellingData = topProducts && 
+                           Array.isArray(topProducts) && 
+                           topProducts.length > 0 &&
+                           topProducts.some(item => item && item.product_name && item.quantity < 0);
+                           
+  // Return null if there's no meaningful data in either category and it's not loading
+  if ((!hasTopSellingData && !hasLowSellingData) && !loading) {
+    return null;
+  }
 
   return (
     <div className="card border" style={{ boxShadow: 'none' }}>
-      {/* Header */}
       <div className="card-header d-flex justify-content-between align-items-center">
-        <h5 className="card-title mb-0">Products Analysis</h5>
-        <div className="d-flex align-items-center gap-3">
-          <DateFilter 
-            dateRange={dateRange}
-            onDateRangeChange={handleDateRangeChange}
-            onCustomDateSelect={handleCustomDateSelect}
-          />
-
-          <button
-            type="button"
-            className="btn btn-icon p-0"
-            onClick={handleReload}
-            style={{ border: "1px solid var(--bs-primary)" }}
-          >
-            <i className="fas fa-sync-alt"></i>
-          </button>
-
-          {/* <button
-            type="button"
-            className="btn btn-icon btn-sm p-0"
-            style={{
-              width: "40px",
-              height: "40px",
-              borderRadius: "50%",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              overflow: "hidden",
-              position: "relative",
-              border: "1px solid #e9ecef",
-            }}
-            onClick={() => setIsGifPlaying(true)}
-            title={
-              isGifPlaying ? "Animation playing" : "Click to play animation"
-            }
-          >
-           
-            {isGifPlaying ? (
-              // Show animated GIF when playing
-              <img
-                src={aiAnimationGif}
-                alt="AI Animation (Playing)"
-                style={{
-                  width: "24px",
-                  height: "24px",
-                  objectFit: "contain",
-                }}
-              />
-            ) : (
-              // Show static frame when not playing
-              <img
-                src={aiAnimationStillFrame}
-                alt="AI Animation (Click to play)"
-                style={{
-                  width: "24px",
-                  height: "24px",
-                  objectFit: "contain",
-                  opacity: 0.9,
-                }}
-              />
-            )}
-          </button> */}
-        </div>
+        <h5 className="card-title mb-0">Product Sales Analysis</h5>
+        <ul className="nav nav-tabs card-header-tabs" style={{ marginBottom: '-0.575rem' }}>
+          <li className="nav-item">
+            <button
+              className={`nav-link ${activeTab === 'quantity' ? 'active' : ''}`}
+              onClick={() => setActiveTab('quantity')}
+            >
+              By Quantity
+            </button>
+          </li>
+          <li className="nav-item">
+            <button
+              className={`nav-link ${activeTab === 'revenue' ? 'active' : ''}`}
+              onClick={() => setActiveTab('revenue')}
+            >
+              By Revenue
+            </button>
+          </li>
+        </ul>
       </div>
 
-      {/* Body */}
-      <div className="card-body">
-        {/* Tabs */}
-        <div className="nav nav-tabs mb-3">
-          <button
-            className={`nav-link ${selectedTab === "top" ? "active" : ""}`}
-            onClick={() => setSelectedTab("top")}
-            style={{
-              fontWeight: selectedTab === "top" ? "bold" : "normal",
-              borderRadius: "8px",
-              backgroundColor:
-                selectedTab === "top" ? "var(--bs-primary)" : "transparent",
-              color: selectedTab === "top" ? "var(--bs-white)" : "",
-            }}
-          >
-            Top Selling
-          </button>
-          <button
-            className={`nav-link ${selectedTab === "low" ? "active" : ""}`}
-            onClick={() => setSelectedTab("low")}
-            style={{
-              fontWeight: selectedTab === "low" ? "bold" : "normal",
-              borderRadius: "8px",
-              backgroundColor:
-                selectedTab === "low" ? "var(--bs-primary)" : "transparent",
-              color: selectedTab === "low" ? "var(--bs-white)" : "",
-            }}
-          >
-            Low Selling
-          </button>
-        </div>
-
-        {/* Error message */}
-        {error && !error.includes('permission') && !error.includes('Permission') && !error.includes('403') && (
+      {error && !error.includes('permission') && !error.includes('Permission') && !error.includes('403') && (
+        <div className="card-body">
           <div className="alert alert-danger" role="alert">
             {error}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Content */}
-        {renderDataTable()}
+      <div className="card-body">
+        {topProducts.length > 0 ? (
+          <div className="table-responsive">
+            <table className="table table-hover">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Product Name</th>
+                  {activeTab === 'quantity' ? (
+                    <th className="text-end">Quantity</th>
+                  ) : (
+                    <th className="text-end">Revenue</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {getSortedProducts().map((product, index) => (
+                  <tr key={`${product.product_name}-${index}`}>
+                    <td>{index + 1}</td>
+                    <td>
+                      <div className="d-flex align-items-center">
+                        <div className="avatar avatar-sm me-2">
+                          <div className="avatar-initial rounded-circle bg-label-primary">
+                            {product.product_name.charAt(0).toUpperCase()}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="fw-medium">
+                            {product.product_name}
+                          </span>
+                          <small className="text-muted d-block">
+                            {product.category_name || 'Uncategorized'}
+                          </small>
+                        </div>
+                      </div>
+                    </td>
+                    {activeTab === 'quantity' ? (
+                      <td className="text-end">
+                        <span className="fw-medium">{product.quantity}</span>
+                      </td>
+                    ) : (
+                      <td className="text-end">
+                        <span className="fw-medium">
+                          {formatIndianCurrency(product.revenue)}
+                        </span>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center p-5">
+            <p>No product data available for the selected time period</p>
+          </div>
+        )}
       </div>
     </div>
   );
-}
+};
 
-// Export the component wrapped in the HOC
-export default withErrorHandling(TopSell);
+export default withErrorHandling(ProductAnalysis);

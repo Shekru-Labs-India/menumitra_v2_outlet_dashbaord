@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, createContext, useContext } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import 'animate.css'
 import { ToastContainer, toast } from 'react-toastify'
@@ -8,6 +8,21 @@ import { api, API_PATHS } from '../config/apiConfig'
 import { useCacheData } from '../context/CacheDataContext'
 import { useRefreshManager } from '../context/RefreshManager'
 import OutletSearch from './OutletSearch'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
+
+// Create a context for global date filter
+export const GlobalDateFilterContext = createContext({
+  dateRange: 'All Time',
+  setDateRange: () => {},
+  startDate: null,
+  endDate: null,
+  formatDate: () => {},
+  getDateFilter: () => ({})
+});
+
+// Custom hook to use the global date filter
+export const useGlobalDateFilter = () => useContext(GlobalDateFilterContext);
 
 function Header() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,6 +43,12 @@ function Header() {
   const [showOutletModal, setShowOutletModal] = useState(false);
   const [quickFilters] = useState([]);
   
+  // Date filter states
+  const [dateRange, setDateRange] = useState('All Time');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -43,11 +64,135 @@ function Header() {
     fetchOrderStats, 
     fetchWeeklyOrderStats, 
     fetchPaymentMethodCounts,
-    fetchData
+    fetchData,
+    fetchAllStats
   } = useCacheData();
 
   // Get refresh manager functions
   const { refreshAllData, lastRefreshTime, isRefreshing } = useRefreshManager();
+
+  // Format date function for date filter
+  const formatDate = (date) => {
+    if (!date) return '';
+    const day = date.getDate().toString().padStart(2, '0');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    return `${day} ${month} ${year}`;
+  };
+
+  // Helper function to get date range filter object
+  const getDateFilter = (range = dateRange) => {
+    const today = new Date();
+    let start, end;
+    
+    switch (range) {
+      case 'Today':
+        start = end = new Date();
+        break;
+      case 'Yesterday':
+        start = end = new Date();
+        start.setDate(start.getDate() - 1);
+        break;
+      case 'Last 7 Days':
+        end = new Date();
+        start = new Date();
+        start.setDate(start.getDate() - 6);
+        break;
+      case 'Last 30 Days':
+        end = new Date();
+        start = new Date();
+        start.setDate(start.getDate() - 29);
+        break;
+      case 'Current Month':
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+        end = new Date();
+        break;
+      case 'Last Month':
+        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        end = new Date(today.getFullYear(), today.getMonth(), 0);
+        break;
+      case 'All Time':
+        // For 'All Time', don't send date parameters
+        return {};
+      default:
+        // Check if it's a custom range with format "DD MMM YYYY - DD MMM YYYY"
+        if (range.includes(' - ')) {
+          const [startStr, endStr] = range.split(' - ');
+          // These are already formatted dates, so just pass them directly
+          return {
+            start_date: startStr,
+            end_date: endStr
+          };
+        }
+        // Default case also returns empty object (no date filtering)
+        return {};
+    }
+    
+    if (start && end) {
+      return {
+        start_date: formatDate(start),
+        end_date: formatDate(end)
+      };
+    }
+    
+    return {};
+  };
+
+  // Handle date range selection
+  const handleDateRangeChange = (range) => {
+    setDateRange(range);
+    
+    if (range === 'Custom Range') {
+      // Only show date picker, don't reset dates
+      setShowDatePicker(true);
+    } else {
+      // For non-custom ranges, reset dates and refresh data
+      setShowDatePicker(false);
+      setStartDate(null);
+      setEndDate(null);
+      
+      // Trigger refresh with new date range
+      const dateFilter = getDateFilter(range);
+      refreshWithDateFilter(dateFilter);
+    }
+  };
+
+  // Handle custom date selection
+  const handleCustomDateSelect = () => {
+    if (startDate && endDate) {
+      const formattedRange = `${formatDate(startDate)} - ${formatDate(endDate)}`;
+      setDateRange(formattedRange);
+      setShowDatePicker(false);
+      
+      // Refresh data with custom date range
+      const dateFilter = {
+        start_date: formatDate(startDate),
+        end_date: formatDate(endDate)
+      };
+      refreshWithDateFilter(dateFilter);
+    }
+  };
+
+  // Refresh data with date filter
+  const refreshWithDateFilter = (dateFilter) => {
+    const refreshFunction = getRefreshFunctionForRoute();
+    const options = { forceRefresh: true };
+    
+    try {
+      refreshFunction(dateFilter, options)
+        .catch(err => {
+          console.error('Error during refresh with date filter:', err);
+          showToast('Failed to refresh data', 'error');
+        });
+      
+      // Update the UI immediately to show refresh is happening
+      setStartTime(new Date());
+    } catch (error) {
+      console.error('Error initiating refresh:', error);
+      showToast('Failed to refresh data', 'error');
+    }
+  };
 
   // Function to show toast notifications
   const showToast = (message, type = 'error') => {
@@ -432,7 +577,16 @@ function Header() {
   // Function to refresh all components using the RefreshManager
   const refreshAllComponents = () => {
     console.log('Manual refresh triggered from Header');
-    refreshAllData({ forceRefresh: true });
+    
+    // Get the current date filter
+    const currentDateFilter = getDateFilter();
+    
+    // Pass the date filter to refreshAllData
+    refreshAllData({ 
+      forceRefresh: true,
+      dateFilter: currentDateFilter
+    });
+    
     // Update the UI immediately to show refresh is happening
     setStartTime(new Date());
   };
@@ -514,8 +668,8 @@ function Header() {
     }
     
     if (path.includes('/statistics')) {
-      console.log('Using fetchAnalytics for /statistics');
-      return fetchAnalytics;
+      console.log('Using fetchAllStats for /statistics');
+      return fetchAllStats;
     }
     
     // Default to refreshDashboard for any other route
@@ -523,17 +677,17 @@ function Header() {
     return refreshDashboard;
   };
 
-  // Add refresh function with rotation
+  // Add refresh function with date filter
   const handleRefresh = () => {
     setIsRotating(true);
     
     // Get the specific refresh function for the current route
     const refreshFunction = getRefreshFunctionForRoute();
     
-    console.log(`Refreshing specific data for route: ${location.pathname}`);
+    console.log(`Refreshing specific data for route: ${location.pathname} with date filter`);
     
-    // Call the specific refresh function with force refresh option
-    const dateFilter = {}; // Empty date filter for "all time"
+    // Call the specific refresh function with force refresh option and current date filter
+    const dateFilter = getDateFilter();
     const options = { forceRefresh: true };
     
     try {
@@ -566,11 +720,11 @@ function Header() {
 
   // Set up auto refresh every 1 minute (60000ms)
   useEffect(() => {
-    const autoRefreshTimer = setInterval(() => {
-      refreshAllComponents();
-    }, 60000); // 1 minute interval
+    // Removed redundant auto-refresh timer to prevent duplicate API calls
+    // The RefreshManager already handles auto-refresh globally
     
-    return () => clearInterval(autoRefreshTimer);
+    // Return empty cleanup function
+    return () => {};
   }, []);
 
   const handleClearSearch = () => {
@@ -578,7 +732,18 @@ function Header() {
     fetchOutlets(); // Reset to show all outlets
   };
 
+  // Date filter context value
+  const dateFilterContextValue = {
+    dateRange,
+    setDateRange: handleDateRangeChange,
+    startDate,
+    endDate,
+    formatDate,
+    getDateFilter
+  };
+
   return (
+    <GlobalDateFilterContext.Provider value={dateFilterContextValue}>
     <div style={{
       position: "sticky",
       top: 0,
@@ -1028,26 +1193,106 @@ function Header() {
                   {selectedOutlet || "Select Outlet"}
                 </button>
               </li>
-              {/* <li className="nav-item me-3">
-                <Link 
-                  to="/compare-outlets" 
-                  className="btn btn-primary d-none d-md-flex align-items-center"
+                
+                {/* Global Date Filter Dropdown */}
+                <li className="nav-item dropdown me-3">
+                  <div className="dropdown">
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary dropdown-toggle d-flex align-items-center"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false"
                   style={{
-                    borderRadius: '8px',
-                    padding: '8px 16px',
+                        borderRadius: "8px",
+                        padding: "8px 16px",
                     fontWeight: 600,
-                    boxShadow: 'rgba(105, 108, 255, 0.4) 0px 2px 4px',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <i className="fas fa-code-compare me-2"></i>
-                  Compare Outlets
-                </Link>
-              </li> */}
+                        boxShadow: "rgba(0, 0, 0, 0.05) 0px 1px 2px",
+                      }}
+                    >
+                      <i className="fas fa-calendar me-2"></i>
+                      {dateRange}
+                    </button>
+                    <ul className="dropdown-menu">
+                      {['All Time', 'Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'Current Month', 'Last Month'].map((range) => (
+                        <li key={range}>
+                          <a
+                            href="javascript:void(0);"
+                            className="dropdown-item d-flex align-items-center"
+                            onClick={() => handleDateRangeChange(range)}
+                          >
+                            {range}
+                          </a>
+                        </li>
+                      ))}
+                      <li><hr className="dropdown-divider" /></li>
+                      <li>
+                        <a
+                          href="javascript:void(0);"
+                          className="dropdown-item d-flex align-items-center"
+                          onClick={() => handleDateRangeChange('Custom Range')}
+                        >
+                          Custom Range
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+                </li>
             </div>
 
             {/* Right aligned items */}
             <ul className="navbar-nav flex-row align-items-center ms-auto">
+                {/* Date Picker Modal */}
+                {showDatePicker && (
+                  <li className="nav-item me-3">
+                    <div className="date-picker-container border rounded p-3 bg-white shadow-sm position-absolute" 
+                         style={{top: "100%", right: "80px", zIndex: 1060, width: "300px"}}>
+                      <div className="d-flex flex-column gap-2">
+                        <h6 className="mb-2">Select Date Range:</h6>
+                        <div className="d-flex flex-column gap-2">
+                          <DatePicker
+                            selected={startDate}
+                            onChange={(date) => setStartDate(date)}
+                            selectsStart
+                            startDate={startDate}
+                            endDate={endDate}
+                            maxDate={new Date()}
+                            placeholderText="Start Date"
+                            className="form-control"
+                            dateFormat="dd MMM yyyy"
+                          />
+                          <DatePicker
+                            selected={endDate}
+                            onChange={(date) => setEndDate(date)}
+                            selectsEnd
+                            startDate={startDate}
+                            endDate={endDate}
+                            minDate={startDate}
+                            maxDate={new Date()}
+                            placeholderText="End Date"
+                            className="form-control"
+                            dateFormat="dd MMM yyyy"
+                          />
+                        </div>
+                        <div className="d-flex gap-2 mt-2">
+                          <button
+                            className="btn btn-primary"
+                            onClick={handleCustomDateSelect}
+                            disabled={!startDate || !endDate}
+                          >
+                            Apply
+                          </button>
+                          <button
+                            className="btn btn-outline-secondary"
+                            onClick={() => setShowDatePicker(false)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                )}
+                
               {/* Updated Time */}
               <li className="nav-item me-3">
                 <div className="d-flex align-items-center">
@@ -1069,7 +1314,6 @@ function Header() {
                       style={{ color: "var(--bs-primary)" }}
                     ></i>
                   </button>
-                 
                 </div>
               </li>
 
@@ -1177,6 +1421,7 @@ function Header() {
         </div>
       )}
     </div>
+    </GlobalDateFilterContext.Provider>
   );
 }
 

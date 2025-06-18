@@ -1,241 +1,209 @@
-import React, { useState, useEffect } from 'react'
-import { api, API_PATHS } from '../config/apiConfig';
-import { withErrorHandling } from './common';
+import React, { useState, useEffect } from 'react';
+import ReactApexChart from 'react-apexcharts';
+import { API_PATHS } from '../config/apiConfig';
+import { useDashboard } from '../context/DashboardContext';
+import { useCacheData } from '../context/CacheDataContext';
+import { withErrorHandling } from './withErrorHandling';
+import { useGlobalDateFilter } from './Header';
 
 const PaymentMethodCount = ({ handleApiError }) => {
-  const [paymentCounts, setPaymentCounts] = useState({
-    cash: 0,
-    upi: 0,
-    card: 0,
-    complementary: 0
-  });
-  const [loading, setLoading] = useState(false);
-  const [dateRange, setDateRange] = useState('Today');
-  
-  const fetchData = async (range) => {
+  // Get data from dashboard context
+  const { 
+    totalCollectionSource_from_context
+  } = useDashboard();
+
+  // Get data from cache context
+  const { 
+    getCachedData,
+    fetchAllStats
+  } = useCacheData();
+
+  // Get global date filter
+  const { dateRange, getDateFilter } = useGlobalDateFilter();
+
+  const [paymentData, setPaymentData] = useState({});
+  const [error, setError] = useState('');
+
+  // Chart options
+  const chartOptions = {
+    chart: {
+      height: 300,
+      type: 'donut'
+    },
+    labels: ['Cash', 'Card', 'UPI', 'Complementary'],
+    colors: ['#00CFE8', '#28C76F', '#7367F0', '#FF9F43'],
+    dataLabels: {
+      enabled: true,
+      formatter: function(val) {
+        return val.toFixed(1) + '%'
+      }
+    },
+    legend: {
+      show: true,
+      position: 'bottom'
+    },
+    plotOptions: {
+      pie: {
+        donut: {
+          size: '70%',
+          labels: {
+            show: true,
+            name: {
+              show: true
+            },
+            value: {
+              show: true,
+              formatter: function(val) {
+                return val
+              }
+            },
+            total: {
+              show: true,
+              showAlways: true,
+              label: 'Total Orders',
+              formatter: function(w) {
+                return w.globals.seriesTotals.reduce((a, b) => a + b, 0)
+              }
+            }
+          }
+        }
+      }
+    },
+    responsive: [{
+      breakpoint: 992,
+      options: {
+        chart: {
+          height: 380
+        },
+        legend: {
+          position: 'bottom'
+        }
+      }
+    }]
+  };
+
+  // Initial data load from cache and context
+  useEffect(() => {
+    // First check if data is available from the consolidated API cache
+    const allStatsData = getCachedData(API_PATHS.getAllStatsWithoutFilter);
+    if (allStatsData && allStatsData.total_collection_source) {
+      processPaymentData(allStatsData.total_collection_source);
+    }
+    // If no cached data, use context data
+    else if (totalCollectionSource_from_context) {
+      processPaymentData(totalCollectionSource_from_context);
+    }
+    
+    // Fetch fresh data in background
+    fetchPaymentData();
+  }, []);
+
+  // Update when date range changes
+  useEffect(() => {
+    fetchPaymentData();
+  }, [dateRange]);
+
+  // Process payment data
+  const processPaymentData = (data) => {
+    if (data) {
+      setPaymentData({
+        upi_amount: data.upi_amount || 0,
+        upi_orders: data.upi_orders || 0,
+        cash_amount: data.cash_amount || 0,
+        cash_orders: data.cash_orders || 0,
+        card_amount: data.card_amount || 0,
+        card_orders: data.card_orders || 0,
+        complementary_amount: data.complementary_amount || 0,
+        complementary_orders: data.complementary_orders || 0
+      });
+    }
+  };
+
+  // Fetch payment data using the consolidated API
+  const fetchPaymentData = async () => {
     try {
-      setLoading(true);
+      setError('');
       
+      // Get user and outlet IDs
       const userId = localStorage.getItem('user_id');
       const outletId = localStorage.getItem('outlet_id');
       
       if (!userId || !outletId) {
-          console.error('User ID or outlet ID not found');
-          setLoading(false);
-          return;
+        setError('User ID or outlet ID not found. Please check your login.');
+        return;
       }
       
-      // Prepare request data using new simplified format
-      const requestData = {
-          user_id: Number(userId),
-          outlet_id: Number(outletId)
-      };
-
-      // Add date range if not "All Time"
-      if (range === 'Custom Range' && startDate && endDate) {
-        requestData.start_date = formatDate(startDate);
-        requestData.end_date = formatDate(endDate);
-      } else if (range !== 'All Time') {
-        const dateRange = getDateRange(range);
-        if (dateRange) {
-          requestData.start_date = dateRange.start_date;
-          requestData.end_date = dateRange.end_date;
-        }
-      }
-
-      console.log('Sending payment method counts request:', requestData);
+      // Get date filter from global context
+      const dateFilter = getDateFilter();
       
-      // Make API request using the API instance from apiConfig
-      const response = await api.post(API_PATHS.paymentMethodCounts, requestData);
+      // Use fetchAllStats to get all stats at once
+      const allStatsData = await fetchAllStats(dateFilter, {
+        forceRefresh: true
+      });
       
-      console.log('Payment method counts response:', response.data);
-
-      if (response.data?.detail) {
-        // Process the response data from the new format
-        const data = response.data.detail;
-        setPaymentCounts({
-          cash: data.cash || 0,
-          upi: data.upi || 0,
-          card: data.card || 0,
-          complementary: data.complementary || 0
-        });
-      } else {
-        console.error('No data available in response');
+      if (allStatsData && allStatsData.total_collection_source) {
+        processPaymentData(allStatsData.total_collection_source);
       }
     } catch (error) {
-      console.error('Failed to fetch payment method counts:', error);
+      console.error('Failed to fetch payment methods data:', error);
       
       // Use the handleApiError function from the HOC
       if (!handleApiError(error)) {
-        // If error was not handled by the HOC (not a 403), handle it here
-        // For now, just log it, but you could set a local error state if needed
+        // If error was not handled by the HOC (not a 403), set local error state
+        setError('Failed to load payment data. Please try again.');
       }
-    } finally {
-      setLoading(false);
     }
   };
 
-  // Helper function to get date range
-  const getDateRange = (range) => {
-    const today = new Date();
-    let start, end;
-    
-    switch (range) {
-      case 'Today':
-        start = end = new Date();
-        break;
-      case 'Yesterday':
-        start = end = new Date();
-        start.setDate(start.getDate() - 1);
-        break;
-      case 'Last 7 Days':
-        end = new Date();
-        start = new Date();
-        start.setDate(start.getDate() - 6);
-        break;
-      case 'This Month':
-        start = new Date(today.getFullYear(), today.getMonth(), 1);
-        end = new Date();
-        break;
-      default:
-        return null;
-    }
-    
-    return {
-      start_date: formatDate(start),
-      end_date: formatDate(end)
-    };
+  // Calculate series data for the chart
+  const getChartSeries = () => {
+    return [
+      paymentData.cash_orders || 0,
+      paymentData.card_orders || 0,
+      paymentData.upi_orders || 0,
+      paymentData.complementary_orders || 0
+    ];
   };
 
-  const formatDate = (date) => {
-    if (!date) return '';
-    const day = date.getDate().toString().padStart(2, '0');
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const month = months[date.getMonth()];
-    const year = date.getFullYear();
-    return `${day} ${month} ${year}`;
-  };
+  // Return null if there's a 403 error (permission denied)
+  if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {
+    return null;
+  }
 
-  useEffect(() => {
-    fetchData(dateRange);
-  }, [dateRange]);
-
-  // Calculate total count
-  const totalCount = Object.values(paymentCounts).reduce((a, b) => a + b, 0);
-  
-  // Calculate max count for scaling
-  const maxCount = Math.max(...Object.values(paymentCounts));
-
-  // Calculate percentage width for progress bars
-  const getPercentage = (count) => {
-    return maxCount === 0 ? 0 : (count / maxCount) * 100;
-  };
+  // Calculate total orders
+  const totalOrders = getChartSeries().reduce((a, b) => a + b, 0);
 
   return (
-    <div className="card">
-      <div className="card-header d-flex justify-content-between align-items-center">
-        <h5 className="card-title mb-0">Total Payment counts</h5>
-        <div className="dropdown">
-          <button 
-            className="btn btn-outline-primary dropdown-toggle" 
-            type="button" 
-            data-bs-toggle="dropdown" 
-            aria-expanded="false"
-            disabled={loading}
-          >
-            <i className="fas fa-calendar me-2"></i>
-            {dateRange}
-          </button>
-          <ul className="dropdown-menu">
-            {['Today', 'Yesterday', 'Last 7 Days', 'This Month'].map((range) => (
-              <li key={range}>
-                <a 
-                  className="dropdown-item" 
-                  href="#" 
-                  onClick={() => setDateRange(range)}
-                >
-                  {range}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
+    <div className="card border" style={{ boxShadow: 'none' }}>
+      <div className="card-header d-flex justify-content-between align-items-md-center align-items-start">
+        <h5 className="card-title mb-0">Payment Method Distribution</h5>
       </div>
-      <div className="card-body">
-        <h4 className="mb-4">Total: {totalCount}</h4>
-        
-        <div className="payment-methods-list">
-          <div className="mb-3">
-            <div className="d-flex justify-content-between align-items-center mb-1">
-              <span>Cash</span>
-              <span>{paymentCounts.cash}</span>
-            </div>
-            <div className="progress" style={{ height: '10px' }}>
-              <div 
-                className="progress-bar bg-success" 
-                role="progressbar" 
-                style={{ width: `${getPercentage(paymentCounts.cash)}%` }} 
-                aria-valuenow={paymentCounts.cash} 
-                aria-valuemin="0" 
-                aria-valuemax={maxCount}
-              ></div>
-            </div>
-          </div>
-          
-          <div className="mb-3">
-            <div className="d-flex justify-content-between align-items-center mb-1">
-              <span>Card</span>
-              <span>{paymentCounts.card}</span>
-            </div>
-            <div className="progress" style={{ height: '10px' }}>
-              <div 
-                className="progress-bar bg-info" 
-                role="progressbar" 
-                style={{ width: `${getPercentage(paymentCounts.card)}%` }} 
-                aria-valuenow={paymentCounts.card} 
-                aria-valuemin="0" 
-                aria-valuemax={maxCount}
-              ></div>
-            </div>
-          </div>
-          
-          <div className="mb-3">
-            <div className="d-flex justify-content-between align-items-center mb-1">
-              <span>UPI</span>
-              <span>{paymentCounts.upi}</span>
-            </div>
-            <div className="progress" style={{ height: '10px' }}>
-              <div 
-                className="progress-bar bg-primary" 
-                role="progressbar" 
-                style={{ width: `${getPercentage(paymentCounts.upi)}%` }} 
-                aria-valuenow={paymentCounts.upi} 
-                aria-valuemin="0" 
-                aria-valuemax={maxCount}
-              ></div>
-            </div>
-          </div>
-          
-          <div className="mb-3">
-            <div className="d-flex justify-content-between align-items-center mb-1">
-              <span>Complementary</span>
-              <span>{paymentCounts.complementary}</span>
-            </div>
-            <div className="progress" style={{ height: '10px' }}>
-              <div 
-                className="progress-bar bg-warning" 
-                role="progressbar" 
-                style={{ width: `${getPercentage(paymentCounts.complementary)}%` }} 
-                aria-valuenow={paymentCounts.complementary} 
-                aria-valuemin="0" 
-                aria-valuemax={maxCount}
-              ></div>
-            </div>
+
+      {error && !error.includes('permission') && !error.includes('Permission') && !error.includes('403') && (
+        <div className="card-body">
+          <div className="alert alert-danger" role="alert">
+            {error}
           </div>
         </div>
+      )}
+
+      <div className="card-body">
+        {totalOrders > 0 ? (
+          <ReactApexChart 
+            options={chartOptions} 
+            series={getChartSeries()} 
+            type="donut" 
+            height={300}
+          />
+        ) : (
+          <div className="text-center py-5">
+            <p>No payment method data available for the selected time period</p>
+          </div>
+        )}
       </div>
     </div>
-  )
-}
+  );
+};
 
+// Export the component wrapped in the HOC
 export default withErrorHandling(PaymentMethodCount);

@@ -325,6 +325,17 @@ const OutletSearch = ({
               <option value="live">Live</option>
               <option value="test">Test</option>
             </select>
+            
+            {/* Sort Button */}
+            <button 
+              className={`btn ${sortOrder === 'default' ? 'btn-outline-secondary' : 'btn-outline-primary'}`}
+              onClick={handleSortToggle}
+              title={sortButtonDetails.title}
+              style={{ height: 'fit-content', fontSize: '0.9rem', padding: '6px 10px' }}
+            >
+              <i className={`fas ${sortButtonDetails.icon} me-1`}></i>
+              Sort
+            </button>
           </div>
 
           {/* Active Filters & Clear Button */}
@@ -356,32 +367,6 @@ const OutletSearch = ({
               </button>
             </div>
           )}
-
-          {/* All Outlets Section with Sort Button */}
-          <div className="d-flex justify-content-between align-items-center mb-2">
-            {!isCompareMode && (
-              <div className="outlet-list">
-                <div 
-                  className="outlet-item"
-                  onClick={() => onSelect({ name: 'All Outlets', outlet_id: 'all' })}
-                >
-                  <i className="fas fa-store outlet-icon"></i>
-                  <span>All Outlet</span>
-                </div>
-              </div>
-            )}
-            
-            {/* Sort Button */}
-            <button 
-              className={`btn btn-sm ${sortOrder === 'default' ? 'btn-outline-secondary' : 'btn-outline-primary'}`}
-              onClick={handleSortToggle}
-              title={sortButtonDetails.title}
-              style={{ height: 'fit-content' }}
-            >
-              <i className={`fas ${sortButtonDetails.icon} me-1`}></i>
-              Sort
-            </button>
-          </div>
 
           {/* Outlet List */}
           <div className="outlet-list">
