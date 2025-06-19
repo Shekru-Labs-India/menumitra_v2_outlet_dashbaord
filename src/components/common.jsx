@@ -6,11 +6,13 @@ import React from 'react';
  * @param {string} props.message - Optional custom message to display
  * @param {function} props.onRefresh - Optional refresh function to call
  * @param {string} props.icon - Optional custom icon class
+ * @param {boolean} props.hideLoading - Hide loading indicator when refreshing
  */
 export const NoDataMessage = ({ 
   message = "No data available for the selected time period", 
   onRefresh = null,
-  icon = "fas fa-chart-bar"
+  icon = "fas fa-chart-bar",
+  hideLoading = false
 }) => {
   return (
     <div className="card border rounded-3 text-center p-4">

@@ -4,7 +4,7 @@ import { useCacheData } from '../context/CacheDataContext';
 import { useGlobalDateFilter } from './Header';
 import { withErrorHandling } from './withErrorHandling';
 
-const MenuCombos = ({ handleApiError }) => {
+const MenuCombos = ({ handleApiError, onVisibilityChange }) => {
   const [comboData, setComboData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,6 +25,11 @@ const MenuCombos = ({ handleApiError }) => {
     } else {
       // If there's no cached data, we'll rely on the centralized data fetching
       // from CacheDataContext's built-in mechanism
+    }
+    
+    // Always show this component
+    if (onVisibilityChange) {
+      onVisibilityChange(true);
     }
   }, []);
   
@@ -63,15 +68,6 @@ const MenuCombos = ({ handleApiError }) => {
       setLoading(false);
     }
   };
-  
-  // Check if data is meaningful before rendering
-  const hasData = Array.isArray(comboData) && comboData.length > 0 && 
-                  comboData.some(combo => combo.items && combo.items.length > 0 && combo.order_count > 0);
-  
-  // Return null if there's no meaningful data or a 403 error
-  if (!hasData && !loading) {
-    return null;
-  }
   
   // Return null if there's a 403 error (permission denied)
   if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {

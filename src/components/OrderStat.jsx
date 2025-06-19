@@ -66,10 +66,9 @@ const OrderStat = ({ handleApiError, onVisibilityChange }) => {
         
         setLoading(false);
         
-        // Notify parent about visibility
-        const hasData = data.success_orders > 0 || data.cancelled_orders > 0 || data.complementary_orders > 0 || data.KOT_orders > 0;
+        // Always show the component
         if (onVisibilityChange) {
-            onVisibilityChange(hasData || loading);
+            onVisibilityChange(true);
         }
     };
 
@@ -114,18 +113,6 @@ const OrderStat = ({ handleApiError, onVisibilityChange }) => {
     // Return null if there's a 403 error (permission denied)
     if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {
         return null;
-    }
-
-    // Check if data is meaningful before rendering
-    const hasData = orderStats && 
-                  (orderStats.success_orders > 0 || 
-                   orderStats.cancelled_orders > 0 || 
-                   orderStats.complementary_orders > 0 ||
-                   orderStats.KOT_orders > 0);
-    
-    // Return null if there's no meaningful data and it's not loading
-    if (!hasData && !loading) {
-      return null;
     }
 
     // Generate metrics based on API response data

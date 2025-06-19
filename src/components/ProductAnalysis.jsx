@@ -5,7 +5,7 @@ import { useCacheData } from "../context/CacheDataContext";
 import { withErrorHandling } from "./withErrorHandling";
 import { useGlobalDateFilter } from "./Header";
 
-const ProductAnalysis = ({ handleApiError }) => {
+const ProductAnalysis = ({ handleApiError, onVisibilityChange }) => {
   // Get data from dashboard context
   const { 
     salesPerformance_from_context
@@ -37,6 +37,11 @@ const ProductAnalysis = ({ handleApiError }) => {
       processProductData(salesPerformance_from_context);
     }
     
+    // Always make this component visible
+    if (onVisibilityChange) {
+      onVisibilityChange(true);
+    }
+    
     // Fetch fresh data in background
     fetchProductData();
   }, []);
@@ -48,11 +53,27 @@ const ProductAnalysis = ({ handleApiError }) => {
 
   // Process product data from API response
   const processProductData = (data) => {
-    if (data && Array.isArray(data)) {
+    // Check for sales_performance with top_selling and low_selling
+    if (data && data.top_selling && Array.isArray(data.top_selling)) {
+      // Format the data to include quantity and revenue fields
+      const formattedProducts = data.top_selling.map(item => ({
+        product_id: item.item_id,
+        product_name: item.name,
+        quantity: item.sales_count || 0,
+        revenue: item.total_revenue || 0
+      }));
+      
+      setTopProducts(formattedProducts);
+    } 
+    // Check for direct array format
+    else if (data && Array.isArray(data)) {
       setTopProducts(data);
-    } else {
+    } 
+    // Default to empty array
+    else {
       setTopProducts([]);
     }
+    
     setLoading(false);
   };
 
@@ -72,16 +93,6 @@ const ProductAnalysis = ({ handleApiError }) => {
     try {
       setLoading(true);
       setError('');
-      
-      // Get user and outlet IDs
-      const userId = localStorage.getItem('user_id');
-      const outletId = localStorage.getItem('outlet_id');
-      
-      if (!userId || !outletId) {
-        setError('User ID or outlet ID not found. Please check your login.');
-        setLoading(false);
-        return;
-      }
       
       // Get date filter from global context
       const dateFilter = getDateFilter();
@@ -118,9 +129,9 @@ const ProductAnalysis = ({ handleApiError }) => {
 
     // Sort based on the active tab
     if (activeTab === 'quantity') {
-      sortedProducts.sort((a, b) => b.quantity - a.quantity);
+      sortedProducts.sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
     } else {
-      sortedProducts.sort((a, b) => b.revenue - a.revenue);
+      sortedProducts.sort((a, b) => (b.revenue || 0) - (a.revenue || 0));
     }
 
     // Take only the top 10 items
@@ -129,22 +140,6 @@ const ProductAnalysis = ({ handleApiError }) => {
 
   // Return null if there's a 403 error (permission denied)
   if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {
-    return null;
-  }
-  
-  // Check if data is meaningful before rendering (at least one valid item in topSelling or lowSelling)
-  const hasTopSellingData = topProducts && 
-                           Array.isArray(topProducts) && 
-                           topProducts.length > 0 &&
-                           topProducts.some(item => item && item.product_name && item.quantity > 0);
-  
-  const hasLowSellingData = topProducts && 
-                           Array.isArray(topProducts) && 
-                           topProducts.length > 0 &&
-                           topProducts.some(item => item && item.product_name && item.quantity < 0);
-                           
-  // Return null if there's no meaningful data in either category and it's not loading
-  if ((!hasTopSellingData && !hasLowSellingData) && !loading) {
     return null;
   }
 
@@ -181,7 +176,13 @@ const ProductAnalysis = ({ handleApiError }) => {
       )}
 
       <div className="card-body">
-        {topProducts.length > 0 ? (
+        {loading ? (
+          <div className="d-flex justify-content-center align-items-center p-5">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        ) : topProducts.length > 0 ? (
           <div className="table-responsive">
             <table className="table table-hover">
               <thead>
@@ -197,35 +198,13 @@ const ProductAnalysis = ({ handleApiError }) => {
               </thead>
               <tbody>
                 {getSortedProducts().map((product, index) => (
-                  <tr key={`${product.product_name}-${index}`}>
+                  <tr key={`${product.product_name || 'product'}-${index}`}>
                     <td>{index + 1}</td>
-                    <td>
-                      <div className="d-flex align-items-center">
-                        <div className="avatar avatar-sm me-2">
-                          <div className="avatar-initial rounded-circle bg-label-primary">
-                            {product.product_name.charAt(0).toUpperCase()}
-                          </div>
-                        </div>
-                        <div>
-                          <span className="fw-medium">
-                            {product.product_name}
-                          </span>
-                          <small className="text-muted d-block">
-                            {product.category_name || 'Uncategorized'}
-                          </small>
-                        </div>
-                      </div>
-                    </td>
+                    <td>{product.product_name}</td>
                     {activeTab === 'quantity' ? (
-                      <td className="text-end">
-                        <span className="fw-medium">{product.quantity}</span>
-                      </td>
+                      <td className="text-end fw-bold">{product.quantity || 0}</td>
                     ) : (
-                      <td className="text-end">
-                        <span className="fw-medium">
-                          {formatIndianCurrency(product.revenue)}
-                        </span>
-                      </td>
+                      <td className="text-end fw-bold">{formatIndianCurrency(product.revenue || 0)}</td>
                     )}
                   </tr>
                 ))}
@@ -233,8 +212,8 @@ const ProductAnalysis = ({ handleApiError }) => {
             </table>
           </div>
         ) : (
-          <div className="text-center p-5">
-            <p>No product data available for the selected time period</p>
+          <div className="alert alert-info text-center" role="alert">
+            No product sales data available for the selected period.
           </div>
         )}
       </div>

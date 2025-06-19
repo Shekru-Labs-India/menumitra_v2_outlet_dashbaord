@@ -1,6 +1,20 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+// Import ApexCharts Promise fix - this will automatically initialize and fix the "resolve is not defined" error
+import './utils/apexChartsPromiseFix';
+
+// Additional fix for "resolve is not defined" error - define in global scope
+if (typeof window !== 'undefined') {
+  window.resolve = window.resolve || function(value) {
+    return Promise.resolve(value);
+  };
+  
+  window.reject = window.reject || function(reason) {
+    return Promise.reject(reason);
+  };
+}
+
 import App from './App.jsx'
 
 // Initialize Helpers when available

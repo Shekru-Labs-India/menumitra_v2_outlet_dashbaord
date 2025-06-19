@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ReactApexChart from 'react-apexcharts';
 import { API_PATHS } from '../config/apiConfig';
 import { useDashboard } from '../context/DashboardContext';

@@ -70,23 +70,19 @@ const PaymentMethodsChart = ({ handleApiError, onVisibilityChange }) => {
         card_amount: data.card_amount || 0,
         card_orders: data.card_orders || 0,
         complementary_amount: data.complementary_amount || 0,
-        complementary_orders: data.complementary_orders || 0
+        complementary_orders: data.complementary_orders || 0,
+        udhari_amount: data.udhari_amount || 0,
+        udhari_orders: data.udhari_orders || 0,
+        advance_payment_amount: data.advance_payment_amount || 0,
+        advance_payment_orders: data.advance_payment_orders || 0
       });
     }
     
     setLoading(false);
     
-    // Calculate if there's meaningful data to show
-    const hasData = data && (
-      data.upi_amount > 0 || data.cash_amount > 0 || 
-      data.card_amount > 0 || data.complementary_amount > 0 ||
-      data.upi_orders > 0 || data.cash_orders > 0 ||
-      data.card_orders > 0 || data.complementary_orders > 0
-    );
-    
-    // Notify parent about visibility
+    // Always show the component regardless of data values
     if (onVisibilityChange) {
-      onVisibilityChange(hasData || loading);
+      onVisibilityChange(true);
     }
   };
 
@@ -128,25 +124,19 @@ const PaymentMethodsChart = ({ handleApiError, onVisibilityChange }) => {
     }
   };
 
-  // Check if there's meaningful data
-  const hasData = paymentData && 
-                 (paymentData.upi_amount > 0 || paymentData.cash_amount > 0 || 
-                  paymentData.card_amount > 0 || paymentData.complementary_amount > 0 ||
-                  paymentData.upi_orders > 0 || paymentData.cash_orders > 0 ||
-                  paymentData.card_orders > 0 || paymentData.complementary_orders > 0);
-  
-  // Return null if there's no meaningful data and not loading
-  if (!hasData && !loading) {
-    return null;
-  }
-
   // Transform API data to the format expected by our component
   const data = [
     { method: 'Cash', value: paymentData.cash_amount || 0, count: paymentData.cash_orders || 0 },
     { method: 'Card', value: paymentData.card_amount || 0, count: paymentData.card_orders || 0 },
     { method: 'UPI', value: paymentData.upi_amount || 0, count: paymentData.upi_orders || 0 },
     { method: 'Complementary', value: paymentData.complementary_amount || 0, count: paymentData.complementary_orders || 0 },
+    { method: 'Credit (Udhari)', value: paymentData.udhari_amount || 0, count: paymentData.udhari_orders || 0 },
+    { method: 'Advance Payment', value: paymentData.advance_payment_amount || 0, count: paymentData.advance_payment_orders || 0 },
   ];
+
+  // Filter out any payment methods with both 0 values and 0 counts for cleaner display
+  const filteredData = data.filter(item => item.value > 0 || item.count > 0);
+  const displayData = filteredData.length > 0 ? filteredData : data.slice(0, 4); // Show at least the main 4 types
 
   const total = data.reduce((sum, item) => sum + item.value, 0);
 
@@ -171,7 +161,7 @@ const PaymentMethodsChart = ({ handleApiError, onVisibilityChange }) => {
           </div>
         </div>
         <div className="payment-methods-chart">
-          {data.map((item, index) => (
+          {displayData.map((item, index) => (
             <div
               key={index}
               className="d-flex align-items-center mb-3 payment-row"

@@ -1133,8 +1133,8 @@ function Header() {
           zIndex: 1000,
           paddingTop: "2.5rem",
           paddingBottom: "2.5rem",
-          marginBottom:
-            selectedOutletData?.outlet_status === false ? "0" : "1.5rem",
+          // marginBottom:
+          //   selectedOutletData?.outlet_status === false ? "0" : "1.5rem",
         }}
       >
         <style>

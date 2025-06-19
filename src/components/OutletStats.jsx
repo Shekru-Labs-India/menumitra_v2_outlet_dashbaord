@@ -27,9 +27,6 @@ const OutletStats = ({ handleApiError, onVisibilityChange }) => {
     direction: 'descending'
   });
 
-  // Initialize the loading state
-  const [loading, setLoading] = useState(true);
-
   // Initial data load from cache and context
   useEffect(() => {
     // First check if data is available from the consolidated API cache
@@ -44,9 +41,6 @@ const OutletStats = ({ handleApiError, onVisibilityChange }) => {
     
     // Fetch fresh data in background
     fetchOutletData();
-
-    // Add loading state management
-    setLoading(false);
   }, []);
 
   // Update when date range changes
@@ -145,7 +139,8 @@ const OutletStats = ({ handleApiError, onVisibilityChange }) => {
                    outletStats.this_month_order_count > 0;
     
     if (onVisibilityChange) {
-      onVisibilityChange(hasData || loading);
+      // Always set to true to ensure component visibility
+      onVisibilityChange(true);
     }
   }, [outletStats]);
 
@@ -155,10 +150,10 @@ const OutletStats = ({ handleApiError, onVisibilityChange }) => {
                  outletStats.last_month_order_count > 0 || 
                  outletStats.this_month_order_count > 0);
   
-  // Return null if there's no meaningful data or it's not done loading
-  if (!hasData && !loading) {
-    return null;
-  }
+  // Always render the component regardless of data availability
+  // if (!hasData && !loading) {
+  //   return null;
+  // }
 
   // Return null if there's a 403 error (permission denied)
   if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {

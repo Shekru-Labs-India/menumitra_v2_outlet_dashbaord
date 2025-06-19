@@ -37,8 +37,8 @@ const FoodTypeGraph = ({ handleApiError, onVisibilityChange }) => {
       else if (foodTypeStatistics_from_context) {
         processFoodTypeData(foodTypeStatistics_from_context);
       } else {
-        // If no data is available yet, ensure we have empty data structure
-        setFoodTypeData([]);
+        // If no data is available yet, set default data structure
+        setDefaultFoodTypeData();
       }
       
       // Fetch fresh data in background
@@ -49,6 +49,21 @@ const FoodTypeGraph = ({ handleApiError, onVisibilityChange }) => {
     useEffect(() => {
       fetchFoodTypeStats();
     }, [dateRange]);
+
+    // Set default food type data with all days of the week
+    const setDefaultFoodTypeData = () => {
+      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      const defaultData = days.map(day => ({
+        day,
+        Veg: 0,
+        'Non-Veg': 0,
+        Vegan: 0,
+        Eggs: 0
+      }));
+      
+      setFoodTypeData(defaultData);
+      setLoading(false);
+    };
 
     const processFoodTypeData = (data) => {
         try {
@@ -71,24 +86,15 @@ const FoodTypeGraph = ({ handleApiError, onVisibilityChange }) => {
             setLoading(false);
         } catch (error) {
             console.error('Error processing food type data:', error);
-            setFoodTypeData([]);
-            setLoading(false);
+            setDefaultFoodTypeData();
         }
     };
 
     // Fetch food type stats data using only the consolidated API
     const fetchFoodTypeStats = async () => {
         try {
+            setLoading(true);
             setError('');
-            
-            // Get user and outlet IDs
-            const userId = localStorage.getItem('user_id');
-            const outletId = localStorage.getItem('outlet_id');
-            
-            if (!userId || !outletId) {
-                setError('User ID or outlet ID not found. Please check your login.');
-                return;
-            }
             
             // Get date filter from global context
             const dateFilter = getDateFilter();
@@ -101,7 +107,7 @@ const FoodTypeGraph = ({ handleApiError, onVisibilityChange }) => {
             if (allStatsData && allStatsData.food_type_statistics) {
                 processFoodTypeData(allStatsData.food_type_statistics);
             } else {
-                setFoodTypeData([]);
+                setDefaultFoodTypeData();
             }
         } catch (error) {
             console.error('Failed to fetch food type statistics:', error);
@@ -112,39 +118,17 @@ const FoodTypeGraph = ({ handleApiError, onVisibilityChange }) => {
                 setError('Failed to load food type statistics. Please try again.');
             }
             
-            // Even on error, we should ensure we have at least empty data
-            setFoodTypeData([]);
-            setLoading(false);
+            setDefaultFoodTypeData();
         }
     };
-
-    // Process data for the chart
-    const processChartData = () => {
-        // ... existing processing code ...
-    };
-
-    // Make the hasData check more comprehensive
-    const hasData = foodTypeData && 
-                   Array.isArray(foodTypeData) &&
-                   foodTypeData.length > 0 && 
-                   foodTypeData.some(dayData => 
-                      dayData && 
-                      (dayData.Veg > 0 || dayData['Non-Veg'] > 0 || dayData.Vegan > 0 || dayData.Eggs > 0)
-                   );
 
     // Use useEffect to notify the parent component about visibility
     useEffect(() => {
-        // Only call onVisibilityChange if it exists
+        // Always show the component
         if (onVisibilityChange) {
-            onVisibilityChange(hasData || loading);
+            onVisibilityChange(true);
         }
-    }, [foodTypeData, loading, onVisibilityChange, hasData]);
-
-    // Add clear console log for debugging
-    if (!hasData && !loading) {
-        console.log('FoodTypeGraph: No data to display');
-        return null;
-    }
+    }, [onVisibilityChange]);
 
     // Return null if there's a 403 error (permission denied)
     if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {
@@ -274,6 +258,11 @@ const FoodTypeGraph = ({ handleApiError, onVisibilityChange }) => {
             data: foodTypeData.map(item => item.Eggs)
         }
     ];
+    
+    // Check if all values are zeros
+    const allZeros = chartSeries.every(series => 
+        series.data.every(value => value === 0)
+    );
 
     return (
         <div className="card border" style={{ boxShadow: 'none' }}>
@@ -301,26 +290,34 @@ const FoodTypeGraph = ({ handleApiError, onVisibilityChange }) => {
                         }}
                         onClick={() => setShowModal(true)}
                         title="Expand Graph"
+                        disabled={allZeros}
                     >
                         <i className="fas fa-expand"></i>
                     </button>
-                    {foodTypeData.length > 0 ? (
+                    
+                    {loading ? (
+                        <div className="d-flex justify-content-center align-items-center p-5">
+                            <div className="spinner-border text-primary" role="status">
+                                <span className="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    ) : allZeros ? (
+                        <div className="alert alert-info text-center" role="alert">
+                            No food type data available for the selected period.
+                        </div>
+                    ) : (
                         <Chart
                             options={chartOptions}
                             series={chartSeries}
                             type="bar"
                             height={400}
                         />
-                    ) : (
-                        <div className="text-center p-5">
-                            <p>No food type data available</p>
-                        </div>
                     )}
                 </div>
             </div>
 
             {/* Modal for expanded graph */}
-            {showModal && foodTypeData.length > 0 && (
+            {showModal && !allZeros && (
                 <div 
                     className="modal fade show" 
                     tabIndex="-1" 

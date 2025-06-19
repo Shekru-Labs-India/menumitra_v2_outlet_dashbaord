@@ -98,11 +98,14 @@ function Statistics() {
 
   // Check if any components are visible with better logging
   const hasAnyVisibleComponents = () => {
-    const visibleCount = Object.values(visibleComponents).filter(Boolean).length;
-    const hasVisible = visibleCount > 0;
-    // Commenting out log that causes performance issues
-    // console.log(`Statistics screen has ${visibleCount} visible components. Showing UI: ${hasVisible}`);
-    return hasVisible;
+    // Since we've updated components to always be visible, 
+    // we should always have visible components now
+    return true;
+    
+    // Previous code (commented out)
+    // const visibleCount = Object.values(visibleComponents).filter(Boolean).length;
+    // const hasVisible = visibleCount > 0;
+    // return hasVisible;
   };
 
   // Helper function to format currency in Indian format
@@ -160,8 +163,8 @@ function Statistics() {
       }
     }
     
-    // Don't call fetchStatisticsData here - it will be triggered by CacheDataContext's
-    // built-in mechanism for initial data loading
+    // Always fetch data on initial load/refresh
+    fetchStatisticsData();
   }, []);
 
   // Only update statistics when date range changes
@@ -214,7 +217,8 @@ function Statistics() {
       // Get date filter from global context 
       const dateFilter = getDateFilter();
       
-      // Use fetchAllStats to get all stats at once
+      // Use fetchAllStats to get all stats at once with a forced refresh
+      // This ensures data is always fetched when this function is called
       const allStatsData = await fetchAllStats(dateFilter, {
         forceRefresh: true
       });
@@ -261,8 +265,6 @@ function Statistics() {
 
   // Get error from cache
   const error = getError(API_PATHS.analyticsReports);
-  // Get loading state from cache (only used for the reload button spinner)
-  const loading = isLoading(API_PATHS.analyticsReports);
 
   return (
     <div className="layout-wrapper layout-content-navbar">
@@ -408,6 +410,7 @@ function Statistics() {
                           message="No statistics data available for the selected time period" 
                           onRefresh={fetchStatisticsData}
                           icon="fas fa-chart-bar"
+                          hideLoading={true}
                         />
                       </div>
                     </div>

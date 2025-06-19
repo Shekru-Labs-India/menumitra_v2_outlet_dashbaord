@@ -139,15 +139,14 @@ function LoginScreen() {
       let fcmToken;
       try {
         fcmToken = await requestNotificationPermission();
-        if (!fcmToken) {
-          throw new Error('Failed to get notification token');
+        // Store fcm token if available, but don't make it mandatory
+        if (fcmToken) {
+          localStorage.setItem('fcm_token', fcmToken);
         }
-        localStorage.setItem('fcm_token', fcmToken);
       } catch (tokenError) {
         console.error('FCM Token Error:', tokenError);
-        setError('Please allow notifications to continue. You can change this in your browser settings.');
-        setIsLoading(false);
-        return;
+        // Continue without notification permissions
+        fcmToken = null;
       }
 
       // Get device information
@@ -234,10 +233,13 @@ function LoginScreen() {
       console.error('OTP Verification Error:', error);
       setIsLoading(false);
       
-      // Handle different types of errors
-      if (error.response) {
-        // The request was made and the server responded with a status code outside of 2xx range
-        setError(error.response.data.message || 'Invalid OTP. Please try again.');
+      // Update error handling to properly extract the message from the response
+      if (error.response?.data?.detail) {
+        // Extract message from format like "400: This mobile number is not registered."
+        const errorMessage = error.response.data.detail;
+        setError(errorMessage);
+      } else if (error.response?.data?.message) {
+        setError(error.response.data.message);
       } else if (error.request) {
         // The request was made but no response was received
         setError('No response from server. Please check your internet connection and try again.');

@@ -4,7 +4,7 @@ import { useCacheData } from '../context/CacheDataContext';
 import { useGlobalDateFilter } from './Header';
 import { withErrorHandling } from './withErrorHandling';
 
-const CategoryPerformance = ({ handleApiError }) => {
+const CategoryPerformance = ({ handleApiError, onVisibilityChange }) => {
   const [categoryData, setCategoryData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -42,6 +42,14 @@ const CategoryPerformance = ({ handleApiError }) => {
       // If there's no cached data, we'll rely on the centralized data fetching
       // from CacheDataContext's built-in mechanism
     }
+    
+    // Notify parent that this component is visible
+    if (onVisibilityChange) {
+      onVisibilityChange(true);
+    }
+    
+    // Fetch data on initial mount to ensure we have data
+    fetchCategoryData();
   }, []);
   
   // Only fetch when date range changes, not on initial mount
@@ -59,8 +67,10 @@ const CategoryPerformance = ({ handleApiError }) => {
       // Get date filter from global context
       const dateFilter = getDateFilter();
       
-      // Use fetchAllStats to get all stats at once with no forceRefresh
-      const allStatsData = await fetchAllStats(dateFilter);
+      // Use fetchAllStats to get all stats at once with forceRefresh to ensure we get data
+      const allStatsData = await fetchAllStats(dateFilter, {
+        forceRefresh: true
+      });
       
       if (allStatsData && allStatsData.category_wise_performance) {
         setCategoryData(allStatsData.category_wise_performance);
@@ -80,15 +90,29 @@ const CategoryPerformance = ({ handleApiError }) => {
     }
   };
   
-  // Check if data is meaningful before rendering
-  const hasData = Array.isArray(categoryData) && 
-                categoryData.length > 0 && 
-                categoryData.some(category => category.total_orders > 0);
+  // Process category data to ensure required properties are available
+  const processCategoryData = (data) => {
+    if (!Array.isArray(data)) {
+      return [];
+    }
+    
+    return data.map(category => ({
+      category_id: category.category_id || 0,
+      category_name: category.category_name || 'Unknown Category',
+      total_orders: category.total_orders || 0,
+      top_menus: Array.isArray(category.top_menus) 
+        ? category.top_menus.map(menu => ({
+            menu_id: menu.menu_id || 0,
+            menu_name: menu.menu_name || 'Unknown Item',
+            sales_count: menu.sales_count || 0,
+            total_revenue: menu.total_revenue || 0
+          }))
+        : []
+    }));
+  };
   
-  // Return null if there's no meaningful data or it's not done loading
-  if (!hasData && !loading) {
-    return null;
-  }
+  // Processed category data
+  const processedData = processCategoryData(categoryData);
   
   // Return null if there's a 403 error (permission denied)
   if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {
@@ -112,7 +136,7 @@ const CategoryPerformance = ({ handleApiError }) => {
           <div className="alert alert-danger m-3" role="alert">
             {error}
           </div>
-        ) : categoryData && categoryData.length > 0 ? (
+        ) : processedData && processedData.length > 0 ? (
           <div className="table-responsive">
             <table className="table table-bordered m-0">
               <thead className="table-light">
@@ -122,7 +146,7 @@ const CategoryPerformance = ({ handleApiError }) => {
                 </tr>
               </thead>
               <tbody>
-                {categoryData.map((category, index) => (
+                {processedData.map((category, index) => (
                   <React.Fragment key={category.category_id || index}>
                     <tr className="table-light">
                       <td className="fw-bold">{category.category_name}</td>
@@ -164,15 +188,15 @@ const CategoryPerformance = ({ handleApiError }) => {
         )}
       </div>
       
-      {categoryData && categoryData.length > 0 && (
+      {processedData && processedData.length > 0 && (
         <div className="card-footer bg-light">
           <div className="d-flex justify-content-between align-items-center">
             <div>
-              <span className="fw-bold">{categoryData.length}</span> categories
+              <span className="fw-bold">{processedData.length}</span> categories
             </div>
             <div>
               <span className="fw-bold">
-                {categoryData.reduce((total, category) => total + category.total_orders, 0)}
+                {processedData.reduce((total, category) => total + category.total_orders, 0)}
               </span> total orders
             </div>
           </div>

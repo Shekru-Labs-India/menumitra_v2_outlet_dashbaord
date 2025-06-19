@@ -254,7 +254,9 @@ export const CacheDataProvider = ({ children }) => {
     const throttleTime = 3000; // 3 seconds
     
     // Skip if this isn't a force refresh and we've fetched recently
-    if (!forceRefresh && timeSinceLastFetch < throttleTime) {
+    // For page refresh case, check if cache is empty to force a fetch
+    const hasCache = cache[API_PATHS.getAllStatsWithoutFilter];
+    if (!forceRefresh && timeSinceLastFetch < throttleTime && hasCache) {
       // Return cached data immediately without logging to avoid console spam
       return cache[API_PATHS.getAllStatsWithoutFilter] || null;
     }
@@ -266,7 +268,8 @@ export const CacheDataProvider = ({ children }) => {
     }
     
     // Handle initial page load request synchronization
-    if (!initialLoadCompletedRef.current && !forceRefresh) {
+    // If this is a page refresh or we don't have cache data, we should always fetch
+    if (!initialLoadCompletedRef.current || !hasCache || forceRefresh) {
       // If this is our first request, start the process
       if (!isInitialRequestInProgress) {
         console.log('🔄 Initial stats load starting - first request');

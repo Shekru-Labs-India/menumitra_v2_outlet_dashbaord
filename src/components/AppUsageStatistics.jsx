@@ -5,7 +5,7 @@ import { useCacheData } from '../context/CacheDataContext';
 import { useGlobalDateFilter } from './Header';
 import { withErrorHandling } from './withErrorHandling';
 
-const AppUsageStatistics = ({ handleApiError }) => {
+const AppUsageStatistics = ({ handleApiError, onVisibilityChange }) => {
   const [usageData, setUsageData] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -26,6 +26,11 @@ const AppUsageStatistics = ({ handleApiError }) => {
     } else {
       // If there's no cached data, we'll rely on the centralized data fetching
       // from CacheDataContext's built-in mechanism
+    }
+
+    // Always show the component
+    if (onVisibilityChange) {
+      onVisibilityChange(true);
     }
   }, []);
   
@@ -68,7 +73,11 @@ const AppUsageStatistics = ({ handleApiError }) => {
   // Transform data for charts
   const chartData = useMemo(() => {
     if (!usageData || Object.keys(usageData).length === 0) {
-      return { labels: [], series: [] };
+      // Return empty default data when no data is available
+      return { 
+        labels: ['No Data'], 
+        series: [1] 
+      };
     }
     
     // Format app names to be more readable
@@ -89,25 +98,14 @@ const AppUsageStatistics = ({ handleApiError }) => {
       }
     };
     
-    // Filter out entries with zero usage
-    const filteredData = Object.entries(usageData)
-      .filter(([_, value]) => value > 0);
+    // Include all entries, even with zero values
+    const filteredData = Object.entries(usageData);
     
     const labels = filteredData.map(([key]) => formatAppName(key));
-    const series = filteredData.map(([_, value]) => value);
+    const series = filteredData.map(([_, value]) => value || 0);
     
     return { labels, series };
   }, [usageData]);
-  
-  // Check if data is meaningful before rendering
-  const hasData = usageData && 
-                Object.keys(usageData).length > 0 && 
-                Object.values(usageData).some(value => value > 0);
-  
-  // Return null if there's no meaningful data or it's not done loading
-  if (!hasData && !loading) {
-    return null;
-  }
   
   // Return null if there's a 403 error (permission denied)
   if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {
@@ -205,7 +203,6 @@ const AppUsageStatistics = ({ handleApiError }) => {
                 </thead>
                 <tbody>
                   {Object.entries(usageData)
-                    .filter(([_, value]) => value > 0)
                     .sort(([_, a], [__, b]) => b - a)
                     .map(([key, value], index) => (
                       <tr key={index}>
