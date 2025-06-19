@@ -75,8 +75,11 @@ const AppUsageStatistics = ({ handleApiError, onVisibilityChange }) => {
     if (!usageData || Object.keys(usageData).length === 0) {
       // Return empty default data when no data is available
       return { 
-        labels: ['No Data'], 
-        series: [1] 
+        categories: ['No Data'], 
+        series: [{
+          name: 'Usage',
+          data: [0]
+        }]
       };
     }
     
@@ -98,13 +101,20 @@ const AppUsageStatistics = ({ handleApiError, onVisibilityChange }) => {
       }
     };
     
-    // Include all entries, even with zero values
-    const filteredData = Object.entries(usageData);
+    // Sort data by usage count (descending)
+    const sortedData = Object.entries(usageData)
+      .sort(([_, a], [__, b]) => b - a);
     
-    const labels = filteredData.map(([key]) => formatAppName(key));
-    const series = filteredData.map(([_, value]) => value || 0);
+    const categories = sortedData.map(([key]) => formatAppName(key));
+    const data = sortedData.map(([_, value]) => value || 0);
     
-    return { labels, series };
+    return { 
+      categories, 
+      series: [{
+        name: 'Usage Count',
+        data: data
+      }]
+    };
   }, [usageData]);
   
   // Return null if there's a 403 error (permission denied)
@@ -112,54 +122,90 @@ const AppUsageStatistics = ({ handleApiError, onVisibilityChange }) => {
     return null;
   }
   
-  // Chart options
+  // Bar chart options
   const chartOptions = {
     chart: {
-      type: 'donut',
+      type: 'bar',
       height: 350,
       toolbar: {
         show: false
       }
     },
-    labels: chartData.labels,
-    legend: {
-      position: 'bottom',
-      horizontalAlign: 'center',
-      fontSize: '14px'
-    },
-    colors: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b'],
     plotOptions: {
-      pie: {
-        donut: {
-          size: '60%',
-          labels: {
-            show: true,
-            total: {
-              show: true,
-              label: 'Total Usage',
-              formatter: function(w) {
-                const total = w.globals.seriesTotals.reduce((a, b) => a + b, 0);
-                return total;
-              }
-            }
-          }
+      bar: {
+        horizontal: false,
+        columnWidth: '55%',
+        borderRadius: 4,
+        dataLabels: {
+          position: 'top'
         }
       }
     },
     dataLabels: {
       enabled: true,
-      formatter: function(val, opts) {
-        return opts.w.globals.seriesTotals[opts.seriesIndex];
+      formatter: function(val) {
+        return val;
+      },
+      offsetY: -20,
+      style: {
+        fontSize: '12px',
+        colors: ['#304758']
       }
+    },
+    stroke: {
+      show: true,
+      width: 2,
+      colors: ['transparent']
+    },
+    xaxis: {
+      categories: chartData.categories,
+      labels: {
+        style: {
+          fontSize: '12px'
+        }
+      }
+    },
+    yaxis: {
+      title: {
+        text: 'Usage Count'
+      },
+      min: 0
+    },
+    fill: {
+      opacity: 1,
+      colors: ['#7367f0']
+    },
+    tooltip: {
+      y: {
+        formatter: function(val) {
+          return val + " uses";
+        }
+      }
+    },
+    colors: ['#7367f0'],
+    legend: {
+      show: false
     },
     responsive: [{
       breakpoint: 480,
       options: {
         chart: {
-          height: 350
+          height: 300
         },
-        legend: {
-          position: 'bottom'
+        plotOptions: {
+          bar: {
+            horizontal: true
+          }
+        },
+        yaxis: {
+          labels: {
+            show: false
+          }
+        },
+        xaxis: {
+          labels: {
+            show: true
+          }
         }
       }
     }]
@@ -183,38 +229,14 @@ const AppUsageStatistics = ({ handleApiError, onVisibilityChange }) => {
             {error}
           </div>
         ) : usageData && Object.keys(usageData).length > 0 ? (
-          <>
-            <div className="chart-container">
-              <ReactApexChart 
-                options={chartOptions}
-                series={chartData.series}
-                type="donut"
-                height={350}
-              />
-            </div>
-            
-            <div className="table-responsive mt-4">
-              <table className="table table-bordered table-hover">
-                <thead className="table-light">
-                  <tr>
-                    <th>App Type</th>
-                    <th className="text-center">Usage Count</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(usageData)
-                    .sort(([_, a], [__, b]) => b - a)
-                    .map(([key, value], index) => (
-                      <tr key={index}>
-                        <td>{key.charAt(0).toUpperCase() + key.slice(1).replace('_', ' ')}</td>
-                        <td className="text-center fw-bold">{value}</td>
-                      </tr>
-                    ))
-                  }
-                </tbody>
-              </table>
-            </div>
-          </>
+          <div className="chart-container">
+            <ReactApexChart 
+              options={chartOptions}
+              series={chartData.series}
+              type="bar"
+              height={350}
+            />
+          </div>
         ) : (
           <div className="alert alert-info" role="alert">
             No app usage data available

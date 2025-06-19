@@ -68,30 +68,28 @@ const OrderType = ({ handleApiError, onVisibilityChange }) => {
       // Convert the object format to our expected array format
       const orderTypesArray = [];
       
-      // Always include all order types even if they're not in the data
+      // Include only order types with values greater than 0
       Object.entries(orderTypeMap).forEach(([key, properties]) => {
-        orderTypesArray.push({
-          name: properties.name,
-          icon: properties.icon,
-          count: data[key] || 0,
-          color: properties.color
-        });
+        const count = data[key] || 0;
+        
+        // Only add order types with count > 0
+        if (count > 0) {
+          orderTypesArray.push({
+            name: properties.name,
+            icon: properties.icon,
+            count: count,
+            color: properties.color
+          });
+        }
       });
       
       setOrderTypes(orderTypesArray);
     } else if (Array.isArray(data)) {
-      // If it's already an array, use it directly
-      setOrderTypes(data);
+      // If it's already an array, filter out items with count of 0
+      setOrderTypes(data.filter(item => item.count > 0));
     } else {
-      // If no valid data, create default array with all order types and 0 counts
-      const defaultOrderTypes = Object.entries(orderTypeMap).map(([key, properties]) => ({
-        name: properties.name,
-        icon: properties.icon,
-        count: 0,
-        color: properties.color
-      }));
-      
-      setOrderTypes(defaultOrderTypes);
+      // If no valid data, create an empty array (no order types with values > 0)
+      setOrderTypes([]);
     }
   };
 
@@ -145,35 +143,41 @@ const OrderType = ({ handleApiError, onVisibilityChange }) => {
       )}
 
       <div className="card-body">
-        <div className="row g-3">
-          {orderTypes.map((order, index) => (
-            <div key={index} className="col-md-4 col-sm-6">
-              <div
-                className={`card border bg-label-${order.color} h-100`}
-                style={{ boxShadow: 'none' }}
-              >
-                <div className="card-body">
-                  <div className="d-flex align-items-center mb-2">
-                    <div
-                      className={`rounded-2 avatar avatar-sm me-2 bg-${order.color} d-flex align-items-center justify-content-center`}
-                      style={{ width: "35px", height: "35px" }}
-                    >
-                      <i
-                        className={`${order.icon} text-white`}
-                        style={{ fontSize: "1rem" }}
-                      ></i>
+        {orderTypes.length === 0 ? (
+          <div className="alert alert-info" role="alert">
+            No order type data available for the selected period
+          </div>
+        ) : (
+          <div className="row g-3">
+            {orderTypes.map((order, index) => (
+              <div key={index} className="col-md-4 col-sm-6">
+                <div
+                  className={`card border bg-label-${order.color} h-100`}
+                  style={{ boxShadow: 'none' }}
+                >
+                  <div className="card-body">
+                    <div className="d-flex align-items-center mb-2">
+                      <div
+                        className={`rounded-2 avatar avatar-sm me-2 bg-${order.color} d-flex align-items-center justify-content-center`}
+                        style={{ width: "35px", height: "35px" }}
+                      >
+                        <i
+                          className={`${order.icon} text-white`}
+                          style={{ fontSize: "1rem" }}
+                        ></i>
+                      </div>
+                      <span className="fw-semibold">{order.name}</span>
                     </div>
-                    <span className="fw-semibold">{order.name}</span>
+                    <div className="d-flex align-items-center mt-3">
+                      <h4 className="mb-0 me-2">{order.count}</h4>
+                    </div>
+                    <small className="text-muted">Total Orders</small>
                   </div>
-                  <div className="d-flex align-items-center mt-3">
-                    <h4 className="mb-0 me-2">{order.count}</h4>
-                  </div>
-                  <small className="text-muted">Total Orders</small>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
