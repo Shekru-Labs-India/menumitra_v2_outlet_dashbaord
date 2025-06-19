@@ -75,12 +75,7 @@ function LoginScreen() {
         if (response.status === 200) {
           console.log('API Response:', response.data);
           
-          // Check if backend returned st:2 (error case)
-          if (response.data.st === 2) {
-            setError(response.data.msg);
-            return;
-          }
-          
+         
           // Check role from response
           const { role } = response.data;
           
@@ -96,7 +91,16 @@ function LoginScreen() {
         }
       } catch (error) {
         console.error('API Error:', error);
-        setError(error.response?.data?.message || 'Failed to send OTP. Please try again.');
+        // Update error handling to properly extract the message from the response
+        if (error.response?.data?.detail) {
+          // Extract message from format like "400: This mobile number is not registered."
+          const errorMessage = error.response.data.detail;
+          setError(errorMessage);
+        } else if (error.response?.data?.message) {
+          setError(error.response.data.message);
+        } else {
+          setError('Failed to send OTP. Please try again.');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -269,7 +273,16 @@ function LoginScreen() {
       }
     } catch (error) {
       console.error('API Error (Resend):', error);
-      setError(error.response?.data?.message || 'Failed to resend OTP. Please try again.');
+      // Update error handling to properly extract the message from the response
+      if (error.response?.data?.detail) {
+        // Extract message from format like "400: This mobile number is not registered."
+        const errorMessage = error.response.data.detail;
+        setError(errorMessage);
+      } else if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else {
+        setError('Failed to resend OTP. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
