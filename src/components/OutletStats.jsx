@@ -162,9 +162,7 @@ const OutletStats = ({ handleApiError, onVisibilityChange }) => {
 
   return (
     <div className="card border" style={{ boxShadow: 'none' }}>
-      <div className="card-header d-flex justify-content-between align-items-center">
-        <h5 className="card-title mb-0">Outlet Performance</h5>
-      </div>
+     
 
       {error && !error.includes('permission') && !error.includes('Permission') && !error.includes('403') && (
         <div className="card-body">

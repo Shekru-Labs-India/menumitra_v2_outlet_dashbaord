@@ -1,16 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import ReactApexChart from 'react-apexcharts';
 import { API_PATHS } from '../config/apiConfig';
-import { useDashboard } from '../context/DashboardContext';
 import { useCacheData } from '../context/CacheDataContext';
 import { withErrorHandling } from './withErrorHandling';
 import { useGlobalDateFilter } from './Header';
 
 const WeeklyOrderStat = ({ handleApiError, onVisibilityChange }) => {
-  // Get data from dashboard context
-  const { weeklyOrderStats_from_context } = useDashboard();
-
-  // Get data from cache context
+  // Get data from cache context only
   const { 
     getCachedData,
     fetchAllStats
@@ -35,17 +31,13 @@ const WeeklyOrderStat = ({ handleApiError, onVisibilityChange }) => {
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
 
-  // Initial data load from cache and context
+  // Initial data load from cache
   useEffect(() => {
     // First check if data is available from the consolidated API cache
     const allStatsData = getCachedData(API_PATHS.getAllStatsWithoutFilter);
     if (allStatsData && allStatsData.weekly_order_stats) {
       processWeeklyData(allStatsData.weekly_order_stats);
-    } 
-    // If no cached data, use context data
-    else if (weeklyOrderStats_from_context) {
-      processWeeklyData(weeklyOrderStats_from_context);
-    } 
+    }
     
     // Fetch fresh data in background
     fetchWeeklyData();
@@ -73,18 +65,35 @@ const WeeklyOrderStat = ({ handleApiError, onVisibilityChange }) => {
     }
     
     try {
-      // Try to format the data for the chart
-      const days = [];
+      // Initialize arrays for chart data
       const dayNames = [];
       const values = [];
-
-      // Check if data is in the expected format
-      if (Array.isArray(data)) {
+      
+      // Check if data is in the new format (with data array, peak_day and low_day)
+      if (data.data && Array.isArray(data.data)) {
+        // Process the new data format
+        data.data.forEach((dayData, index) => {
+          dayNames.push(dayData[0]); // Day name
+          values.push(parseInt(dayData[1])); // Order count
+        });
+        
+        // Process peak and low day information
+        if (data.peak_day && Array.isArray(data.peak_day) && data.peak_day.length >= 2) {
+          setPeakDay(data.peak_day[0] || '');
+          setMaxOrders(parseInt(data.peak_day[1]) || 0);
+        }
+        
+        if (data.low_day && Array.isArray(data.low_day) && data.low_day.length >= 2) {
+          setLowPeakDay(data.low_day[0] || '');
+          setMinOrders(parseInt(data.low_day[1]) || 0);
+        }
+      }
+      // Check if data is in the old format (array of objects with weekday_name, etc.)
+      else if (Array.isArray(data)) {
         // Sort by weekday_index to ensure correct order
         const sortedData = [...data].sort((a, b) => a.weekday_index - b.weekday_index);
         
         sortedData.forEach(day => {
-          days.push(day.weekday_index);
           dayNames.push(day.weekday_name);
           values.push(day.total_orders);
         });
@@ -101,8 +110,9 @@ const WeeklyOrderStat = ({ handleApiError, onVisibilityChange }) => {
         }
       }
 
+      // Update chart data
       setWeekData({
-        days,
+        days: Array.from({ length: dayNames.length }, (_, i) => i),
         dayNames,
         values
       });
@@ -265,7 +275,6 @@ const WeeklyOrderStat = ({ handleApiError, onVisibilityChange }) => {
             </div>
             
             <div className="position-relative">
-            
               <ReactApexChart 
                 options={chartOptions}
                 series={chartSeries}

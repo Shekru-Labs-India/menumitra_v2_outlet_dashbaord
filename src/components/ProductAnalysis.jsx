@@ -143,7 +143,7 @@ const ProductAnalysis = ({ handleApiError, onVisibilityChange }) => {
               borderColor: activeTab === 'top' ? '#8c57ff' : '#dee2e6',
               borderRadius: '4px', 
               padding: '8px 20px',
-              minWidth: '200px',
+              minWidth: '280px',
               textAlign: 'center',
               marginRight: '15px'
             }}
@@ -159,7 +159,7 @@ const ProductAnalysis = ({ handleApiError, onVisibilityChange }) => {
               borderColor: activeTab === 'low' ? '#8c57ff' : '#dee2e6',
               borderRadius: '4px', 
               padding: '8px 20px',
-              minWidth: '200px',
+              minWidth: '280px',
               textAlign: 'center'
             }}
             onClick={() => setActiveTab('low')}

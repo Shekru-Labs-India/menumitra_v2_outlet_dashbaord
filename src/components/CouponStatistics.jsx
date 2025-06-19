@@ -20,15 +20,23 @@ const CouponStatistics = ({ handleApiError, onVisibilityChange }) => {
     const cachedAllStats = getCachedData(API_PATHS.getAllStatsWithoutFilter);
     if (cachedAllStats && cachedAllStats.coupon_statistics) {
       setCouponData(cachedAllStats.coupon_statistics);
+      
+      // Update visibility based on data
+      if (onVisibilityChange) {
+        onVisibilityChange(cachedAllStats.coupon_statistics.length > 0);
+      }
     } else {
       // If there's no cached data, we'll rely on the centralized data fetching
       // from CacheDataContext's built-in mechanism
+      
+      // Initially set not visible
+      if (onVisibilityChange) {
+        onVisibilityChange(false);
+      }
     }
     
-    // Always make this component visible
-    if (onVisibilityChange) {
-      onVisibilityChange(true);
-    }
+    // Fetch fresh data in background
+    fetchCouponData();
   }, []);
   
   // Only fetch when date range changes, not on initial mount
@@ -46,6 +54,11 @@ const CouponStatistics = ({ handleApiError, onVisibilityChange }) => {
       const cachedAllStats = getCachedData(API_PATHS.getAllStatsWithoutFilter);
       if (cachedAllStats && cachedAllStats.coupon_statistics) {
         setCouponData(cachedAllStats.coupon_statistics);
+        
+        // Update visibility based on data
+        if (onVisibilityChange) {
+          onVisibilityChange(cachedAllStats.coupon_statistics.length > 0);
+        }
         return;
       }
       
@@ -57,8 +70,18 @@ const CouponStatistics = ({ handleApiError, onVisibilityChange }) => {
       
       if (allStatsData && allStatsData.coupon_statistics) {
         setCouponData(allStatsData.coupon_statistics);
+        
+        // Update visibility based on data
+        if (onVisibilityChange) {
+          onVisibilityChange(allStatsData.coupon_statistics.length > 0);
+        }
       } else {
         setCouponData([]);
+        
+        // Update visibility based on empty data
+        if (onVisibilityChange) {
+          onVisibilityChange(false);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch coupon statistics data:', error);
@@ -68,11 +91,21 @@ const CouponStatistics = ({ handleApiError, onVisibilityChange }) => {
         // If error was not handled by the HOC (not a 403), set local error state
         setError('Failed to load coupon statistics. Please try again.');
       }
+      
+      // Hide component on error
+      if (onVisibilityChange) {
+        onVisibilityChange(false);
+      }
     }
   };
   
-  // Return null if there's a 403 error (permission denied)
+  // Return null if there's a 403 error (permission denied) or if there's no data
   if (error && (error.includes('permission') || error.includes('Permission') || error.includes('403'))) {
+    return null;
+  }
+  
+  // Return null if there's no coupon data
+  if (!couponData || couponData.length === 0) {
     return null;
   }
   
@@ -97,38 +130,30 @@ const CouponStatistics = ({ handleApiError, onVisibilityChange }) => {
                 </tr>
               </thead>
               <tbody>
-                {couponData && couponData.length > 0 ? (
-                  couponData.map((coupon, index) => (
-                    <tr key={coupon.coupon_id || index}>
-                      <td className="fw-medium">{coupon.coupon_name}</td>
-                      <td className="text-center fw-bold">{coupon.usage_count}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="2" className="text-center">-</td>
+                {couponData.map((coupon, index) => (
+                  <tr key={coupon.coupon_id || index}>
+                    <td className="fw-medium">{coupon.coupon_name}</td>
+                    <td className="text-center fw-bold">{coupon.usage_count}</td>
                   </tr>
-                )}
+                ))}
               </tbody>
             </table>
           </div>
         )}
       </div>
       
-      {couponData && couponData.length > 0 && (
-        <div className="card-footer bg-light">
-          <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <span className="fw-bold">{couponData.length}</span> total coupons
-            </div>
-            <div>
-              <span className="fw-bold">
-                {couponData.reduce((total, coupon) => total + coupon.usage_count, 0)}
-              </span> total uses
-            </div>
+      <div className="card-footer bg-light">
+        <div className="d-flex justify-content-between align-items-center">
+          <div>
+            <span className="fw-bold">{couponData.length}</span> total coupons
+          </div>
+          <div>
+            <span className="fw-bold">
+              {couponData.reduce((total, coupon) => total + coupon.usage_count, 0)}
+            </span> total uses
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
