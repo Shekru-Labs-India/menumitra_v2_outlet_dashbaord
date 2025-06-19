@@ -229,14 +229,14 @@ const AppUsageStatistics = ({ handleApiError, onVisibilityChange }) => {
             {error}
           </div>
         ) : usageData && Object.keys(usageData).length > 0 ? (
-          <div className="chart-container">
-            <ReactApexChart 
-              options={chartOptions}
-              series={chartData.series}
+            <div className="chart-container">
+              <ReactApexChart 
+                options={chartOptions}
+                series={chartData.series}
               type="bar"
-              height={350}
-            />
-          </div>
+                height={350}
+              />
+            </div>
         ) : (
           <div className="alert alert-info" role="alert">
             No app usage data available

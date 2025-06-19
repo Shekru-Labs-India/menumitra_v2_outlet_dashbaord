@@ -61,7 +61,8 @@ const OrderStat = ({ handleApiError, onVisibilityChange }) => {
             success_orders: data.success_orders || 0,
             cancelled_orders: data.cancelled_orders || 0,
             complementary_orders: data.complementary_orders || 0,
-            KOT_orders: data.KOT_orders || 0
+            KOT_orders: data.KOT_orders || 0,
+            udhari_orders: data.udhari_orders || 0
         });
         
         setLoading(false);
@@ -141,6 +142,12 @@ const OrderStat = ({ handleApiError, onVisibilityChange }) => {
         bgColor: "bg-label-dark",
         borderColor: "bg-dark"
       },
+      {
+        title: "Udhari Order",
+        value: orderStats.udhari_orders?.toString() || "0",
+        bgColor: "bg-label-warning",
+        borderColor: "bg-warning"
+      }
     ];
 
     return (
