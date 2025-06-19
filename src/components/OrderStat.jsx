@@ -120,18 +120,26 @@ const OrderStat = ({ handleApiError, onVisibilityChange }) => {
       {
         title: "Success Order",
         value: orderStats.success_orders?.toString() || "0",
+        bgColor: "bg-label-success",
+        borderColor: "bg-success"
       },
       {
         title: "Cancelled Order",
         value: orderStats.cancelled_orders?.toString() || "0",
+        bgColor: "bg-label-danger",
+        borderColor: "bg-danger"
       },
       {
         title: "Complimentary Order",
         value: orderStats.complementary_orders?.toString() || "0",
+        bgColor: "bg-label-primary",
+        borderColor: "bg-primary"
       },
       {
         title: "Kitchen Order token (KOT)",
         value: orderStats.KOT_orders?.toString() || "0",
+        bgColor: "bg-label-dark",
+        borderColor: "bg-dark"
       },
     ];
 
@@ -153,10 +161,10 @@ const OrderStat = ({ handleApiError, onVisibilityChange }) => {
                 <div className="row g-4">
                     {getMetrics().map((metric, index) => (
                         <div key={index} className="col-md-6">
-                            <div className="d-flex flex-column p-3 bg-label-primary rounded border">
+                            <div className={`d-flex flex-column p-3 ${metric.bgColor} rounded border`}>
                                 <div className="text-heading mb-2">{metric.title}</div>
                                 <div className="d-flex align-items-center">
-                                    <div className="bg-primary rounded me-2" style={{ width: '4px', height: '40px' }}></div>
+                                    <div className={`${metric.borderColor} rounded me-2`} style={{ width: '4px', height: '40px' }}></div>
                                     <div>
                                         <h4 className="mb-0 text-heading fw-medium fs-4">{metric.value}</h4>
                                         <small className="text-muted">{metric.subtitle}</small>

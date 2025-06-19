@@ -692,22 +692,34 @@ function Header() {
     
     try {
       // Execute the refresh function
-      refreshFunction(dateFilter, options)
-        .then(result => {
-          if (result) {
-            showToast('Data refreshed successfully!', 'success');
-          }
-        })
-        .catch(err => {
-          console.error('Error during refresh:', err);
-          showToast('Failed to refresh data', 'error');
-        })
-        .finally(() => {
-          // Reset rotation after refresh completes or fails
-          setTimeout(() => {
-            setIsRotating(false);
-          }, 500);
-        });
+      const refreshResult = refreshFunction(dateFilter, options);
+      
+      // Check if the result is a Promise
+      if (refreshResult && typeof refreshResult.then === 'function') {
+        // It's a Promise, handle it properly
+        refreshResult
+          .then(result => {
+            if (result) {
+              showToast('Data refreshed successfully!', 'success');
+            }
+          })
+          .catch(err => {
+            console.error('Error during refresh:', err);
+            showToast('Failed to refresh data', 'error');
+          })
+          .finally(() => {
+            // Reset rotation after refresh completes or fails
+            setTimeout(() => {
+              setIsRotating(false);
+            }, 500);
+          });
+      } else {
+        // Not a Promise, handle synchronously
+        showToast('Data refresh initiated', 'info');
+        setTimeout(() => {
+          setIsRotating(false);
+        }, 500);
+      }
       
       // Update the UI immediately to show refresh is happening
       setStartTime(new Date());

@@ -342,75 +342,75 @@ function Statistics() {
 
                   {/* Charts Section */}
                   {(visibleComponents.paymentMethods || visibleComponents.orderStat) && (
-                    <div className="row g-4 m-0 mx-3 mb-4">
+                  <div className="row g-4 m-0 mx-3 mb-4">
                       {visibleComponents.paymentMethods && (
                         <div className={`col-12 ${visibleComponents.orderStat ? 'col-md-6 col-lg-6 pe-md-2' : ''} p-0`}>
-                          <div className="h-100">
-                            <PaymentMethodsChart onVisibilityChange={visible => updateComponentVisibility('paymentMethods', visible)} />
-                          </div>
-                        </div>
+                      <div className="h-100">
+                        <PaymentMethodsChart onVisibilityChange={visible => updateComponentVisibility('paymentMethods', visible)} />
+                      </div>
+                    </div>
                       )}
                       {visibleComponents.orderStat && (
                         <div className={`col-12 ${visibleComponents.paymentMethods ? 'col-md-6 col-lg-6 ps-md-2' : ''} p-0`}>
-                          <div className="h-100">
-                            <OrderStat onVisibilityChange={visible => updateComponentVisibility('orderStat', visible)} />
-                          </div>
-                        </div>
-                      )}
+                      <div className="h-100">
+                        <OrderStat onVisibilityChange={visible => updateComponentVisibility('orderStat', visible)} />
+                      </div>
                     </div>
+                      )}
+                  </div>
                   )}
 
                   {/* Sales Section */}
                   {(visibleComponents.productAnalysis || visibleComponents.foodTypeGraph) && (
-                    <div className="row g-4 m-0 mx-3 mb-4">
+                  <div className="row g-4 m-0 mx-3 mb-4">
                       {visibleComponents.productAnalysis && (
                         <div className={`col-12 ${visibleComponents.foodTypeGraph ? 'col-md-6 col-lg-6 pe-md-2' : ''} p-0`}>
-                          <div className="h-100">
-                            <ProductAnalysis onVisibilityChange={visible => updateComponentVisibility('productAnalysis', visible)} />
-                          </div>
-                        </div>
+                      <div className="h-100">
+                        <ProductAnalysis onVisibilityChange={visible => updateComponentVisibility('productAnalysis', visible)} />
+                      </div>
+                    </div>
                       )}
                       {visibleComponents.foodTypeGraph && (
                         <div className={`col-12 ${visibleComponents.productAnalysis ? 'col-md-6 col-lg-6 ps-md-2' : ''} p-0`}>
-                          <div className="h-100">
-                            <FoodTypeGraph onVisibilityChange={visible => updateComponentVisibility('foodTypeGraph', visible)} />
-                          </div>
-                        </div>
-                      )}
+                      <div className="h-100">
+                        <FoodTypeGraph onVisibilityChange={visible => updateComponentVisibility('foodTypeGraph', visible)} />
+                      </div>
                     </div>
+                      )}
+                  </div>
                   )}
 
                   {/* Analytics Section */}
                   {(visibleComponents.orderType || visibleComponents.weeklyOrderStat) && (
-                    <div className="row g-4 m-0 mx-3 mb-4">
+                  <div className="row g-4 m-0 mx-3 mb-4">
                       {visibleComponents.orderType && (
                         <div className={`col-12 ${visibleComponents.weeklyOrderStat ? 'col-md-6 col-lg-6 pe-md-2' : ''} p-0`}>
-                          <div className="h-100">
-                            <OrderType onVisibilityChange={visible => updateComponentVisibility('orderType', visible)} />
-                          </div>
-                        </div>
+                      <div className="h-100">
+                        <OrderType onVisibilityChange={visible => updateComponentVisibility('orderType', visible)} />
+                      </div>
+                    </div>
                       )}
                       {visibleComponents.weeklyOrderStat && (
                         <div className={`col-12 ${visibleComponents.orderType ? 'col-md-6 col-lg-6 ps-md-2' : ''} p-0`}>
-                          <div className="h-100">
-                            <WeeklyOrderStat onVisibilityChange={visible => updateComponentVisibility('weeklyOrderStat', visible)} />
-                          </div>
-                        </div>
-                      )}
+                      <div className="h-100">
+                        <WeeklyOrderStat onVisibilityChange={visible => updateComponentVisibility('weeklyOrderStat', visible)} />
+                      </div>
                     </div>
+                      )}
+                  </div>
                   )}
                   
                   {/* Category and Coupon Statistics Section */}
                   {(visibleComponents.categoryPerformance || visibleComponents.couponStatistics) && (
-                    <div className="row g-4 m-0 mx-3 mb-4">
+                  <div className="row g-4 m-0 mx-3 mb-4">
                       {visibleComponents.categoryPerformance && (
                         <div className={`col-12 ${visibleComponents.couponStatistics ? 'col-md-7 pe-md-2' : ''} p-0`}>
-                          <CategoryPerformance onVisibilityChange={visible => updateComponentVisibility('categoryPerformance', visible)} />
-                        </div>
+                      <CategoryPerformance onVisibilityChange={visible => updateComponentVisibility('categoryPerformance', visible)} />
+                    </div>
                       )}
                       {visibleComponents.couponStatistics && (
                         <div className={`col-12 ${visibleComponents.categoryPerformance ? 'col-md-5 ps-md-2' : ''} p-0`}>
-                          <CouponStatistics onVisibilityChange={visible => updateComponentVisibility('couponStatistics', visible)} />
+                      <CouponStatistics onVisibilityChange={visible => updateComponentVisibility('couponStatistics', visible)} />
                         </div>
                       )}
                     </div>
@@ -418,15 +418,15 @@ function Statistics() {
                   
                   {/* Menu Combos and App Usage Section */}
                   {(visibleComponents.menuCombos || visibleComponents.appUsageStatistics) && (
-                    <div className="row g-4 m-0 mx-3 mb-4">
+                  <div className="row g-4 m-0 mx-3 mb-4">
                       {visibleComponents.menuCombos && (
                         <div className={`col-12 ${visibleComponents.appUsageStatistics ? 'col-md-6 pe-md-2' : ''} p-0`}>
-                          <MenuCombos onVisibilityChange={visible => updateComponentVisibility('menuCombos', visible)} />
-                        </div>
+                      <MenuCombos onVisibilityChange={visible => updateComponentVisibility('menuCombos', visible)} />
+                    </div>
                       )}
                       {visibleComponents.appUsageStatistics && (
                         <div className={`col-12 ${visibleComponents.menuCombos ? 'col-md-6 ps-md-2' : ''} p-0`}>
-                          <AppUsageStatistics onVisibilityChange={visible => updateComponentVisibility('appUsageStatistics', visible)} />
+                      <AppUsageStatistics onVisibilityChange={visible => updateComponentVisibility('appUsageStatistics', visible)} />
                         </div>
                       )}
                     </div>

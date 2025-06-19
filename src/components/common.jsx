@@ -796,7 +796,7 @@ export const ReportFilters = ({
             className="form-control"
             dateFormat="dd MMM yyyy"
           />
-        </div>
+    </div>
       )}
     </Form>
   );

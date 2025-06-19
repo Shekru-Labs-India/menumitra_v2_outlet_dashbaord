@@ -361,8 +361,8 @@ const CompareOutlets = () => {
             className="btn btn-primary"
             onClick={() => handleOpenSelectModal(selectedOutlets.length)}
           >
-            <i className="fas fa-plus me-2"></i>
-            Select Outlet
+            <i className="fas fa-plus me-2 text-white"></i>
+            <span className="text-white">Select Outlet</span>
           </button>
         </th>
       );
