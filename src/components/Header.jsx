@@ -474,9 +474,17 @@ function Header() {
       // Use the refreshAllComponents function instead of just refreshDashboard
       refreshAllComponents();
       
-      setTimeout(() => {
-        window.location.href = '/dashboard';
-      }, 800);
+      // Get the specific refresh function for the current route and refresh with the new outlet
+      const refreshFunction = getRefreshFunctionForRoute();
+      const dateFilter = getDateFilter();
+      const options = { forceRefresh: true };
+      
+      try {
+        // Execute the refresh function for the current page
+        await refreshFunction(dateFilter, options);
+      } catch (refreshError) {
+        console.error('Error refreshing current page:', refreshError);
+      }
       
     } catch (err) {
       console.error('Error selecting outlet:', err);
