@@ -16,7 +16,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { CSVLink } from 'react-csv';
 import { utils, write } from 'xlsx';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 /**
  * A reusable component to display a message when no data is available
@@ -367,7 +367,8 @@ export const ReportTable = ({
     // Calculate starting position for the table
     const startY = filterInfo ? (30 + (Object.keys(filterInfo).length * 8)) : 30;
     
-    doc.autoTable({
+    // Use autoTable directly as a function
+    autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
       startY: startY,
