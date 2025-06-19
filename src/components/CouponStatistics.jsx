@@ -6,7 +6,6 @@ import { withErrorHandling } from './withErrorHandling';
 
 const CouponStatistics = ({ handleApiError, onVisibilityChange }) => {
   const [couponData, setCouponData] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
   // Get global date filter
@@ -21,7 +20,6 @@ const CouponStatistics = ({ handleApiError, onVisibilityChange }) => {
     const cachedAllStats = getCachedData(API_PATHS.getAllStatsWithoutFilter);
     if (cachedAllStats && cachedAllStats.coupon_statistics) {
       setCouponData(cachedAllStats.coupon_statistics);
-      setLoading(false);
     } else {
       // If there's no cached data, we'll rely on the centralized data fetching
       // from CacheDataContext's built-in mechanism
@@ -42,14 +40,12 @@ const CouponStatistics = ({ handleApiError, onVisibilityChange }) => {
   
   const fetchCouponData = async () => {
     try {
-      setLoading(true);
       setError(null);
       
       // First check if we already have data in the cache
       const cachedAllStats = getCachedData(API_PATHS.getAllStatsWithoutFilter);
       if (cachedAllStats && cachedAllStats.coupon_statistics) {
         setCouponData(cachedAllStats.coupon_statistics);
-        setLoading(false);
         return;
       }
       
@@ -72,8 +68,6 @@ const CouponStatistics = ({ handleApiError, onVisibilityChange }) => {
         // If error was not handled by the HOC (not a 403), set local error state
         setError('Failed to load coupon statistics. Please try again.');
       }
-    } finally {
-      setLoading(false);
     }
   };
   
@@ -89,40 +83,34 @@ const CouponStatistics = ({ handleApiError, onVisibilityChange }) => {
       </div>
       
       <div className="card-body">
-        {loading ? (
-          <div className="d-flex justify-content-center align-items-center p-5">
-            <div className="spinner-border text-primary" role="status">
-              <span className="visually-hidden">Loading...</span>
-            </div>
-          </div>
-        ) : error && !error.includes('permission') ? (
+        {error && !error.includes('permission') ? (
           <div className="alert alert-danger" role="alert">
             {error}
           </div>
-        ) : couponData && couponData.length > 0 ? (
+        ) : (
           <div className="table-responsive">
             <table className="table table-bordered table-hover">
               <thead className="table-light">
                 <tr>
                   <th>Coupon Name</th>
-                  <th>Coupon ID</th>
                   <th className="text-center">Usage Count</th>
                 </tr>
               </thead>
               <tbody>
-                {couponData.map((coupon, index) => (
-                  <tr key={coupon.coupon_id || index}>
-                    <td className="fw-medium">{coupon.coupon_name}</td>
-                    <td>{coupon.coupon_id}</td>
-                    <td className="text-center fw-bold">{coupon.usage_count}</td>
+                {couponData && couponData.length > 0 ? (
+                  couponData.map((coupon, index) => (
+                    <tr key={coupon.coupon_id || index}>
+                      <td className="fw-medium">{coupon.coupon_name}</td>
+                      <td className="text-center fw-bold">{coupon.usage_count}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="2" className="text-center">-</td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
-          </div>
-        ) : (
-          <div className="alert alert-info" role="alert">
-            No coupon usage data available
           </div>
         )}
       </div>

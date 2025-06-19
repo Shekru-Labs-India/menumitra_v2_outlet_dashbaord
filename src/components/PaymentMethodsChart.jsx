@@ -130,7 +130,7 @@ const PaymentMethodsChart = ({ handleApiError, onVisibilityChange }) => {
     { method: 'Card', value: paymentData.card_amount || 0, count: paymentData.card_orders || 0 },
     { method: 'UPI', value: paymentData.upi_amount || 0, count: paymentData.upi_orders || 0 },
     { method: 'Complementary', value: paymentData.complementary_amount || 0, count: paymentData.complementary_orders || 0 },
-    { method: 'Credit (Udhari)', value: paymentData.udhari_amount || 0, count: paymentData.udhari_orders || 0 },
+    { method: 'Udhari', value: paymentData.udhari_amount || 0, count: paymentData.udhari_orders || 0 },
     { method: 'Advance Payment', value: paymentData.advance_payment_amount || 0, count: paymentData.advance_payment_orders || 0 },
   ];
 

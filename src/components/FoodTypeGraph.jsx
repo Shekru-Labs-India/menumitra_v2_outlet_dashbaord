@@ -24,7 +24,6 @@ const FoodTypeGraph = ({ handleApiError, onVisibilityChange }) => {
     const [foodTypeData, setFoodTypeData] = useState([]);
     const [error, setError] = useState('');
     const [showModal, setShowModal] = useState(false); // State for modal
-    const [loading, setLoading] = useState(true);
 
     // Initial data load from cache and context
     useEffect(() => {
@@ -62,7 +61,6 @@ const FoodTypeGraph = ({ handleApiError, onVisibilityChange }) => {
       }));
       
       setFoodTypeData(defaultData);
-      setLoading(false);
     };
 
     const processFoodTypeData = (data) => {
@@ -83,7 +81,6 @@ const FoodTypeGraph = ({ handleApiError, onVisibilityChange }) => {
             });
             
             setFoodTypeData(formattedData);
-            setLoading(false);
         } catch (error) {
             console.error('Error processing food type data:', error);
             setDefaultFoodTypeData();
@@ -93,7 +90,6 @@ const FoodTypeGraph = ({ handleApiError, onVisibilityChange }) => {
     // Fetch food type stats data using only the consolidated API
     const fetchFoodTypeStats = async () => {
         try {
-            setLoading(true);
             setError('');
             
             // Get date filter from global context
@@ -280,39 +276,14 @@ const FoodTypeGraph = ({ handleApiError, onVisibilityChange }) => {
             
             <div className="card-body">
                 <div className="position-relative">
-                    <button
-                        type="button"
-                        className="btn btn-icon btn-sm btn-outline-primary position-absolute"
-                        style={{ 
-                            top: '-5px', 
-                            right: '55px',
-                            zIndex: 1
-                        }}
-                        onClick={() => setShowModal(true)}
-                        title="Expand Graph"
-                        disabled={allZeros}
-                    >
-                        <i className="fas fa-expand"></i>
-                    </button>
+                   
                     
-                    {loading ? (
-                        <div className="d-flex justify-content-center align-items-center p-5">
-                            <div className="spinner-border text-primary" role="status">
-                                <span className="visually-hidden">Loading...</span>
-                            </div>
-                        </div>
-                    ) : allZeros ? (
-                        <div className="alert alert-info text-center" role="alert">
-                            No food type data available for the selected period.
-                        </div>
-                    ) : (
-                        <Chart
-                            options={chartOptions}
-                            series={chartSeries}
-                            type="bar"
-                            height={400}
-                        />
-                    )}
+                    <Chart
+                        options={chartOptions}
+                        series={chartSeries}
+                        type="bar"
+                        height={400}
+                    />
                 </div>
             </div>
 

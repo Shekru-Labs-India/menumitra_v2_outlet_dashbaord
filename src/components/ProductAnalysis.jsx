@@ -21,9 +21,9 @@ const ProductAnalysis = ({ handleApiError, onVisibilityChange }) => {
   const { dateRange, getDateFilter } = useGlobalDateFilter();
 
   const [topProducts, setTopProducts] = useState([]);
+  const [lowProducts, setLowProducts] = useState([]);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('quantity');
-  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('top');
 
   // Initial data load from cache and context
   useEffect(() => {
@@ -56,42 +56,43 @@ const ProductAnalysis = ({ handleApiError, onVisibilityChange }) => {
     // Check for sales_performance with top_selling and low_selling
     if (data && data.top_selling && Array.isArray(data.top_selling)) {
       // Format the data to include quantity and revenue fields
-      const formattedProducts = data.top_selling.map(item => ({
+      const formattedTopProducts = data.top_selling.map(item => ({
         product_id: item.item_id,
         product_name: item.name,
         quantity: item.sales_count || 0,
         revenue: item.total_revenue || 0
       }));
       
-      setTopProducts(formattedProducts);
+      setTopProducts(formattedTopProducts);
+      
+      // Process low selling products if available
+      if (data.low_selling && Array.isArray(data.low_selling)) {
+        const formattedLowProducts = data.low_selling.map(item => ({
+          product_id: item.item_id,
+          product_name: item.name,
+          quantity: item.sales_count || 0,
+          revenue: item.total_revenue || 0
+        }));
+        
+        setLowProducts(formattedLowProducts);
+      }
     } 
     // Check for direct array format
     else if (data && Array.isArray(data)) {
+      // For direct array format, we'll assume they're all top selling
       setTopProducts(data);
+      setLowProducts([]);
     } 
-    // Default to empty array
+    // Default to empty arrays
     else {
       setTopProducts([]);
+      setLowProducts([]);
     }
-    
-    setLoading(false);
-  };
-
-  // Helper function to format price in Indian currency format
-  const formatIndianCurrency = (amount) => {
-    const num = parseFloat(amount);
-    if (isNaN(num)) return '₹0';
-    return num.toLocaleString('en-IN', { 
-      style: 'currency', 
-      currency: 'INR',
-      maximumFractionDigits: 0
-    });
   };
 
   // Fetch product data using the consolidated API
   const fetchProductData = async () => {
     try {
-      setLoading(true);
       setError('');
       
       // Get date filter from global context
@@ -106,7 +107,7 @@ const ProductAnalysis = ({ handleApiError, onVisibilityChange }) => {
         processProductData(allStatsData.sales_performance);
       } else {
         setTopProducts([]);
-        setLoading(false);
+        setLowProducts([]);
       }
     } catch (error) {
       console.error('Failed to fetch product data:', error);
@@ -116,26 +117,7 @@ const ProductAnalysis = ({ handleApiError, onVisibilityChange }) => {
         // If error was not handled by the HOC (not a 403), set local error state
         setError('Failed to load product data. Please try again.');
       }
-      setLoading(false);
     }
-  };
-
-  // Sort products based on active tab
-  const getSortedProducts = () => {
-    if (!topProducts || !Array.isArray(topProducts)) return [];
-
-    // Clone the array to avoid mutating the original
-    const sortedProducts = [...topProducts];
-
-    // Sort based on the active tab
-    if (activeTab === 'quantity') {
-      sortedProducts.sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
-    } else {
-      sortedProducts.sort((a, b) => (b.revenue || 0) - (a.revenue || 0));
-    }
-
-    // Take only the top 10 items
-    return sortedProducts.slice(0, 10);
   };
 
   // Return null if there's a 403 error (permission denied)
@@ -143,28 +125,48 @@ const ProductAnalysis = ({ handleApiError, onVisibilityChange }) => {
     return null;
   }
 
+  // Get products based on active tab
+  const getProductsToDisplay = () => {
+    return activeTab === 'top' ? topProducts : lowProducts;
+  };
+
   return (
     <div className="card border" style={{ boxShadow: 'none' }}>
-      <div className="card-header d-flex justify-content-between align-items-center">
-        <h5 className="card-title mb-0">Product Sales Analysis</h5>
-        <ul className="nav nav-tabs card-header-tabs" style={{ marginBottom: '-0.575rem' }}>
-          <li className="nav-item">
-            <button
-              className={`nav-link ${activeTab === 'quantity' ? 'active' : ''}`}
-              onClick={() => setActiveTab('quantity')}
-            >
-              By Quantity
-            </button>
-          </li>
-          <li className="nav-item">
-            <button
-              className={`nav-link ${activeTab === 'revenue' ? 'active' : ''}`}
-              onClick={() => setActiveTab('revenue')}
-            >
-              By Revenue
-            </button>
-          </li>
-        </ul>
+      <div className="card-header">
+        <h5 className="card-title mb-3">Products Analysis</h5>
+        <div className="d-flex">
+          <button
+            className={`btn ${activeTab === 'top' ? 'btn-primary' : 'btn-outline-secondary'}`}
+            style={{ 
+              backgroundColor: activeTab === 'top' ? '#8c57ff' : 'white',
+              color: activeTab === 'top' ? 'white' : '#6c757d',
+              borderColor: activeTab === 'top' ? '#8c57ff' : '#dee2e6',
+              borderRadius: '4px', 
+              padding: '8px 20px',
+              minWidth: '200px',
+              textAlign: 'center',
+              marginRight: '15px'
+            }}
+            onClick={() => setActiveTab('top')}
+          >
+            Top Selling
+          </button>
+          <button
+            className={`btn ${activeTab === 'low' ? 'btn-primary' : 'btn-outline-secondary'}`}
+            style={{ 
+              backgroundColor: activeTab === 'low' ? '#8c57ff' : 'white',
+              color: activeTab === 'low' ? 'white' : '#6c757d',
+              borderColor: activeTab === 'low' ? '#8c57ff' : '#dee2e6',
+              borderRadius: '4px', 
+              padding: '8px 20px',
+              minWidth: '200px',
+              textAlign: 'center'
+            }}
+            onClick={() => setActiveTab('low')}
+          >
+            Low Selling
+          </button>
+        </div>
       </div>
 
       {error && !error.includes('permission') && !error.includes('Permission') && !error.includes('403') && (
@@ -175,47 +177,33 @@ const ProductAnalysis = ({ handleApiError, onVisibilityChange }) => {
         </div>
       )}
 
-      <div className="card-body">
-        {loading ? (
-          <div className="d-flex justify-content-center align-items-center p-5">
-            <div className="spinner-border text-primary" role="status">
-              <span className="visually-hidden">Loading...</span>
-            </div>
-          </div>
-        ) : topProducts.length > 0 ? (
-          <div className="table-responsive">
-            <table className="table table-hover">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Product Name</th>
-                  {activeTab === 'quantity' ? (
-                    <th className="text-end">Quantity</th>
-                  ) : (
-                    <th className="text-end">Revenue</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {getSortedProducts().map((product, index) => (
+      <div className="card-body p-0">
+        <div className="table-responsive">
+          <table className="table table-hover mb-0">
+            <thead className="bg-light">
+              <tr>
+                <th>#</th>
+                <th>MENU NAME</th>
+                <th className="text-end">SALES COUNT</th>
+              </tr>
+            </thead>
+            <tbody>
+              {getProductsToDisplay().length > 0 ? (
+                getProductsToDisplay().map((product, index) => (
                   <tr key={`${product.product_name || 'product'}-${index}`}>
                     <td>{index + 1}</td>
                     <td>{product.product_name}</td>
-                    {activeTab === 'quantity' ? (
-                      <td className="text-end fw-bold">{product.quantity || 0}</td>
-                    ) : (
-                      <td className="text-end fw-bold">{formatIndianCurrency(product.revenue || 0)}</td>
-                    )}
+                    <td className="text-end fw-bold">{product.quantity || 0}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="alert alert-info text-center" role="alert">
-            No product sales data available for the selected period.
-          </div>
-        )}
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="3" className="text-center">-</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

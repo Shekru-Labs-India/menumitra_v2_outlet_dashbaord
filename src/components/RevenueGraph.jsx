@@ -213,18 +213,12 @@ const RevenueGraph = ({ handleApiError }) => {
       )}
 
       <div className="card-body">
-        {revenueData.length > 0 ? (
-          <ReactApexChart 
-            options={chartOptions} 
-            series={chartSeries} 
-            type="area" 
-            height={350}
-          />
-        ) : (
-          <div className="text-center py-5">
-            <p>No revenue data available for the selected time period.</p>
-          </div>
-        )}
+        <ReactApexChart 
+          options={chartOptions} 
+          series={chartSeries} 
+          type="area" 
+          height={350}
+        />
       </div>
     </div>
   );

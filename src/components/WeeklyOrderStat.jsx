@@ -41,11 +41,11 @@ const WeeklyOrderStat = ({ handleApiError, onVisibilityChange }) => {
     const allStatsData = getCachedData(API_PATHS.getAllStatsWithoutFilter);
     if (allStatsData && allStatsData.weekly_order_stats) {
       processWeeklyData(allStatsData.weekly_order_stats);
-    }
+    } 
     // If no cached data, use context data
     else if (weeklyOrderStats_from_context) {
       processWeeklyData(weeklyOrderStats_from_context);
-    }
+    } 
     
     // Fetch fresh data in background
     fetchWeeklyData();
@@ -71,7 +71,7 @@ const WeeklyOrderStat = ({ handleApiError, onVisibilityChange }) => {
       });
       return;
     }
-
+    
     try {
       // Try to format the data for the chart
       const days = [];
@@ -237,54 +237,42 @@ const WeeklyOrderStat = ({ handleApiError, onVisibilityChange }) => {
       )}
 
       <div className="card-body">
-        <div className="d-flex justify-content-between mb-3">
-          <div className="d-flex gap-6">
-            <div className="d-flex align-items-center">
-              <div className="me-3">
-                <span className="badge bg-danger p-2">
-                  <i className="fas fa-arrow-up"></i>
-                </span>
-              </div>
-              <div>
-                <p className="mb-0">Peak Day</p>
-                <h6 className="mb-0">{peakDay || 'N/A'} - {maxOrders || 0} orders</h6>
+            <div className="d-flex justify-content-between mb-3">
+              <div className="d-flex gap-6">
+                <div className="d-flex align-items-center">
+                  <div className="me-3">
+                    <span className="badge bg-danger p-2">
+                      <i className="fas fa-arrow-up"></i>
+                    </span>
+                  </div>
+                  <div>
+                    <p className="mb-0">Peak Day</p>
+                    <h6 className="mb-0">{peakDay || 'N/A'} - {maxOrders || 0} orders</h6>
+                  </div>
+                </div>
+                <div className="d-flex align-items-center ms-4">
+                  <div className="me-3">
+                    <span className="badge bg-success p-2">
+                      <i className="fas fa-arrow-down"></i>
+                    </span>
+                  </div>
+                  <div>
+                    <p className="mb-0">Low Peak Day</p>
+                    <h6 className="mb-0">{lowPeakDay || 'N/A'} - {minOrders || 0} orders</h6>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="d-flex align-items-center ms-4">
-              <div className="me-3">
-                <span className="badge bg-success p-2">
-                  <i className="fas fa-arrow-down"></i>
-                </span>
-              </div>
-              <div>
-                <p className="mb-0">Low Peak Day</p>
-                <h6 className="mb-0">{lowPeakDay || 'N/A'} - {minOrders || 0} orders</h6>
-              </div>
+            
+            <div className="position-relative">
+            
+              <ReactApexChart 
+                options={chartOptions}
+                series={chartSeries}
+                type="bar"
+                height={350}
+              />
             </div>
-          </div>
-        </div>
-        
-        <div className="position-relative">
-          <button
-            type="button"
-            className="btn btn-icon btn-sm btn-outline-primary position-absolute"
-            style={{ 
-              top: '0px', 
-              right: '5px',
-              zIndex: 1
-            }}
-            onClick={() => setShowModal(true)}
-            title="Expand Graph"
-          >
-            <i className="fas fa-expand"></i>
-          </button>
-          <ReactApexChart 
-            options={chartOptions}
-            series={chartSeries}
-            type="bar"
-            height={350}
-          />
-        </div>
       </div>
 
       {/* Modal for expanded chart */}

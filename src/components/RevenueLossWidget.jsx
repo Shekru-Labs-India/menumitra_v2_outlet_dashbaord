@@ -184,19 +184,12 @@ const RevenueLossWidget = ({ handleApiError }) => {
       )}
 
       <div className="card-body">
-        {totalRevenueLoss > 0 ? (
-          <ReactApexChart 
-            options={chartOptions} 
-            series={chartSeries} 
-            type="donut" 
-            height={240} 
-          />
-        ) : (
-          <div className="text-center py-5">
-            <h3>₹0</h3>
-            <p>No revenue loss data for the selected period</p>
-          </div>
-        )}
+        <ReactApexChart 
+          options={chartOptions} 
+          series={chartSeries} 
+          type="donut" 
+          height={240} 
+        />
       </div>
     </div>
   );

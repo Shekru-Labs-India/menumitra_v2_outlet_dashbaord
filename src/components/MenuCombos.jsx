@@ -6,7 +6,6 @@ import { withErrorHandling } from './withErrorHandling';
 
 const MenuCombos = ({ handleApiError, onVisibilityChange }) => {
   const [comboData, setComboData] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
   // Get global date filter
@@ -21,7 +20,6 @@ const MenuCombos = ({ handleApiError, onVisibilityChange }) => {
     const cachedAllStats = getCachedData(API_PATHS.getAllStatsWithoutFilter);
     if (cachedAllStats && cachedAllStats.menu_combos) {
       setComboData(cachedAllStats.menu_combos);
-      setLoading(false);
     } else {
       // If there's no cached data, we'll rely on the centralized data fetching
       // from CacheDataContext's built-in mechanism
@@ -42,7 +40,6 @@ const MenuCombos = ({ handleApiError, onVisibilityChange }) => {
   
   const fetchComboData = async () => {
     try {
-      setLoading(true);
       setError(null);
       
       // Get date filter from global context
@@ -64,8 +61,6 @@ const MenuCombos = ({ handleApiError, onVisibilityChange }) => {
         // If error was not handled by the HOC (not a 403), set local error state
         setError('Failed to load menu combination data. Please try again.');
       }
-    } finally {
-      setLoading(false);
     }
   };
   
@@ -75,65 +70,54 @@ const MenuCombos = ({ handleApiError, onVisibilityChange }) => {
   }
   
   return (
-    <div className="card border h-100" style={{ boxShadow: 'none' }}>
+    <div className="card border" style={{ boxShadow: 'none' }}>
       <div className="card-header d-flex justify-content-between align-items-center">
-        <h5 className="card-title mb-0">Popular Menu Combinations</h5>
+        <h5 className="card-title mb-0">Top Combo Orders</h5>
       </div>
       
-      <div className="card-body">
-        {loading ? (
-          <div className="d-flex justify-content-center align-items-center p-5">
-            <div className="spinner-border text-primary" role="status">
-              <span className="visually-hidden">Loading...</span>
-            </div>
-          </div>
-        ) : error && !error.includes('permission') ? (
-          <div className="alert alert-danger" role="alert">
+      <div className="card-body p-0">
+        {error && !error.includes('permission') ? (
+          <div className="alert alert-danger m-3" role="alert">
             {error}
           </div>
-        ) : comboData && comboData.length > 0 ? (
+        ) : (
           <div className="table-responsive">
-            <table className="table table-bordered table-hover">
-              <thead className="table-light">
+            <table className="table table-hover mb-0">
+              <thead className="bg-light">
                 <tr>
-                  <th>Menu Combination</th>
-                  <th className="text-center">Order Count</th>
+                  <th>#</th>
+                  <th>COMBO ITEMS</th>
+                  <th className="text-end">ORDER COUNT</th>
                 </tr>
               </thead>
               <tbody>
-                {comboData.map((combo, index) => (
-                  <tr key={index}>
-                    <td>
-                      <ul className="list-unstyled mb-0">
+                {comboData && comboData.length > 0 ? (
+                  comboData.map((combo, index) => (
+                    <tr key={index}>
+                      <td>{index + 1}</td>
+                      <td>
                         {combo.items && combo.items.map((item, idx) => (
-                          <li key={idx} className={idx !== combo.items.length - 1 ? "mb-1" : ""}>
-                            • {item.name}
-                          </li>
+                          <React.Fragment key={idx}>
+                            {item.name}
+                            {idx !== combo.items.length - 1 && (
+                              <span className="mx-2 text-muted">+</span>
+                            )}
+                          </React.Fragment>
                         ))}
-                      </ul>
-                    </td>
-                    <td className="text-center align-middle fw-bold">
-                      {combo.order_count}
-                    </td>
+                      </td>
+                      <td className="text-end fw-bold">{combo.order_count}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="3" className="text-center">-</td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
-        ) : (
-          <div className="alert alert-info" role="alert">
-            No menu combination data available
-          </div>
         )}
       </div>
-      
-      {comboData && comboData.length > 0 && (
-        <div className="card-footer bg-light">
-          <div className="text-muted">
-            <small>These are the most frequently ordered combinations of menu items</small>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
