@@ -239,6 +239,12 @@
   font-size: 0.85rem;
   transition: transform 0.3s ease;
   color: #6c757d;
+  display: none; /* Hide by default */
+}
+
+.layout-menu.docked .menu-arrow,
+.layout-menu.hovered .menu-arrow {
+  display: block; /* Only show when sidebar is expanded */
 }
 
 .menu-item.open > .menu-link .menu-arrow {
@@ -331,6 +337,25 @@
 /* Menu toggle style for parent items */
 .menu-toggle {
   cursor: pointer;
+}
+
+/* Remove duplicate arrow from menu-toggle */
+.menu-toggle::after {
+  content: none !important;
+  display: none !important;
+}
+
+html:not([dir=rtl]) .menu-toggle::after {
+  content: none !important;
+  display: none !important;
+}
+
+.menu-vertical .menu-item .menu-toggle::after {
+  display: none !important;
+}
+
+.menu:not(.menu-no-animation) .menu-toggle::after {
+  display: none !important;
 }
 
 /* Desktop overrides */

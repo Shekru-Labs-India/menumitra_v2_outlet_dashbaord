@@ -22,6 +22,8 @@ import CategoryPerformance from "../components/CategoryPerformance";
 import CouponStatistics from "../components/CouponStatistics";
 import MenuCombos from "../components/MenuCombos";
 import AppUsageStatistics from "../components/AppUsageStatistics";
+import UdhariStatistics from "../components/UdhariStatistics";
+import AdvancedPaymentStatistics from "../components/AdvancedPaymentStatistics";
 import { NoDataMessage } from '../components/common.jsx';
 
 function Statistics() {
@@ -69,7 +71,9 @@ function Statistics() {
     categoryPerformance: true,
     couponStatistics: true,
     menuCombos: true,
-    appUsageStatistics: true
+    appUsageStatistics: true,
+    udhariStatistics: true,
+    advancedPaymentStatistics: true
   });
   
   // Function to update component visibility with better logging
@@ -266,6 +270,58 @@ function Statistics() {
   // Get error from cache
   const error = getError(API_PATHS.analyticsReports);
 
+  // Determine component pairings based on visibility
+  const renderCategoryAndPairedComponent = () => {
+    if (!visibleComponents.categoryPerformance) {
+      return null;
+    }
+
+    // If coupon statistics is visible, pair with it (original pairing)
+    if (visibleComponents.couponStatistics) {
+      return (
+        <div className="row g-4 m-0 mx-3 mb-4">
+          <div className="col-12 col-md-7 pe-md-2 p-0">
+            <CategoryPerformance onVisibilityChange={visible => updateComponentVisibility('categoryPerformance', visible)} />
+          </div>
+          <div className="col-12 col-md-5 ps-md-2 p-0">
+            <CouponStatistics onVisibilityChange={visible => updateComponentVisibility('couponStatistics', visible)} />
+          </div>
+        </div>
+      );
+    } 
+    // If menu combos is visible, pair with it
+    else if (visibleComponents.menuCombos) {
+      return (
+        <div className="row g-4 m-0 mx-3 mb-4">
+          <div className="col-12 col-md-7 pe-md-2 p-0">
+            <CategoryPerformance onVisibilityChange={visible => updateComponentVisibility('categoryPerformance', visible)} />
+          </div>
+          <div className="col-12 col-md-5 ps-md-2 p-0">
+            <MenuCombos onVisibilityChange={visible => updateComponentVisibility('menuCombos', visible)} />
+          </div>
+        </div>
+      );
+    }
+    // Otherwise show category performance at 70% width
+    else {
+      return (
+        <div className="row g-4 m-0 mx-3 mb-4">
+          <div className="col-12 col-md-8 mx-auto p-0">
+            <CategoryPerformance onVisibilityChange={visible => updateComponentVisibility('categoryPerformance', visible)} />
+          </div>
+        </div>
+      );
+    }
+  };
+
+  // Determine if we should show the menu combos and app usage section
+  const shouldShowMenuCombosAndAppUsage = () => {
+    // Only show this section if:
+    // 1. Menu combos is visible AND not already paired with category performance
+    // 2. OR app usage statistics is visible
+    return (visibleComponents.menuCombos && visibleComponents.couponStatistics) || visibleComponents.appUsageStatistics;
+  };
+
   return (
     <div className="layout-wrapper layout-content-navbar">
       <div className="layout-container">
@@ -332,14 +388,6 @@ function Statistics() {
                     </div>
                   </div>
 
-                  {/* Outlet Stats Section */}
-                  {/* <div className="row m-0 mx-3">
-                    <div className="col-12 p-0">
-                     
-                      <OutletStats onVisibilityChange={visible => updateComponentVisibility('outletStats', visible)} />
-                    </div>
-                  </div> */}
-
                   {/* Charts Section */}
                   {(visibleComponents.paymentMethods || visibleComponents.orderStat) && (
                   <div className="row g-4 m-0 mx-3 mb-4">
@@ -400,36 +448,43 @@ function Statistics() {
                   </div>
                   )}
                   
-                  {/* Category and Coupon Statistics Section */}
-                  {(visibleComponents.categoryPerformance || visibleComponents.couponStatistics) && (
-                  <div className="row g-4 m-0 mx-3 mb-4">
-                      {visibleComponents.categoryPerformance && (
-                        <div className={`col-12 ${visibleComponents.couponStatistics ? 'col-md-7 pe-md-2' : ''} p-0`}>
-                      <CategoryPerformance onVisibilityChange={visible => updateComponentVisibility('categoryPerformance', visible)} />
-                    </div>
-                      )}
-                      {visibleComponents.couponStatistics && (
-                        <div className={`col-12 ${visibleComponents.categoryPerformance ? 'col-md-5 ps-md-2' : ''} p-0`}>
-                      <CouponStatistics onVisibilityChange={visible => updateComponentVisibility('couponStatistics', visible)} />
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* Category Performance with dynamic pairing */}
+                  {renderCategoryAndPairedComponent()}
                   
-                  {/* Menu Combos and App Usage Section */}
-                  {(visibleComponents.menuCombos || visibleComponents.appUsageStatistics) && (
+                  {/* Menu Combos and App Usage Section - only shown if menu combos isn't paired with category */}
+                  {shouldShowMenuCombosAndAppUsage() && (
                   <div className="row g-4 m-0 mx-3 mb-4">
-                      {visibleComponents.menuCombos && (
+                      {visibleComponents.menuCombos && visibleComponents.couponStatistics && (
                         <div className={`col-12 ${visibleComponents.appUsageStatistics ? 'col-md-6 pe-md-2' : ''} p-0`}>
                       <MenuCombos onVisibilityChange={visible => updateComponentVisibility('menuCombos', visible)} />
                     </div>
                       )}
                       {visibleComponents.appUsageStatistics && (
-                        <div className={`col-12 ${visibleComponents.menuCombos ? 'col-md-6 ps-md-2' : ''} p-0`}>
+                        <div className={`col-12 ${(visibleComponents.menuCombos && visibleComponents.couponStatistics) ? 'col-md-6 ps-md-2' : ''} p-0`}>
                       <AppUsageStatistics onVisibilityChange={visible => updateComponentVisibility('appUsageStatistics', visible)} />
                         </div>
                       )}
                     </div>
+                  )}
+
+                  {/* Udhari and Advanced Payment Statistics Section */}
+                  {(visibleComponents.udhariStatistics || visibleComponents.advancedPaymentStatistics) && (
+                  <div className="row g-4 m-0 mx-3 mb-4">
+                      {visibleComponents.udhariStatistics && (
+                        <div className={`col-12 ${visibleComponents.advancedPaymentStatistics ? 'col-md-6 pe-md-2' : ''} p-0`}>
+                      <div className="h-100">
+                        <UdhariStatistics onVisibilityChange={visible => updateComponentVisibility('udhariStatistics', visible)} />
+                      </div>
+                    </div>
+                      )}
+                      {visibleComponents.advancedPaymentStatistics && (
+                        <div className={`col-12 ${visibleComponents.udhariStatistics ? 'col-md-6 ps-md-2' : ''} p-0`}>
+                      <div className="h-100">
+                        <AdvancedPaymentStatistics onVisibilityChange={visible => updateComponentVisibility('advancedPaymentStatistics', visible)} />
+                      </div>
+                    </div>
+                      )}
+                  </div>
                   )}
 
                   {/* No Data Message */}
