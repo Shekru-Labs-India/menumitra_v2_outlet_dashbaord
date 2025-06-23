@@ -40,8 +40,8 @@ const UdhariStatistics = ({ handleApiError, onVisibilityChange }) => {
   useEffect(() => {
     // First check if data is available from the consolidated API cache
     const allStatsData = getCachedData(API_PATHS.getAllStatsWithoutFilter);
-    if (allStatsData && allStatsData.udhari_statistics) {
-      processUdhariData(allStatsData.udhari_statistics);
+    if (allStatsData && (allStatsData.udhari_statistics || allStatsData.udhari_card)) {
+      processUdhariData(allStatsData.udhari_statistics || allStatsData.udhari_card);
     }
     
     // Fetch fresh data in background
@@ -56,23 +56,27 @@ const UdhariStatistics = ({ handleApiError, onVisibilityChange }) => {
   // Process udhari data
   const processUdhariData = (data) => {
     if (data) {
-      setUdhariData({
-        udhari_pending_count: data.udhari_pending_count || 0,
-        udhari_pending_amount: data.udhari_pending_amount || 0,
-        udhari_paid_count: data.udhari_paid_count || 0,
-        udhari_paid_amount: data.udhari_paid_amount || 0
-      });
+      // Handle new data format (udhari_card) if it exists
+      if (data.udhari_pending && data.udhari_paid) {
+        setUdhariData({
+          udhari_pending_count: data.udhari_pending.count || 0,
+          udhari_pending_amount: data.udhari_pending.amount || 0,
+          udhari_paid_count: data.udhari_paid.count || 0,
+          udhari_paid_amount: data.udhari_paid.amount || 0
+        });
+      } 
+      // Handle old data format for backward compatibility
+     
     }
     
     setLoading(false);
     
     // Check if component should be visible (has non-zero data)
-    const hasData = data && (
-      data.udhari_pending_count > 0 || 
-      data.udhari_pending_amount > 0 || 
-      data.udhari_paid_count > 0 || 
-      data.udhari_paid_amount > 0
-    );
+    const hasData = 
+      (data.udhari_pending?.count > 0 || data.udhari_pending?.amount > 0 || 
+       data.udhari_paid?.count > 0 || data.udhari_paid?.amount > 0) ||
+      (data.udhari_pending_count > 0 || data.udhari_pending_amount > 0 || 
+       data.udhari_paid_count > 0 || data.udhari_paid_amount > 0);
     
     if (onVisibilityChange) {
       onVisibilityChange(hasData);
@@ -103,8 +107,16 @@ const UdhariStatistics = ({ handleApiError, onVisibilityChange }) => {
         forceRefresh: true
       });
       
-      if (allStatsData && allStatsData.udhari_statistics) {
-        processUdhariData(allStatsData.udhari_statistics);
+      if (allStatsData) {
+        // Check for new data format first, then fall back to old format
+        if (allStatsData.udhari_card) {
+          processUdhariData(allStatsData.udhari_card);
+        } else if (allStatsData.udhari_statistics) {
+          processUdhariData(allStatsData.udhari_statistics);
+        } else {
+          // If no data returned, set empty data
+          processUdhariData({});
+        }
       } else {
         // If no data returned, set empty data
         processUdhariData({});

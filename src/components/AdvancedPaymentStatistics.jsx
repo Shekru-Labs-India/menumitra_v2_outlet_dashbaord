@@ -40,8 +40,8 @@ const AdvancedPaymentStatistics = ({ handleApiError, onVisibilityChange }) => {
   useEffect(() => {
     // First check if data is available from the consolidated API cache
     const allStatsData = getCachedData(API_PATHS.getAllStatsWithoutFilter);
-    if (allStatsData && allStatsData.advance_payment_statistics) {
-      processAdvancedPaymentData(allStatsData.advance_payment_statistics);
+    if (allStatsData && (allStatsData.advance_payment_statistics || allStatsData.advance_payment_card)) {
+      processAdvancedPaymentData(allStatsData.advance_payment_statistics || allStatsData.advance_payment_card);
     }
     
     // Fetch fresh data in background
@@ -56,23 +56,26 @@ const AdvancedPaymentStatistics = ({ handleApiError, onVisibilityChange }) => {
   // Process advanced payment data
   const processAdvancedPaymentData = (data) => {
     if (data) {
-      setAdvancedPaymentData({
-        advance_payment_pending_count: data.advance_payment_pending_count || 0,
-        advance_payment_pending_amount: data.advance_payment_pending_amount || 0,
-        advance_payment_paid_count: data.advance_payment_paid_count || 0,
-        advance_payment_paid_amount: data.advance_payment_paid_amount || 0
-      });
+      // Handle new data format (advance_payment_card) if it exists
+      if (data.partial_payment && data.settled_payment) {
+        setAdvancedPaymentData({
+          advance_payment_pending_count: data.partial_payment.count || 0,
+          advance_payment_pending_amount: data.partial_payment.amount || 0,
+          advance_payment_paid_count: data.settled_payment.count || 0,
+          advance_payment_paid_amount: data.settled_payment.amount || 0
+        });
+      } 
+      
     }
     
     setLoading(false);
     
     // Check if component should be visible (has non-zero data)
-    const hasData = data && (
-      data.advance_payment_pending_count > 0 || 
-      data.advance_payment_pending_amount > 0 || 
-      data.advance_payment_paid_count > 0 || 
-      data.advance_payment_paid_amount > 0
-    );
+    const hasData = 
+      (data.partial_payment?.count > 0 || data.partial_payment?.amount > 0 || 
+       data.settled_payment?.count > 0 || data.settled_payment?.amount > 0) ||
+      (data.advance_payment_pending_count > 0 || data.advance_payment_pending_amount > 0 || 
+       data.advance_payment_paid_count > 0 || data.advance_payment_paid_amount > 0);
     
     if (onVisibilityChange) {
       onVisibilityChange(hasData);
@@ -103,8 +106,16 @@ const AdvancedPaymentStatistics = ({ handleApiError, onVisibilityChange }) => {
         forceRefresh: true
       });
       
-      if (allStatsData && allStatsData.advance_payment_statistics) {
-        processAdvancedPaymentData(allStatsData.advance_payment_statistics);
+      if (allStatsData) {
+        // Check for new data format first, then fall back to old format
+        if (allStatsData.advance_payment_card) {
+          processAdvancedPaymentData(allStatsData.advance_payment_card);
+        } else if (allStatsData.advance_payment_statistics) {
+          processAdvancedPaymentData(allStatsData.advance_payment_statistics);
+        } else {
+          // If no data returned, set empty data
+          processAdvancedPaymentData({});
+        }
       } else {
         // If no data returned, set empty data
         processAdvancedPaymentData({});
@@ -163,7 +174,7 @@ const AdvancedPaymentStatistics = ({ handleApiError, onVisibilityChange }) => {
             {/* Pending Advanced Payment */}
             <div className="col-md-6">
               <div className="d-flex flex-column p-3 bg-light-primary rounded border">
-                <div className="text-heading mb-2">Pending Advanced Payment</div>
+                <div className="text-heading mb-2">Partial Payment</div>
                 <div className="d-flex align-items-center">
                   <div className="border-primary rounded me-2" style={{ width: '4px', height: '40px' }}></div>
                   <div>
@@ -177,7 +188,7 @@ const AdvancedPaymentStatistics = ({ handleApiError, onVisibilityChange }) => {
             {/* Paid Advanced Payment */}
             <div className="col-md-6">
               <div className="d-flex flex-column p-3 bg-light-success rounded border">
-                <div className="text-heading mb-2">Paid Advanced Payment</div>
+                <div className="text-heading mb-2">Settled Payment</div>
                 <div className="d-flex align-items-center">
                   <div className="border-success rounded me-2" style={{ width: '4px', height: '40px' }}></div>
                   <div>
