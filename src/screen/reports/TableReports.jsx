@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { api, API_PATHS } from '../../config/apiConfig';
 import {
-  Form
+  Form,
+  Button,
+  Breadcrumb
 } from 'react-bootstrap';
 import VerticalSidebar from '../../components/VerticalSidebar';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import { ForbiddenAccessMessage, ReportTable, ReportFilters } from '../../components/common';
+import { ForbiddenAccessMessage, ReportTable } from '../../components/common';
 import { useNavigate } from 'react-router-dom';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const TableReports = () => {
   const [loading, setLoading] = useState(false);
@@ -21,7 +25,12 @@ const TableReports = () => {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [loadingSections, setLoadingSections] = useState(false);
   const [dataFetched, setDataFetched] = useState(false);
-  const [filterParams, setFilterParams] = useState(null);
+  
+  // Date range filters
+  const [dateRange, setDateRange] = useState('All Time');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   
   const navigate = useNavigate();
 
@@ -74,84 +83,93 @@ const TableReports = () => {
     }
   };
 
-  const fetchTableReport = async (params) => {
-    try {
-      // If filter type is section but no section is selected, don't fetch
-      if (filterType === 'section' && !selectedSection) {
-        setError('Please select a section');
-        return;
-      }
-      
-      setLoading(true);
-      setError(null);
-      setPermissionDenied(false);
-      setFilterParams(params); // Store the filter params for potential reuse
+  // Handle date range selection
+  const handleDateRangeChange = (range) => {
+    setDateRange(range);
+    setShowDatePicker(range === 'Custom Range');
+  };
 
-      // Set default filter_type if not provided
-      const apiParams = {
-        filter_type: filterType,
-        outlet_id: localStorage.getItem('outlet_id'),
-        user_id: localStorage.getItem('user_id')
-      };
+  const fetchTableReport = () => {
+    const fetchData = async () => {
+      try {
+        // If filter type is section but no section is selected, don't fetch
+        if (filterType === 'section' && !selectedSection) {
+          setError('Please select a section');
+          return;
+        }
+        
+        setLoading(true);
+        setError(null);
+        setPermissionDenied(false);
 
-      if (filterType === 'section' && selectedSection) {
-        apiParams.section_id = parseInt(selectedSection, 10);
-      }
+        // Set default filter_type if not provided
+        const apiParams = {
+          filter_type: filterType,
+          outlet_id: localStorage.getItem('outlet_id'),
+          user_id: localStorage.getItem('user_id')
+        };
 
-      // Add date range parameters if applicable
-      if (params.start_date && params.end_date) {
-        apiParams.start_date = params.start_date.toISOString().split('T')[0];
-        apiParams.end_date = params.end_date.toISOString().split('T')[0];
-      } else if (params.date_range && params.date_range !== 'All Time') {
-        apiParams.date_range = params.date_range;
-      }
+        if (filterType === 'section' && selectedSection) {
+          apiParams.section_id = parseInt(selectedSection, 10);
+        }
 
-      console.log('Fetching table report with params:', apiParams);
-      const response = await api.post(API_PATHS.tableReport, apiParams);
-      
-      // Extract table data from the response
-      let tables = [];
-      let reportSummary = null;
-      
-      if (response.data && response.data.detail) {
-        tables = response.data.detail.tables || [];
-        reportSummary = response.data.detail.table_report || null;
-      }
-      
-      console.log('API response data:', tables);
-      
-      // Add unique id to each record for table component
-      const processedData = tables.map((item, index) => ({
-        ...item,
-        id: item.table_id || `table-${index}`
-      }));
-      
-      setTableData(processedData);
-      setFilteredData(processedData);
-      setTableReport(reportSummary);
-      setDataFetched(true);
-    } catch (err) {
-      console.error('Error fetching table report:', err);
-      
-      if (err.response?.status === 403 || 
-          err.response?.data?.detail?.includes('permission') ||
-          err.response?.data?.detail?.includes('access')) {
-        setPermissionDenied(true);
-        setError(err.response?.data?.detail || 'You don\'t have permission to access table reports management functionality');
-      } else {
-        setError(err.response?.data?.detail || 'Failed to fetch table report data');
-      }
+        // Add date range parameters if applicable
+        if (startDate && endDate && dateRange === 'Custom Range') {
+          apiParams.start_date = startDate.toISOString().split('T')[0];
+          apiParams.end_date = endDate.toISOString().split('T')[0];
+        } else if (dateRange !== 'All Time') {
+          apiParams.date_range = dateRange;
+        }
 
-      if (err.response?.status === 401) {
-        navigate('/login');
+        console.log('Fetching table report with params:', apiParams);
+        const response = await api.post(API_PATHS.tableReport, apiParams);
+        
+        // Extract table data from the response
+        let tables = [];
+        let reportSummary = null;
+        
+        if (response.data && response.data.detail) {
+          tables = response.data.detail.tables || [];
+          reportSummary = response.data.detail.table_report || null;
+        }
+        
+        console.log('API response data:', tables);
+        
+        // Add unique id to each record for table component
+        const processedData = tables.map((item, index) => ({
+          ...item,
+          id: item.table_id || `table-${index}`
+        }));
+        
+        setTableData(processedData);
+        setFilteredData(processedData);
+        setTableReport(reportSummary);
+        setDataFetched(true);
+      } catch (err) {
+        console.error('Error fetching table report:', err);
+        
+        if (err.response?.status === 403 || 
+            err.response?.data?.detail?.includes('permission') ||
+            err.response?.data?.detail?.includes('access')) {
+          setPermissionDenied(true);
+          setError(err.response?.data?.detail || 'You don\'t have permission to access table reports management functionality');
+        } else {
+          setError(err.response?.data?.detail || 'Failed to fetch table report data');
+        }
+
+        if (err.response?.status === 401) {
+          navigate('/login');
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    fetchData();
   };
 
   const handleRetry = () => {
-    fetchTableReport({});
+    fetchTableReport();
   };
 
   const handleFilterTypeChange = (e) => {
@@ -162,12 +180,16 @@ const TableReports = () => {
     }
   };
 
+  const handleGoBack = () => {
+    navigate(-1);
+  };
+
   // Define table columns
   const columns = [
     {
-      Header: 'Table #',
+      Header: 'Table No',
       accessor: 'table_number',
-      width: '7%',
+      width: '100px',
       Cell: (item) => (
         <div className="text-nowrap">
           <span className="fw-semibold">#{item.table_number}</span>
@@ -178,7 +200,7 @@ const TableReports = () => {
     {
       Header: 'Section',
       accessor: 'section_name',
-      width: '15%',
+      width: '150px',
       Cell: (item) => (
         <div className="text-nowrap">
           {item.section_name || 'No Section'}
@@ -189,7 +211,7 @@ const TableReports = () => {
     {
       Header: 'Capacity',
       accessor: 'capacity',
-      width: '10%',
+      width: '100px',
       Cell: (item) => (
         <div className="text-nowrap">
           {item.capacity || 0} persons
@@ -198,9 +220,31 @@ const TableReports = () => {
       exportFormat: (item) => `${item.capacity || 0} persons`
     },
     {
-      Header: 'Status',
+      Header: 'Reserved',
       accessor: 'is_reserved',
-      width: '15%',
+      width: '100px',
+      Cell: (item) => (
+        <div className="text-nowrap">
+          {item.is_reserved ? 'Yes' : 'No'}
+        </div>
+      ),
+      exportFormat: (item) => item.is_reserved ? 'Yes' : 'No'
+    },
+    {
+      Header: 'Joined',
+      accessor: 'is_joined',
+      width: '100px',
+      Cell: (item) => (
+        <div className="text-nowrap">
+          {item.is_joined ? 'Yes' : 'No'}
+        </div>
+      ),
+      exportFormat: (item) => item.is_joined ? 'Yes' : 'No'
+    },
+    {
+      Header: 'Status',
+      accessor: 'status',
+      width: '120px',
       Cell: (item) => {
         if (item.is_reserved) {
           return <div className="text-nowrap">Reserved</div>;
@@ -232,7 +276,7 @@ const TableReports = () => {
     {
       Header: 'Current Order',
       accessor: 'current_order',
-      width: '18%',
+      width: '180px',
       Cell: (item) => (
         <div className="text-nowrap">
           {item.current_order ? (
@@ -247,39 +291,21 @@ const TableReports = () => {
     {
       Header: 'Order Status',
       accessor: 'current_order.order_status',
-      width: '15%',
+      width: '150px',
       Cell: (item) => (
         <div className="text-nowrap">
           {item.current_order ? item.current_order.order_status : '-'}
         </div>
       ),
       exportFormat: (item) => item.current_order?.order_status || '-'
-    },
-    {
-      Header: 'Created On',
-      accessor: 'current_order.created_on',
-      width: '20%',
-      Cell: (item) => (
-        <div className="text-nowrap">
-          {item.current_order?.created_on || '-'}
-        </div>
-      ),
-      exportFormat: (item) => item.current_order?.created_on || '-'
     }
   ];
 
   // Prepare filter info for export
   const getFilterInfo = () => {
-    if (!filterParams) {
-      return {
-        'Filter Type': getFilterTypeLabel(),
-        'Date Range': 'All Time'
-      };
-    }
-
     const info = {
       'Filter Type': getFilterTypeLabel(),
-      'Date Range': filterParams.date_range || 'All Time'
+      'Date Range': dateRange || 'All Time'
     };
 
     if (filterType === 'section' && selectedSection) {
@@ -300,6 +326,130 @@ const TableReports = () => {
         return 'All Tables';
     }
   };
+
+  // Custom filter controls for the ReportTable
+  const renderFilterControls = () => (
+    <div className="d-flex align-items-center gap-2">
+      {/* Date Range Dropdown */}
+      <div className="dropdown">
+        <button
+          type="button"
+          className="btn btn-outline-primary btn-sm dropdown-toggle"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+        >
+          <i className="fas fa-calendar me-2"></i>
+          {dateRange}
+        </button>
+        <ul className="dropdown-menu">
+          {['All Time', 'Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'Current Month', 'Last Month'].map((range) => (
+            <li key={range}>
+              <a href="javascript:void(0);"
+                className="dropdown-item d-flex align-items-center"
+                onClick={() => handleDateRangeChange(range)}>
+                {range}
+              </a>
+            </li>
+          ))}
+          <li><hr className="dropdown-divider" /></li>
+          <li>
+            <a href="javascript:void(0);"
+              className="dropdown-item d-flex align-items-center"
+              onClick={() => handleDateRangeChange('Custom Range')}>
+              Custom Range
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      {/* Filter Type Select */}
+      <Form.Select 
+        value={filterType}
+        onChange={handleFilterTypeChange}
+        size="sm"
+        style={{ width: '150px' }}
+      >
+        <option value="all">All Tables</option>
+        <option value="section" disabled={sections.length === 0}>By Section</option>
+      </Form.Select>
+
+      {/* Section Select - Only show if filter type is section */}
+      {filterType === 'section' && (
+        <Form.Select
+          value={selectedSection}
+          onChange={(e) => setSelectedSection(e.target.value)}
+          size="sm"
+          style={{ width: '150px' }}
+          disabled={loadingSections || sections.length === 0}
+        >
+          <option value="">Select a section</option>
+          {sections.map(section => (
+            <option key={section.section_id} value={section.section_id}>
+              {section.section_name}
+            </option>
+          ))}
+        </Form.Select>
+      )}
+
+      {/* Date Picker for Custom Range */}
+      {showDatePicker && (
+        <div className="d-flex align-items-center gap-2">
+          <DatePicker
+            selected={startDate}
+            onChange={(date) => setStartDate(date)}
+            selectsStart
+            startDate={startDate}
+            endDate={endDate}
+            maxDate={new Date()}
+            placeholderText="Start Date"
+            className="form-control form-control-sm"
+            dateFormat="dd MMM yyyy"
+          />
+          <DatePicker
+            selected={endDate}
+            onChange={(date) => setEndDate(date)}
+            selectsEnd
+            startDate={startDate}
+            endDate={endDate}
+            minDate={startDate}
+            maxDate={new Date()}
+            placeholderText="End Date"
+            className="form-control form-control-sm"
+            dateFormat="dd MMM yyyy"
+          />
+        </div>
+      )}
+
+      {/* Submit Button */}
+      <Button 
+        variant="primary" 
+        size="sm"
+        onClick={fetchTableReport}
+        disabled={loading}
+        className="px-4"
+      >
+        {loading ? (
+          <>
+            <span 
+              className="spinner-border spinner-border-sm me-1" 
+              role="status" 
+              aria-hidden="true"
+            ></span>
+            Generating...
+          </>
+        ) : "Generate Report"}
+      </Button>
+    </div>
+  );
+
+  // Custom breadcrumbs component
+  const renderBreadcrumbs = () => (
+    <Breadcrumb className="mb-0">
+      <Breadcrumb.Item href="/">Dashboard</Breadcrumb.Item>
+      <Breadcrumb.Item href="/reports">Reports</Breadcrumb.Item>
+      <Breadcrumb.Item active>Table Reports</Breadcrumb.Item>
+    </Breadcrumb>
+  );
 
   return (
     <div className="layout-wrapper layout-content-navbar">
@@ -322,88 +472,19 @@ const TableReports = () => {
                   {error}
                 </div>
               ) : (
-                <div>
-                  <div className="mb-4">
-                    <h2 className="text-center mb-0 fw-bold text-primary">Table Reports</h2>
-                  </div>
-
-                  <div>
-                    {/* Filters Section */}
-                    <div className="mb-4">
-                      <ReportFilters
-                        isLoading={loading}
-                        onSubmit={fetchTableReport}
-                        defaultDateRange="All Time"
-                      >
-                        {/* Custom Table Report Filters */}
-                        <Form.Select 
-                          value={filterType}
-                          onChange={handleFilterTypeChange}
-                          style={{ width: '200px' }}
-                        >
-                          <option value="all">All Tables</option>
-                          <option value="section" disabled={sections.length === 0}>By Section</option>
-                        </Form.Select>
-
-                        {filterType === 'section' && (
-                          <Form.Select
-                            value={selectedSection}
-                            onChange={(e) => setSelectedSection(e.target.value)}
-                            style={{ width: '200px' }}
-                            disabled={loadingSections || sections.length === 0}
-                          >
-                            <option value="">Select a section</option>
-                            {sections.map(section => (
-                              <option key={section.section_id} value={section.section_id}>
-                                {section.section_name}
-                              </option>
-                            ))}
-                          </Form.Select>
-                        )}
-                      </ReportFilters>
-                    </div>
-
-                    {/* Summary Stats - Simple Text Version */}
-                    {tableReport && (
-                      <div className="mb-4 d-flex justify-content-around">
-                        <div className="text-center">
-                          <div className="fw-bold">Total Tables</div>
-                          <div className="h4">{tableReport.total_tables}</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="fw-bold">Occupied Tables</div>
-                          <div className="h4">{tableReport.occupied_tables}</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="fw-bold">Available Tables</div>
-                          <div className="h4">{tableReport.available_tables}</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="fw-bold">Reserved Tables</div>
-                          <div className="h4">{tableReport.reserved_tables}</div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Table Section */}
-                    {dataFetched && filteredData.length > 0 ? (
-                      <div style={{ backgroundColor: 'transparent' }}>
-                        <div className="bg-white rounded p-3">
-                          <ReportTable
-                            data={filteredData}
-                            columns={columns}
-                            title="Table Report"
-                            filterInfo={getFilterInfo()}
-                          />
-                        </div>
-                      </div>
-                    ) : dataFetched && filteredData.length === 0 ? (
-                      <div className="alert alert-info mt-4">
-                        <i className="fas fa-info-circle me-2"></i>
-                        No tables found for the selected filters. Please try different filter criteria.
-                      </div>
-                    ) : null}
-                  </div>
+                <div style={{ backgroundColor: 'transparent', width: '100%', overflowX: 'auto' }}>
+                  <ReportTable
+                    data={filteredData}
+                    columns={columns}
+                    title="Table Reports"
+                    filterInfo={getFilterInfo()}
+                    enableHorizontalScroll={true}
+                    onBack={handleGoBack}
+                    filterControls={renderFilterControls()}
+                    dataFetched={dataFetched}
+                    breadcrumbs={renderBreadcrumbs()}
+                    onRefresh={fetchTableReport}
+                  />
                 </div>
               )}
             </div>

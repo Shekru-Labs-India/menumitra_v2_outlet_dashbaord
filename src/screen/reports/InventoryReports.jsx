@@ -1,19 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { api, API_PATHS } from '../../config/apiConfig';
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardBody,
-  Badge,
-  Spinner,
-  Form
+  Form,
+  Button,
+  Breadcrumb
 } from 'react-bootstrap';
 import VerticalSidebar from '../../components/VerticalSidebar';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import { ForbiddenAccessMessage, ReportTable, ReportFilters } from '../../components/common';
+import { ForbiddenAccessMessage, ReportTable } from '../../components/common';
 import { useNavigate } from 'react-router-dom';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const InventoryReports = () => {
   const [loading, setLoading] = useState(false);
@@ -24,10 +22,15 @@ const InventoryReports = () => {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [dataFetched, setDataFetched] = useState(false);
-  const [filterParams, setFilterParams] = useState(null);
   const [filterType, setFilterType] = useState('all');
   const [supplierId, setSupplierId] = useState('');
   const [inOrOut, setInOrOut] = useState('in');
+  
+  // Date range filters
+  const [dateRange, setDateRange] = useState('All Time');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   
   const navigate = useNavigate();
 
@@ -65,6 +68,12 @@ const InventoryReports = () => {
     setFilteredData(result);
   };
 
+  // Handle date range selection
+  const handleDateRangeChange = (range) => {
+    setDateRange(range);
+    setShowDatePicker(range === 'Custom Range');
+  };
+
   const fetchSuppliers = async () => {
     try {
       setLoadingSuppliers(true);
@@ -83,89 +92,92 @@ const InventoryReports = () => {
     }
   };
 
-  const fetchInventoryReport = async (params) => {
-    try {
-      // If filter type is supplier but no supplier is selected, don't fetch
-      if (filterType === 'supplier' && !supplierId) {
-        setError('Please select a supplier');
-        return;
-      }
-      
-      setLoading(true);
-      setError(null);
-      setPermissionDenied(false);
-      setFilterParams(params); // Store the filter params for potential reuse
-
-      // Set default filter_type if not provided
-      const apiParams = {
-        filter_type: filterType,
-        outlet_id: localStorage.getItem('outlet_id'),
-        user_id: localStorage.getItem('user_id')
-      };
-
-      if (filterType === 'supplier' && supplierId) {
-        apiParams.supplier_id = parseInt(supplierId, 10);
-      } else if (filterType === 'in_or_out') {
-        apiParams.in_or_out = inOrOut;
-      }
-
-      // Add date range parameters if applicable
-      if (params.start_date && params.end_date) {
-        apiParams.start_date = params.start_date.toISOString().split('T')[0];
-        apiParams.end_date = params.end_date.toISOString().split('T')[0];
-      } else if (params.date_range && params.date_range !== 'All Time') {
-        apiParams.date_range = params.date_range;
-      }
-
-      console.log('Fetching inventory report with params:', apiParams);
-      const response = await api.post(API_PATHS.inventoryReport, apiParams);
-      
-      // For inventory reports, the API might return a different structure
-      // We need to extract the inventory items from the response
-      let data = [];
-      if (response.data && response.data.detail) {
-        if (response.data.detail.inventory_items) {
-          // If the API returns a nested structure with inventory_items
-          data = response.data.detail.inventory_items || [];
-        } else {
-          // If the API directly returns an array of inventory items
-          data = response.data.detail || [];
+  const fetchInventoryReport = () => {
+    const fetchData = async () => {
+      try {
+        // If filter type is supplier but no supplier is selected, don't fetch
+        if (filterType === 'supplier' && !supplierId) {
+          setError('Please select a supplier');
+          return;
         }
-      }
-      
-      console.log('API response data:', data);
-      
-      // Add unique id to each record for table component
-      const processedData = data.map((item, index) => ({
-        ...item,
-        id: item.inventory_id || `inventory-${index}`
-      }));
-      
-      setInventoryData(processedData);
-      setFilteredData(processedData);
-      setDataFetched(true);
-    } catch (err) {
-      console.error('Error fetching inventory report:', err);
-      
-      if (err.response?.status === 403 || 
-          err.response?.data?.detail?.includes('permission') ||
-          err.response?.data?.detail?.includes('access')) {
-        setPermissionDenied(true);
-        setError(err.response?.data?.detail || 'You don\'t have permission to access inventory reports management functionality');
-      } else {
-        setError(err.response?.data?.detail || 'Failed to fetch inventory report data');
-      }
+        
+        setLoading(true);
+        setError(null);
+        setPermissionDenied(false);
 
-      if (err.response?.status === 401) {
-        navigate('/login');
+        // Set default filter_type if not provided
+        const apiParams = {
+          filter_type: filterType,
+          outlet_id: localStorage.getItem('outlet_id'),
+          user_id: localStorage.getItem('user_id')
+        };
+
+        if (filterType === 'supplier' && supplierId) {
+          apiParams.supplier_id = parseInt(supplierId, 10);
+        } else if (filterType === 'in_or_out') {
+          apiParams.in_or_out = inOrOut;
+        }
+
+        // Add date range parameters if applicable
+        if (startDate && endDate && dateRange === 'Custom Range') {
+          apiParams.start_date = startDate.toISOString().split('T')[0];
+          apiParams.end_date = endDate.toISOString().split('T')[0];
+        } else if (dateRange !== 'All Time') {
+          apiParams.date_range = dateRange;
+        }
+
+        console.log('Fetching inventory report with params:', apiParams);
+        const response = await api.post(API_PATHS.inventoryReport, apiParams);
+        
+        // For inventory reports, the API might return a different structure
+        // We need to extract the inventory items from the response
+        let data = [];
+        if (response.data && response.data.detail) {
+          if (response.data.detail.inventory_items) {
+            // If the API returns a nested structure with inventory_items
+            data = response.data.detail.inventory_items || [];
+          } else {
+            // If the API directly returns an array of inventory items
+            data = response.data.detail || [];
+          }
+        }
+        
+        console.log('API response data:', data);
+        
+        // Add unique id to each record for table component
+        const processedData = data.map((item, index) => ({
+          ...item,
+          id: item.inventory_id || `inventory-${index}`
+        }));
+        
+        setInventoryData(processedData);
+        setFilteredData(processedData);
+        setDataFetched(true);
+      } catch (err) {
+        console.error('Error fetching inventory report:', err);
+        
+        if (err.response?.status === 403 || 
+            err.response?.data?.detail?.includes('permission') ||
+            err.response?.data?.detail?.includes('access')) {
+          setPermissionDenied(true);
+          setError(err.response?.data?.detail || 'You don\'t have permission to access inventory reports management functionality');
+        } else {
+          setError(err.response?.data?.detail || 'Failed to fetch inventory report data');
+        }
+
+        if (err.response?.status === 401) {
+          navigate('/login');
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    fetchData();
   };
 
   const handleRetry = () => {
-    fetchInventoryReport({});
+    fetchInventoryReport();
   };
 
   const handleFilterTypeChange = (e) => {
@@ -180,37 +192,43 @@ const InventoryReports = () => {
     }
   };
 
+  const handleGoBack = () => {
+    navigate(-1);
+  };
+
   // Define table columns
   const columns = [
     {
       Header: 'Item Details',
       accessor: 'name',
-      width: '20%',
+      width: '200px',
       Cell: (item) => (
-        <div className="d-flex flex-column">
+        <div className="text-nowrap">
           <span className="fw-semibold text-primary">{item.name}</span>
+          <br />
           <small className="text-muted">{item.description || '-'}</small>
         </div>
-      )
+      ),
+      exportFormat: (item) => `${item.name}${item.description ? ` (${item.description})` : ''}`
     },
     {
       Header: 'Category',
       accessor: 'category',
-      width: '15%',
+      width: '120px',
       Cell: (item) => (
-        <Badge bg="info" className="text-white">
+        <div className="text-nowrap">
           {item.category}
-        </Badge>
+        </div>
       ),
       exportFormat: (item) => item.category
     },
     {
       Header: 'Supplier',
       accessor: 'supplier',
-      width: '15%',
+      width: '150px',
       Cell: (item) => (
-        <div className="d-flex flex-column">
-          <span>{item.supplier?.name || '-'}</span>
+        <div className="text-nowrap">
+          {item.supplier?.name || '-'}
         </div>
       ),
       exportFormat: (item) => item.supplier?.name || '-'
@@ -218,9 +236,11 @@ const InventoryReports = () => {
     {
       Header: 'Price',
       accessor: 'unit_price',
-      width: '10%',
+      width: '100px',
       Cell: (item) => (
-        <span className="fw-bold">₹{item.unit_price?.toFixed(2) || '0.00'}</span>
+        <div className="text-nowrap fw-bold">
+          ₹{item.unit_price?.toFixed(2) || '0.00'}
+        </div>
       ),
       exportFormat: (item) => `₹${item.unit_price?.toFixed(2) || '0.00'}`,
       sortFunction: (a, b, direction) => {
@@ -232,11 +252,10 @@ const InventoryReports = () => {
     {
       Header: 'Quantity',
       accessor: 'quantity',
-      width: '10%',
+      width: '120px',
       Cell: (item) => (
-        <div className="d-flex flex-column">
-          <span>{item.quantity}</span>
-          <small className="text-muted">{item.unit_of_measure}</small>
+        <div className="text-nowrap">
+          {item.quantity} {item.unit_of_measure}
         </div>
       ),
       exportFormat: (item) => `${item.quantity} ${item.unit_of_measure || ''}`
@@ -244,14 +263,11 @@ const InventoryReports = () => {
     {
       Header: 'Status',
       accessor: 'in_or_out',
-      width: '10%',
+      width: '120px',
       Cell: (item) => (
-        <Badge 
-          bg={item.in_or_out === 'in' ? 'success' : 'danger'} 
-          className="px-3 py-2"
-        >
+        <div className="text-nowrap">
           {item.in_or_out === 'in' ? 'In Stock' : 'Out of Stock'}
-        </Badge>
+        </div>
       ),
       exportFormat: (item) => item.in_or_out === 'in' ? 'In Stock' : 'Out of Stock',
       sortFunction: (a, b, direction) => {
@@ -260,84 +276,26 @@ const InventoryReports = () => {
         return direction === 'asc' ? aValue - bValue : bValue - aValue;
       }
     },
-    {
-      Header: 'Dates',
-      accessor: 'created_on',
-      width: '15%',
-      Cell: (item) => (
-        <div className="d-flex flex-column">
-          <small className="text-muted"><strong>In:</strong> {item.in_date || '-'}</small>
-          <small className="text-muted"><strong>Out:</strong> {item.out_date || '-'}</small>
-        </div>
-      ),
-      exportFormat: (item) => `In: ${item.in_date || '-'}, Out: ${item.out_date || '-'}`
-    }
+    // {
+    //   Header: 'Dates',
+    //   accessor: 'created_on',
+    //   width: '180px',
+    //   Cell: (item) => (
+    //     <div className="text-nowrap">
+    //       <small><strong>In:</strong> {item.in_date || '-'}</small>
+    //       <br />
+    //       <small><strong>Out:</strong> {item.out_date || '-'}</small>
+    //     </div>
+    //   ),
+    //   exportFormat: (item) => `In: ${item.in_date || '-'}, Out: ${item.out_date || '-'}`
+    // }
   ];
-
-  // Define expandable content for additional inventory details
-  const renderInventoryDetails = (item) => (
-    <>
-      <h6 className="mb-3 text-primary">
-        <i className="fas fa-boxes me-2"></i>
-        Item Information
-      </h6>
-      <div className="row">
-        <div className="col-md-6">
-          <div className="card h-100">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Brand:</span>
-                <span>{item.brand_name || '-'}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Reorder Level:</span>
-                <span>{item.reorder_level || '-'}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Tax Rate:</span>
-                <span>{item.tax_rate ? `${(item.tax_rate * 100).toFixed(0)}%` : '-'}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center">
-                <span className="fw-bold">Expiration:</span>
-                <span>{item.expiration_date || '-'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-6">
-          <div className="card h-100">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Created On:</span>
-                <span>{item.created_on || '-'}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Updated On:</span>
-                <span>{item.updated_on || '-'}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center">
-                <span className="fw-bold">Entry By:</span>
-                <span>{item.entry_by || '-'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
 
   // Prepare filter info for export
   const getFilterInfo = () => {
-    if (!filterParams) {
-      return {
-        'Filter Type': getFilterTypeLabel(),
-        'Date Range': 'All Time'
-      };
-    }
-
     const info = {
       'Filter Type': getFilterTypeLabel(),
-      'Date Range': filterParams.date_range || 'All Time'
+      'Date Range': dateRange || 'All Time'
     };
 
     if (filterType === 'supplier' && supplierId) {
@@ -347,6 +305,12 @@ const InventoryReports = () => {
       }
     } else if (filterType === 'in_or_out') {
       info['Stock Status'] = inOrOut === 'in' ? 'In Stock' : 'Out of Stock';
+    }
+
+    if (startDate && endDate && dateRange === 'Custom Range') {
+      const formattedStartDate = startDate.toISOString().split('T')[0];
+      const formattedEndDate = endDate.toISOString().split('T')[0];
+      info['Date Range'] = `${formattedStartDate} to ${formattedEndDate}`;
     }
 
     return info;
@@ -362,6 +326,144 @@ const InventoryReports = () => {
         return 'All Items';
     }
   };
+
+  // Custom filter controls for the ReportTable
+  const renderFilterControls = () => (
+    <div className="d-flex align-items-center gap-2">
+      {/* Date Range Dropdown */}
+      <div className="dropdown">
+        <button
+          type="button"
+          className="btn btn-outline-primary btn-sm dropdown-toggle"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+        >
+          <i className="fas fa-calendar me-2"></i>
+          {dateRange}
+        </button>
+        <ul className="dropdown-menu">
+          {['All Time', 'Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'Current Month', 'Last Month'].map((range) => (
+            <li key={range}>
+              <a href="javascript:void(0);"
+                className="dropdown-item d-flex align-items-center"
+                onClick={() => handleDateRangeChange(range)}>
+                {range}
+              </a>
+            </li>
+          ))}
+          <li><hr className="dropdown-divider" /></li>
+          <li>
+            <a href="javascript:void(0);"
+              className="dropdown-item d-flex align-items-center"
+              onClick={() => handleDateRangeChange('Custom Range')}>
+              Custom Range
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      {/* Filter Type Select */}
+      <Form.Select 
+        value={filterType}
+        onChange={handleFilterTypeChange}
+        size="sm"
+        style={{ width: '150px' }}
+      >
+        <option value="all">All Items</option>
+        <option value="supplier" disabled={suppliers.length === 0}>By Supplier</option>
+        <option value="in_or_out">By Stock Status</option>
+      </Form.Select>
+
+      {/* Supplier select - only show when filter type is 'supplier' */}
+      {filterType === 'supplier' && (
+        <Form.Select
+          value={supplierId}
+          onChange={(e) => setSupplierId(e.target.value)}
+          size="sm"
+          style={{ width: '200px' }}
+          disabled={loadingSuppliers || suppliers.length === 0}
+        >
+          <option value="">Select a supplier</option>
+          {suppliers.map(supplier => (
+            <option key={supplier.supplier_id} value={supplier.supplier_id}>
+              {supplier.name}
+            </option>
+          ))}
+        </Form.Select>
+      )}
+
+      {/* In/Out status select - only show when filter type is 'in_or_out' */}
+      {filterType === 'in_or_out' && (
+        <Form.Select
+          value={inOrOut}
+          onChange={(e) => setInOrOut(e.target.value)}
+          size="sm"
+          style={{ width: '150px' }}
+        >
+          <option value="in">In Stock</option>
+          <option value="out">Out of Stock</option>
+        </Form.Select>
+      )}
+
+      {/* Date Picker for Custom Range */}
+      {showDatePicker && (
+        <div className="d-flex align-items-center gap-2">
+          <DatePicker
+            selected={startDate}
+            onChange={(date) => setStartDate(date)}
+            selectsStart
+            startDate={startDate}
+            endDate={endDate}
+            maxDate={new Date()}
+            placeholderText="Start Date"
+            className="form-control form-control-sm"
+            dateFormat="dd MMM yyyy"
+          />
+          <DatePicker
+            selected={endDate}
+            onChange={(date) => setEndDate(date)}
+            selectsEnd
+            startDate={startDate}
+            endDate={endDate}
+            minDate={startDate}
+            maxDate={new Date()}
+            placeholderText="End Date"
+            className="form-control form-control-sm"
+            dateFormat="dd MMM yyyy"
+          />
+        </div>
+      )}
+
+      {/* Submit Button */}
+      <Button 
+        variant="primary" 
+        size="sm"
+        onClick={fetchInventoryReport}
+        disabled={loading}
+        className="px-4"
+      >
+        {loading ? (
+          <>
+            <span 
+              className="spinner-border spinner-border-sm me-1" 
+              role="status" 
+              aria-hidden="true"
+            ></span>
+            Generating...
+          </>
+        ) : "Generate Report"}
+      </Button>
+    </div>
+  );
+
+  // Custom breadcrumbs component
+  const renderBreadcrumbs = () => (
+    <Breadcrumb className="mb-0">
+      <Breadcrumb.Item href="/">Dashboard</Breadcrumb.Item>
+      <Breadcrumb.Item href="/reports">Reports</Breadcrumb.Item>
+      <Breadcrumb.Item active>Inventory Reports</Breadcrumb.Item>
+    </Breadcrumb>
+  );
 
   return (
     <div className="layout-wrapper layout-content-navbar">
@@ -384,74 +486,20 @@ const InventoryReports = () => {
                   {error}
                 </div>
               ) : (
-                <Card>
-                  <CardHeader className="bg-white">
-                    <CardTitle className="text-center w-100 mb-0 fw-bold text-primary">Inventory Reports</CardTitle>
-                  </CardHeader>
-
-                  <CardBody>
-                    {/* Filters Section */}
-                    <ReportFilters
-                      isLoading={loading}
-                      onSubmit={fetchInventoryReport}
-                      defaultDateRange="All Time"
-                    >
-                      {/* Custom Inventory Report Filters */}
-                      <Form.Select 
-                        value={filterType}
-                        onChange={handleFilterTypeChange}
-                        style={{ width: '200px' }}
-                      >
-                        <option value="all">All Items</option>
-                        <option value="supplier" disabled={suppliers.length === 0}>By Supplier</option>
-                        <option value="in_or_out">By Stock Status</option>
-                      </Form.Select>
-
-                      {filterType === 'supplier' && (
-                        <Form.Select
-                          value={supplierId}
-                          onChange={(e) => setSupplierId(e.target.value)}
-                          style={{ width: '200px' }}
-                          disabled={loadingSuppliers || suppliers.length === 0}
-                        >
-                          <option value="">Select a supplier</option>
-                          {suppliers.map(supplier => (
-                            <option key={supplier.supplier_id} value={supplier.supplier_id}>
-                              {supplier.name}
-                            </option>
-                          ))}
-                        </Form.Select>
-                      )}
-
-                      {filterType === 'in_or_out' && (
-                        <Form.Select
-                          value={inOrOut}
-                          onChange={(e) => setInOrOut(e.target.value)}
-                          style={{ width: '200px' }}
-                        >
-                          <option value="in">In Stock</option>
-                          <option value="out">Out of Stock</option>
-                        </Form.Select>
-                      )}
-                    </ReportFilters>
-
-                    {/* Table Section */}
-                    {dataFetched && filteredData.length > 0 ? (
-                      <ReportTable
-                        data={filteredData}
-                        columns={columns}
-                        title="Inventory Report"
-                        expandableContent={renderInventoryDetails}
-                        filterInfo={getFilterInfo()}
-                      />
-                    ) : dataFetched && filteredData.length === 0 ? (
-                      <div className="alert alert-info mt-4">
-                        <i className="fas fa-info-circle me-2"></i>
-                        No inventory items found for the selected filters. Please try different filter criteria.
-                      </div>
-                    ) : null}
-                  </CardBody>
-                </Card>
+                <div style={{ backgroundColor: 'transparent', width: '100%', overflowX: 'auto' }}>
+                  <ReportTable
+                    data={filteredData}
+                    columns={columns}
+                    title="Inventory Reports"
+                    filterInfo={getFilterInfo()}
+                    enableHorizontalScroll={true}
+                    onBack={handleGoBack}
+                    filterControls={renderFilterControls()}
+                    dataFetched={dataFetched}
+                    breadcrumbs={renderBreadcrumbs()}
+                    onRefresh={fetchInventoryReport}
+                  />
+                </div>
               )}
             </div>
             <Footer />
@@ -462,4 +510,4 @@ const InventoryReports = () => {
   );
 };
 
-export default InventoryReports; 
+export default InventoryReports;

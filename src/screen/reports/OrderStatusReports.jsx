@@ -1,21 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { api, API_PATHS } from '../../config/apiConfig';
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardBody,
-  Badge,
-  Spinner,
   Form,
-  Row,
-  Col
+  Button,
+  Breadcrumb
 } from 'react-bootstrap';
 import VerticalSidebar from '../../components/VerticalSidebar';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import { ForbiddenAccessMessage, ReportTable, ReportFilters } from '../../components/common';
+import { ForbiddenAccessMessage, ReportTable } from '../../components/common';
 import { useNavigate } from 'react-router-dom';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const OrderStatusReports = () => {
   const [loading, setLoading] = useState(false);
@@ -26,7 +22,12 @@ const OrderStatusReports = () => {
   const [filterType, setFilterType] = useState('all');
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [dataFetched, setDataFetched] = useState(false);
-  const [filterParams, setFilterParams] = useState(null);
+  
+  // Date range filters
+  const [dateRange, setDateRange] = useState('All Time');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   
   const navigate = useNavigate();
 
@@ -42,324 +43,285 @@ const OrderStatusReports = () => {
     setFilteredData(result);
   };
 
-  const fetchOrderStatusReport = async (params) => {
-    try {
-      setLoading(true);
-      setError(null);
-      setPermissionDenied(false);
-      setFilterParams(params); // Store the filter params for potential reuse
+  // Handle date range selection
+  const handleDateRangeChange = (range) => {
+    setDateRange(range);
+    setShowDatePicker(range === 'Custom Range');
+  };
 
-      // Set default filter_type if not provided
-      const apiParams = {
-        filter_type: filterType,
-        outlet_id: localStorage.getItem('outlet_id'),
-        user_id: localStorage.getItem('user_id')
-      };
+  const fetchOrderStatusReport = () => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        setPermissionDenied(false);
 
-      // Add date range parameters if applicable
-      if (params.start_date && params.end_date) {
-        apiParams.filter_type = 'date_range';
-        apiParams.start_date = params.start_date.toISOString().split('T')[0];
-        apiParams.end_date = params.end_date.toISOString().split('T')[0];
-      } else if (params.date_range && params.date_range !== 'All Time') {
-        apiParams.date_range = params.date_range;
-      }
+        // Set default filter_type if not provided
+        const apiParams = {
+          filter_type: filterType,
+          outlet_id: localStorage.getItem('outlet_id'),
+          user_id: localStorage.getItem('user_id')
+        };
 
-      console.log('Fetching order status report with params:', apiParams);
-      const response = await api.post(API_PATHS.orderStatusReport, apiParams);
-      
-      // Extract order status data from the response
-      let statusHistory = [];
-      let reportSummary = null;
-      
-      if (response.data && response.data.detail) {
-        statusHistory = response.data.detail.status_history || [];
-        reportSummary = response.data.detail.order_status_report || null;
-      }
-      
-      console.log('API response data:', statusHistory);
-      
-      // Add unique id to each record for table component
-      const processedData = statusHistory.map((item, index) => ({
-        ...item,
-        id: `status-${index}`
-      }));
-      
-      setStatusHistoryData(processedData);
-      setFilteredData(processedData);
-      setOrderStatusReport(reportSummary);
-      setDataFetched(true);
-    } catch (err) {
-      console.error('Error fetching order status report:', err);
-      
-      if (err.response?.status === 403 || 
-          err.response?.data?.detail?.includes('permission') ||
-          err.response?.data?.detail?.includes('access')) {
-        setPermissionDenied(true);
-        setError(err.response?.data?.detail || 'You don\'t have permission to access order status reports management functionality');
-      } else {
-        setError(err.response?.data?.detail || 'Failed to fetch order status report data');
-      }
+        // Add date range parameters if applicable
+        if (startDate && endDate && dateRange === 'Custom Range') {
+          apiParams.filter_type = 'date_range';
+          apiParams.start_date = startDate.toISOString().split('T')[0];
+          apiParams.end_date = endDate.toISOString().split('T')[0];
+        } else if (dateRange !== 'All Time') {
+          apiParams.date_range = dateRange;
+        }
 
-      if (err.response?.status === 401) {
-        navigate('/login');
+        console.log('Fetching order status report with params:', apiParams);
+        const response = await api.post(API_PATHS.orderStatusReport, apiParams);
+        
+        // Extract order status data from the response
+        let statusHistory = [];
+        let reportSummary = null;
+        
+        if (response.data && response.data.detail) {
+          statusHistory = response.data.detail.status_history || [];
+          reportSummary = response.data.detail.order_status_report || null;
+        }
+        
+        console.log('API response data:', statusHistory);
+        
+        // Add unique id to each record for table component
+        const processedData = statusHistory.map((item, index) => ({
+          ...item,
+          id: `status-${index}`
+        }));
+        
+        setStatusHistoryData(processedData);
+        setFilteredData(processedData);
+        setOrderStatusReport(reportSummary);
+        setDataFetched(true);
+      } catch (err) {
+        console.error('Error fetching order status report:', err);
+        
+        if (err.response?.status === 403 || 
+            err.response?.data?.detail?.includes('permission') ||
+            err.response?.data?.detail?.includes('access')) {
+          setPermissionDenied(true);
+          setError(err.response?.data?.detail || 'You don\'t have permission to access order status reports management functionality');
+        } else {
+          setError(err.response?.data?.detail || 'Failed to fetch order status report data');
+        }
+
+        if (err.response?.status === 401) {
+          navigate('/login');
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    fetchData();
   };
 
   const handleRetry = () => {
-    fetchOrderStatusReport({});
+    fetchOrderStatusReport();
   };
 
   const handleFilterTypeChange = (e) => {
     setFilterType(e.target.value);
   };
 
+  const handleGoBack = () => {
+    navigate(-1);
+  };
+
   // Define table columns
   const columns = [
     {
-      Header: 'Order Details',
+      Header: 'Order Number',
       accessor: 'order_number',
-      width: '20%',
+      width: '150px',
       Cell: (item) => (
-        <div className="d-flex flex-column">
-          <span className="fw-semibold text-primary">Order #{item.order_number}</span>
-          <small className="text-muted">ID: {item.order_id}</small>
+        <div className="text-nowrap">
+          <span className="fw-semibold">#{item.order_number}</span>
+         
         </div>
       ),
-      exportFormat: (item) => `Order #${item.order_number} (ID: ${item.order_id})`
+      exportFormat: (item) => `Order #${item.order_number}`
     },
     {
       Header: 'Order Type',
       accessor: 'order_type',
-      width: '15%',
-      Cell: (item) => {
-        const orderType = item.order_type?.toLowerCase();
-        return orderType === 'dine-in' ? 
-          <Badge bg="info">Dine-in</Badge> : 
-          <Badge bg="warning">Parcel</Badge>;
-      },
+      width: '120px',
+      Cell: (item) => (
+        <div className="text-nowrap">
+          {item.order_type || '-'}
+        </div>
+      ),
       exportFormat: (item) => item.order_type || '-'
     },
     {
       Header: 'Status',
       accessor: 'order_status',
-      width: '15%',
-      Cell: (item) => {
-        const status = item.order_status?.toLowerCase();
-        let badgeColor = 'secondary';
-        
-        switch (status) {
-          case 'placed':
-            badgeColor = 'primary';
-            break;
-          case 'cooking':
-            badgeColor = 'warning';
-            break;
-          case 'served':
-            badgeColor = 'info';
-            break;
-          case 'paid':
-            badgeColor = 'success';
-            break;
-          case 'cancelled':
-            badgeColor = 'danger';
-            break;
-          case 'udhari_pending':
-            badgeColor = 'dark';
-            break;
-          case 'complementary':
-            badgeColor = 'light';
-            break;
-          default:
-            badgeColor = 'secondary';
-        }
-        
-        return <Badge bg={badgeColor}>{item.order_status}</Badge>;
-      },
+      width: '120px',
+      Cell: (item) => (
+        <div className="text-nowrap">
+          {item.order_status || '-'}
+        </div>
+      ),
       exportFormat: (item) => item.order_status || '-'
     },
     {
       Header: 'Amount',
       accessor: 'amount',
-      width: '15%',
+      width: '120px',
       Cell: (item) => (
-        <span>₹{item.amount?.toFixed(2) || '0.00'}</span>
+        <div className="text-nowrap">
+          ₹{item.amount?.toFixed(2) || '0.00'}
+        </div>
       ),
       exportFormat: (item) => `₹${item.amount?.toFixed(2) || '0.00'}`
     },
     {
       Header: 'Changed By',
       accessor: 'user_name',
-      width: '15%',
+      width: '150px',
       Cell: (item) => (
-        <span>{item.user_name || '-'}</span>
+        <div className="text-nowrap">
+          {item.user_name || '-'}
+        </div>
       ),
       exportFormat: (item) => item.user_name || '-'
     },
     {
       Header: 'Changed On',
       accessor: 'changed_on',
-      width: '20%',
+      width: '180px',
       Cell: (item) => (
-        <span>{item.changed_on || '-'}</span>
+        <div className="text-nowrap">
+          {item.changed_on || '-'}
+        </div>
       ),
       exportFormat: (item) => item.changed_on || '-'
     }
   ];
 
-  // Define expandable content for additional order status details
-  const renderOrderStatusDetails = (item) => (
-    <>
-      <h6 className="mb-3 text-primary">
-        <i className="fas fa-receipt me-2"></i>
-        Order Status Details
-      </h6>
-      <div className="row">
-        <div className="col-md-6">
-          <div className="card h-100">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Order Number:</span>
-                <span>#{item.order_number}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Order ID:</span>
-                <span>{item.order_id}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Order Type:</span>
-                <span>{item.order_type}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-6">
-          <div className="card h-100">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Status:</span>
-                <span>{item.order_status}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Amount:</span>
-                <span>₹{item.amount?.toFixed(2) || '0.00'}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Changed By:</span>
-                <span>{item.user_name}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Changed On:</span>
-                <span>{item.changed_on}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-
   // Prepare filter info for export
   const getFilterInfo = () => {
-    if (!filterParams) {
-      return {
-        'Filter Type': 'All Orders',
-        'Date Range': 'All Time'
-      };
-    }
-
     const info = {
-      'Filter Type': filterParams.filter_type === 'date_range' ? 'Date Range' : 'All Orders',
-      'Date Range': filterParams.date_range || 'All Time'
+      'Filter Type': 'All Orders',
+      'Date Range': dateRange || 'All Time'
     };
 
-    if (filterParams.start_date && filterParams.end_date) {
-      info['Date Range'] = `${filterParams.start_date} to ${filterParams.end_date}`;
-    } else if (filterParams.start_date) {
-      info['Date Range'] = `From ${filterParams.start_date}`;
-    } else if (filterParams.end_date) {
-      info['Date Range'] = `Until ${filterParams.end_date}`;
+    if (startDate && endDate && dateRange === 'Custom Range') {
+      const formattedStartDate = startDate.toISOString().split('T')[0];
+      const formattedEndDate = endDate.toISOString().split('T')[0];
+      info['Date Range'] = `${formattedStartDate} to ${formattedEndDate}`;
     }
 
     return info;
   };
 
-  // Render status breakdown cards
-  const renderStatusBreakdown = () => {
-    if (!orderStatusReport || !orderStatusReport.status_breakdown) {
-      return null;
-    }
-
-    const statusData = orderStatusReport.status_breakdown;
-    const statusNames = Object.keys(statusData);
-
-    return (
-      <>
-        <h5 className="mt-4 mb-3">Status Breakdown</h5>
-        <Row className="mb-4">
-          {statusNames.map((statusName) => (
-            <Col md={3} key={statusName}>
-              <Card className="h-100 mb-3">
-                <CardHeader className="bg-light">
-                  <h6 className="mb-0 text-capitalize">{statusName.replace('_', ' ')}</h6>
-                </CardHeader>
-                <CardBody>
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <span>Count:</span>
-                    <span className="badge bg-primary">{statusData[statusName].count}</span>
-                  </div>
-                  <div className="d-flex justify-content-between align-items-center">
-                    <span>Amount:</span>
-                    <span className="fw-bold">₹{statusData[statusName].total_amount.toFixed(2)}</span>
-                  </div>
-                </CardBody>
-              </Card>
-            </Col>
+  // Custom filter controls for the ReportTable
+  const renderFilterControls = () => (
+    <div className="d-flex align-items-center gap-2">
+      {/* Date Range Dropdown */}
+      <div className="dropdown">
+        <button
+          type="button"
+          className="btn btn-outline-primary btn-sm dropdown-toggle"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+        >
+          <i className="fas fa-calendar me-2"></i>
+          {dateRange}
+        </button>
+        <ul className="dropdown-menu">
+          {['All Time', 'Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'Current Month', 'Last Month'].map((range) => (
+            <li key={range}>
+              <a href="javascript:void(0);"
+                className="dropdown-item d-flex align-items-center"
+                onClick={() => handleDateRangeChange(range)}>
+                {range}
+              </a>
+            </li>
           ))}
-        </Row>
-      </>
-    );
-  };
+          <li><hr className="dropdown-divider" /></li>
+          <li>
+            <a href="javascript:void(0);"
+              className="dropdown-item d-flex align-items-center"
+              onClick={() => handleDateRangeChange('Custom Range')}>
+              Custom Range
+            </a>
+          </li>
+        </ul>
+      </div>
 
-  // Render order type breakdown cards
-  const renderOrderTypeBreakdown = () => {
-    if (!orderStatusReport || !orderStatusReport.order_type_breakdown) {
-      return null;
-    }
+      {/* Filter Type Select */}
+      <Form.Select 
+        value={filterType}
+        onChange={handleFilterTypeChange}
+        size="sm"
+        style={{ width: '150px' }}
+      >
+        <option value="all">All Orders</option>
+      </Form.Select>
 
-    const orderTypeData = orderStatusReport.order_type_breakdown;
-    const orderTypes = Object.keys(orderTypeData);
+      {/* Date Picker for Custom Range */}
+      {showDatePicker && (
+        <div className="d-flex align-items-center gap-2">
+          <DatePicker
+            selected={startDate}
+            onChange={(date) => setStartDate(date)}
+            selectsStart
+            startDate={startDate}
+            endDate={endDate}
+            maxDate={new Date()}
+            placeholderText="Start Date"
+            className="form-control form-control-sm"
+            dateFormat="dd MMM yyyy"
+          />
+          <DatePicker
+            selected={endDate}
+            onChange={(date) => setEndDate(date)}
+            selectsEnd
+            startDate={startDate}
+            endDate={endDate}
+            minDate={startDate}
+            maxDate={new Date()}
+            placeholderText="End Date"
+            className="form-control form-control-sm"
+            dateFormat="dd MMM yyyy"
+          />
+        </div>
+      )}
 
-    return (
-      <>
-        <h5 className="mt-4 mb-3">Order Type Breakdown</h5>
-        <Row className="mb-4">
-          {orderTypes.map((orderType) => (
-            <Col md={6} key={orderType}>
-              <Card className="h-100 mb-3">
-                <CardHeader className="bg-light">
-                  <h6 className="mb-0 text-capitalize">{orderType}</h6>
-                </CardHeader>
-                <CardBody>
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <span>Count:</span>
-                    <span className="badge bg-primary">{orderTypeData[orderType].count}</span>
-                  </div>
-                  <div className="d-flex justify-content-between align-items-center">
-                    <span>Amount:</span>
-                    <span className="fw-bold">₹{orderTypeData[orderType].total_amount.toFixed(2)}</span>
-                  </div>
-                </CardBody>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-      </>
-    );
-  };
+      {/* Submit Button */}
+      <Button 
+        variant="primary" 
+        size="sm"
+        onClick={fetchOrderStatusReport}
+        disabled={loading}
+        className="px-4"
+      >
+        {loading ? (
+          <>
+            <span 
+              className="spinner-border spinner-border-sm me-1" 
+              role="status" 
+              aria-hidden="true"
+            ></span>
+            Generating...
+          </>
+        ) : "Generate Report"}
+      </Button>
+    </div>
+  );
+
+  // Custom breadcrumbs component
+  const renderBreadcrumbs = () => (
+    <Breadcrumb className="mb-0">
+      <Breadcrumb.Item href="/">Dashboard</Breadcrumb.Item>
+      <Breadcrumb.Item href="/reports">Reports</Breadcrumb.Item>
+      <Breadcrumb.Item active>Order Status Reports</Breadcrumb.Item>
+    </Breadcrumb>
+  );
 
   return (
     <div className="layout-wrapper layout-content-navbar">
@@ -382,57 +344,20 @@ const OrderStatusReports = () => {
                   {error}
                 </div>
               ) : (
-                <Card>
-                  <CardHeader className="bg-white">
-                    <CardTitle className="text-center w-100 mb-0 fw-bold text-primary">Order Status Change Reports</CardTitle>
-                  </CardHeader>
-
-                  <CardBody>
-                    {/* Filters Section */}
-                    <ReportFilters
-                      isLoading={loading}
-                      onSubmit={fetchOrderStatusReport}
-                      defaultDateRange="All Time"
-                      showDateRangeFilter={true}
-                    />
-
-                    {/* Summary Card */}
-                    {orderStatusReport && (
-                      <Row className="mb-4">
-                        <Col md={12}>
-                          <Card className="h-100">
-                            <CardBody>
-                              <h6 className="card-title">Total Status Changes</h6>
-                              <h2 className="mb-0">{orderStatusReport.total_status_changes}</h2>
-                            </CardBody>
-                          </Card>
-                        </Col>
-                      </Row>
-                    )}
-
-                    {/* Status Breakdown */}
-                    {orderStatusReport && renderStatusBreakdown()}
-
-                    {/* Order Type Breakdown */}
-                    {orderStatusReport && renderOrderTypeBreakdown()}
-
-                    {/* Table Section */}
-                    {dataFetched && filteredData.length > 0 ? (
-                      <ReportTable
-                        data={filteredData}
-                        columns={columns}
-                        title="Order Status History"
-                        expandableContent={renderOrderStatusDetails}
-                        filterInfo={getFilterInfo()}
-                      />
-                    ) : dataFetched && filteredData.length === 0 ? (
-                      <div className="alert alert-info mt-4">
-                        <i className="fas fa-info-circle me-2"></i>
-                        No order status history found for the selected filters. Please try different filter criteria.
-                      </div>
-                    ) : null}
-                  </CardBody>
-                </Card>
+                <div style={{ backgroundColor: 'transparent', width: '100%', overflowX: 'auto' }}>
+                  <ReportTable
+                    data={filteredData}
+                    columns={columns}
+                    title="Order Status Reports"
+                    filterInfo={getFilterInfo()}
+                    enableHorizontalScroll={true}
+                    onBack={handleGoBack}
+                    filterControls={renderFilterControls()}
+                    dataFetched={dataFetched}
+                    breadcrumbs={renderBreadcrumbs()}
+                    onRefresh={fetchOrderStatusReport}
+                  />
+                </div>
               )}
             </div>
             <Footer />

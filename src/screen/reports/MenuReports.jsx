@@ -383,9 +383,9 @@ const MenuReports = () => {
               role="status" 
               aria-hidden="true"
             ></span>
-            Loading...
+            Generating...
           </>
-        ) : "Submit"}
+        ) : "Generate Report"}
       </Button>
     </div>
   );
@@ -431,6 +431,7 @@ const MenuReports = () => {
                     filterControls={renderFilterControls()}
                     dataFetched={dataFetched}
                     breadcrumbs={renderBreadcrumbs()}
+                    onRefresh={fetchMenuReport}
                   />
                 </div>
               )}

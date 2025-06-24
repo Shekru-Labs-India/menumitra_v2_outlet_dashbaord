@@ -143,10 +143,6 @@ api.interceptors.response.use(
 const API_PATHS = {
   // Common API endpoints
   common: COMMON_PREFIX,
-  updateProfile: `${COMMON_PREFIX}/update_profile`,
-  viewProfileDetail: `${COMMON_PREFIX}/view_profile`,
-  updateProfileDetail: `${COMMON_PREFIX}/update_profile`,
-  activitiesLog: `${COMMON_PREFIX}/activities_log`,
   menuCategoryList: `${COMMON_PREFIX}/menu_category_list`,
   sectionList: `${COMMON_PREFIX}/section_list`,
   
@@ -154,15 +150,6 @@ const API_PATHS = {
   outletStatistics: STATISTICS_PREFIX,
   getOutletStats: `${STATISTICS_PREFIX}/get_outlet_stats`,
   getAllStatsWithoutFilter: `${STATISTICS_PREFIX}/get_all_stats`,
-  foodTypeStats: `${STATISTICS_PREFIX}/food_type_statistics`,
-  orderAnalytics: `${STATISTICS_PREFIX}/order_analytics`,
-  orderStatistics: `${STATISTICS_PREFIX}/order_statistics`,
-  orderTypeStats: `${STATISTICS_PREFIX}/order_type_statistics`,
-  weeklyOrderStats: `${STATISTICS_PREFIX}/weekly_order_stats`,
-  salesPerformance: `${STATISTICS_PREFIX}/sales_performance`,
-  totalCollectionSource: `${STATISTICS_PREFIX}/total_collection_source`,
-  revenueLoss: `${STATISTICS_PREFIX}/revenue_leakage`,
-  paymentMethodCounts: `${STATISTICS_PREFIX}/payment_method_counts`,
   menuReport: `${STATISTICS_PREFIX}/menu_report`,
   orderReport: `${STATISTICS_PREFIX}/order_report`,
   tableReport: `${STATISTICS_PREFIX}/table_report`,
@@ -179,7 +166,6 @@ const API_PATHS = {
   reportFilterSection: `${STATISTICS_PREFIX}/report_filter_section`,
   outletDetails: `${STATISTICS_PREFIX}/outlet_details`,
   outletCompareDetails: `${STATISTICS_PREFIX}/outlet_compare_details`,
-  outletSearch: `${STATISTICS_PREFIX}/outlet_search`,
 };
 
 /**

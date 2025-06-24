@@ -7,7 +7,6 @@ import "./assets/css/theme-default.css";
 import "./assets/css/menu.css";
 import HomeScreen from './screen/HomeScreen'
 import LoginScreen from './screen/LoginScreen'
-import MyProfile from './screen/MyProfile'
 import CompareOutlets from './screen/CompareOutlets'
 import Statistics from './screen/Statistics'
 import OutletDetails from './screen/OutletDetails'
@@ -29,7 +28,7 @@ import PaymentSettleReports from './screen/reports/PaymentSettleReports'
 
 
 import Settings from './screen/Settings';
-import MyActivity from './screen/MyActivity';
+
 
 function App() {
   return (
@@ -47,7 +46,7 @@ function App() {
                     
                     {/* Protected routes */}
                     <Route path="/dashboard" element={<HomeScreen />} />
-                    <Route path="/profile" element={<MyProfile />} />
+                   
                     <Route path="/settings" element={<Settings />} /> 
                     <Route path="/compare-outlets" element={<CompareOutlets />} /> 
                     <Route path="/statistics" element={<Statistics />} />
@@ -63,7 +62,7 @@ function App() {
                     <Route path="/reports/inventory" element={<InventoryReports />} />
                     <Route path="/reports/staff" element={<StaffReports />} />
                     <Route path="/reports/customers" element={<CustomerReports />} />
-                    <Route path="/my-activity" element={<MyActivity />} />
+                  
                     
                     {/* Default redirect to login */}
                     <Route path="/" element={<Navigate to="/login" replace />} />

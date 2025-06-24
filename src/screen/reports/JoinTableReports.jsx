@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { api, API_PATHS } from '../../config/apiConfig';
 import {
-  Form
+  Form,
+  Button,
+  Breadcrumb
 } from 'react-bootstrap';
 import VerticalSidebar from '../../components/VerticalSidebar';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import { ForbiddenAccessMessage, ReportTable, ReportFilters } from '../../components/common';
+import { ForbiddenAccessMessage, ReportTable } from '../../components/common';
 import { useNavigate } from 'react-router-dom';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const JoinTableReports = () => {
   const [loading, setLoading] = useState(false);
@@ -21,7 +25,12 @@ const JoinTableReports = () => {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [loadingSections, setLoadingSections] = useState(false);
   const [dataFetched, setDataFetched] = useState(false);
-  const [filterParams, setFilterParams] = useState(null);
+  
+  // Date range filters
+  const [dateRange, setDateRange] = useState('All Time');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   
   const navigate = useNavigate();
 
@@ -76,84 +85,93 @@ const JoinTableReports = () => {
     }
   };
 
-  const fetchJoinTableReport = async (params) => {
-    try {
-      // If filter type is section but no section is selected, don't fetch
-      if (filterType === 'section' && !selectedSection) {
-        setError('Please select a section');
-        return;
-      }
-      
-      setLoading(true);
-      setError(null);
-      setPermissionDenied(false);
-      setFilterParams(params); // Store the filter params for potential reuse
+  // Handle date range selection
+  const handleDateRangeChange = (range) => {
+    setDateRange(range);
+    setShowDatePicker(range === 'Custom Range');
+  };
 
-      // Set default filter_type if not provided
-      const apiParams = {
-        filter_type: filterType,
-        outlet_id: localStorage.getItem('outlet_id'),
-        user_id: localStorage.getItem('user_id')
-      };
+  const fetchJoinTableReport = () => {
+    const fetchData = async () => {
+      try {
+        // If filter type is section but no section is selected, don't fetch
+        if (filterType === 'section' && !selectedSection) {
+          setError('Please select a section');
+          return;
+        }
+        
+        setLoading(true);
+        setError(null);
+        setPermissionDenied(false);
 
-      if (filterType === 'section' && selectedSection) {
-        apiParams.section_id = parseInt(selectedSection, 10);
-      }
+        // Set default filter_type if not provided
+        const apiParams = {
+          filter_type: filterType,
+          outlet_id: localStorage.getItem('outlet_id'),
+          user_id: localStorage.getItem('user_id')
+        };
 
-      // Add date range parameters if applicable
-      if (params.start_date && params.end_date) {
-        apiParams.start_date = params.start_date.toISOString().split('T')[0];
-        apiParams.end_date = params.end_date.toISOString().split('T')[0];
-      } else if (params.date_range && params.date_range !== 'All Time') {
-        apiParams.date_range = params.date_range;
-      }
+        if (filterType === 'section' && selectedSection) {
+          apiParams.section_id = parseInt(selectedSection, 10);
+        }
 
-      console.log('Fetching join table report with params:', apiParams);
-      const response = await api.post(API_PATHS.joinTableReport, apiParams);
-      
-      // Extract join table data from the response
-      let joinHistory = [];
-      let reportSummary = null;
-      
-      if (response.data && response.data.detail) {
-        joinHistory = response.data.detail.join_history || [];
-        reportSummary = response.data.detail.join_table_report || null;
-      }
-      
-      console.log('API response data:', joinHistory);
-      
-      // Add unique id to each record for table component
-      const processedData = joinHistory.map((item, index) => ({
-        ...item,
-        id: `join-${index}`
-      }));
-      
-      setJoinHistoryData(processedData);
-      setFilteredData(processedData);
-      setJoinTableReport(reportSummary);
-      setDataFetched(true);
-    } catch (err) {
-      console.error('Error fetching join table report:', err);
-      
-      if (err.response?.status === 403 || 
-          err.response?.data?.detail?.includes('permission') ||
-          err.response?.data?.detail?.includes('access')) {
-        setPermissionDenied(true);
-        setError(err.response?.data?.detail || 'You don\'t have permission to access join table reports management functionality');
-      } else {
-        setError(err.response?.data?.detail || 'Failed to fetch join table report data');
-      }
+        // Add date range parameters if applicable
+        if (startDate && endDate && dateRange === 'Custom Range') {
+          apiParams.start_date = startDate.toISOString().split('T')[0];
+          apiParams.end_date = endDate.toISOString().split('T')[0];
+        } else if (dateRange !== 'All Time') {
+          apiParams.date_range = dateRange;
+        }
 
-      if (err.response?.status === 401) {
-        navigate('/login');
+        console.log('Fetching join table report with params:', apiParams);
+        const response = await api.post(API_PATHS.joinTableReport, apiParams);
+        
+        // Extract join table data from the response
+        let joinHistory = [];
+        let reportSummary = null;
+        
+        if (response.data && response.data.detail) {
+          joinHistory = response.data.detail.join_history || [];
+          reportSummary = response.data.detail.join_table_report || null;
+        }
+        
+        console.log('API response data:', joinHistory);
+        
+        // Add unique id to each record for table component
+        const processedData = joinHistory.map((item, index) => ({
+          ...item,
+          id: `join-${index}`
+        }));
+        
+        setJoinHistoryData(processedData);
+        setFilteredData(processedData);
+        setJoinTableReport(reportSummary);
+        setDataFetched(true);
+      } catch (err) {
+        console.error('Error fetching join table report:', err);
+        
+        if (err.response?.status === 403 || 
+            err.response?.data?.detail?.includes('permission') ||
+            err.response?.data?.detail?.includes('access')) {
+          setPermissionDenied(true);
+          setError(err.response?.data?.detail || 'You don\'t have permission to access join table reports management functionality');
+        } else {
+          setError(err.response?.data?.detail || 'Failed to fetch join table report data');
+        }
+
+        if (err.response?.status === 401) {
+          navigate('/login');
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    fetchData();
   };
 
   const handleRetry = () => {
-    fetchJoinTableReport({});
+    fetchJoinTableReport();
   };
 
   const handleFilterTypeChange = (e) => {
@@ -164,15 +182,19 @@ const JoinTableReports = () => {
     }
   };
 
+  const handleGoBack = () => {
+    navigate(-1);
+  };
+
   // Define table columns
   const columns = [
     {
       Header: 'Primary Table',
       accessor: 'primary_table_number',
-      width: '15%',
+      width: '130px',
       Cell: (item) => (
         <div className="text-nowrap">
-          <span className="fw-semibold">Table #{item.primary_table_number}</span>
+          <span className="fw-semibold">#{item.primary_table_number}</span>
         </div>
       ),
       exportFormat: (item) => `Table #${item.primary_table_number}`
@@ -180,10 +202,10 @@ const JoinTableReports = () => {
     {
       Header: 'Joined Table',
       accessor: 'joined_table_number',
-      width: '15%',
+      width: '130px',
       Cell: (item) => (
         <div className="text-nowrap">
-          <span className="fw-semibold">Table #{item.joined_table_number}</span>
+          <span className="fw-semibold">#{item.joined_table_number}</span>
         </div>
       ),
       exportFormat: (item) => `Table #${item.joined_table_number}`
@@ -191,7 +213,7 @@ const JoinTableReports = () => {
     {
       Header: 'Section',
       accessor: 'section_name',
-      width: '15%',
+      width: '150px',
       Cell: (item) => (
         <div className="text-nowrap">
           {item.section_name || 'No Section'}
@@ -202,7 +224,7 @@ const JoinTableReports = () => {
     {
       Header: 'Status',
       accessor: 'status',
-      width: '15%',
+      width: '120px',
       Cell: (item) => (
         <div className="text-nowrap">
           {item.status || '-'}
@@ -213,7 +235,7 @@ const JoinTableReports = () => {
     {
       Header: 'Changed By',
       accessor: 'changed_by',
-      width: '15%',
+      width: '150px',
       Cell: (item) => (
         <div className="text-nowrap">
           {item.changed_by || '-'}
@@ -224,7 +246,7 @@ const JoinTableReports = () => {
     {
       Header: 'Changed On',
       accessor: 'changed_on',
-      width: '25%',
+      width: '180px',
       Cell: (item) => (
         <div className="text-nowrap">
           {item.changed_on || '-'}
@@ -236,16 +258,9 @@ const JoinTableReports = () => {
 
   // Prepare filter info for export
   const getFilterInfo = () => {
-    if (!filterParams) {
-      return {
-        'Filter Type': getFilterTypeLabel(),
-        'Date Range': 'All Time'
-      };
-    }
-
     const info = {
       'Filter Type': getFilterTypeLabel(),
-      'Date Range': filterParams.date_range || 'All Time'
+      'Date Range': dateRange || 'All Time'
     };
 
     if (filterType === 'section' && selectedSection) {
@@ -266,6 +281,130 @@ const JoinTableReports = () => {
         return 'All Join Tables';
     }
   };
+
+  // Custom filter controls for the ReportTable
+  const renderFilterControls = () => (
+    <div className="d-flex align-items-center gap-2">
+      {/* Date Range Dropdown */}
+      <div className="dropdown">
+        <button
+          type="button"
+          className="btn btn-outline-primary btn-sm dropdown-toggle"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+        >
+          <i className="fas fa-calendar me-2"></i>
+          {dateRange}
+        </button>
+        <ul className="dropdown-menu">
+          {['All Time', 'Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'Current Month', 'Last Month'].map((range) => (
+            <li key={range}>
+              <a href="javascript:void(0);"
+                className="dropdown-item d-flex align-items-center"
+                onClick={() => handleDateRangeChange(range)}>
+                {range}
+              </a>
+            </li>
+          ))}
+          <li><hr className="dropdown-divider" /></li>
+          <li>
+            <a href="javascript:void(0);"
+              className="dropdown-item d-flex align-items-center"
+              onClick={() => handleDateRangeChange('Custom Range')}>
+              Custom Range
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      {/* Filter Type Select */}
+      <Form.Select 
+        value={filterType}
+        onChange={handleFilterTypeChange}
+        size="sm"
+        style={{ width: '150px' }}
+      >
+        <option value="all">All Tables</option>
+        <option value="section" disabled={sections.length === 0}>By Section</option>
+      </Form.Select>
+
+      {/* Section Select - Only show if filter type is section */}
+      {filterType === 'section' && (
+        <Form.Select
+          value={selectedSection}
+          onChange={(e) => setSelectedSection(e.target.value)}
+          size="sm"
+          style={{ width: '150px' }}
+          disabled={loadingSections || sections.length === 0}
+        >
+          <option value="">Select a section</option>
+          {sections.map(section => (
+            <option key={section.section_id} value={section.section_id}>
+              {section.section_name}
+            </option>
+          ))}
+        </Form.Select>
+      )}
+
+      {/* Date Picker for Custom Range */}
+      {showDatePicker && (
+        <div className="d-flex align-items-center gap-2">
+          <DatePicker
+            selected={startDate}
+            onChange={(date) => setStartDate(date)}
+            selectsStart
+            startDate={startDate}
+            endDate={endDate}
+            maxDate={new Date()}
+            placeholderText="Start Date"
+            className="form-control form-control-sm"
+            dateFormat="dd MMM yyyy"
+          />
+          <DatePicker
+            selected={endDate}
+            onChange={(date) => setEndDate(date)}
+            selectsEnd
+            startDate={startDate}
+            endDate={endDate}
+            minDate={startDate}
+            maxDate={new Date()}
+            placeholderText="End Date"
+            className="form-control form-control-sm"
+            dateFormat="dd MMM yyyy"
+          />
+        </div>
+      )}
+
+      {/* Submit Button */}
+      <Button 
+        variant="primary" 
+        size="sm"
+        onClick={fetchJoinTableReport}
+        disabled={loading}
+        className="px-4"
+      >
+        {loading ? (
+          <>
+            <span 
+              className="spinner-border spinner-border-sm me-1" 
+              role="status" 
+              aria-hidden="true"
+            ></span>
+            Generating...
+          </>
+        ) : "Generate Report"}
+      </Button>
+    </div>
+  );
+
+  // Custom breadcrumbs component
+  const renderBreadcrumbs = () => (
+    <Breadcrumb className="mb-0">
+      <Breadcrumb.Item href="/">Dashboard</Breadcrumb.Item>
+      <Breadcrumb.Item href="/reports">Reports</Breadcrumb.Item>
+      <Breadcrumb.Item active>Join Table Reports</Breadcrumb.Item>
+    </Breadcrumb>
+  );
 
   return (
     <div className="layout-wrapper layout-content-navbar">
@@ -288,80 +427,19 @@ const JoinTableReports = () => {
                   {error}
                 </div>
               ) : (
-                <div>
-                  <div className="mb-4">
-                    <h2 className="text-center mb-0 fw-bold text-primary">Join Table Reports</h2>
-                  </div>
-
-                  <div>
-                    {/* Filters Section */}
-                    <div className="mb-4">
-                      <ReportFilters
-                        isLoading={loading}
-                        onSubmit={fetchJoinTableReport}
-                        defaultDateRange="All Time"
-                      >
-                        {/* Custom Join Table Report Filters */}
-                        <Form.Select 
-                          value={filterType}
-                          onChange={handleFilterTypeChange}
-                          style={{ width: '200px' }}
-                        >
-                          <option value="all">All Tables</option>
-                          <option value="section" disabled={sections.length === 0}>By Section</option>
-                        </Form.Select>
-
-                        {filterType === 'section' && (
-                          <Form.Select
-                            value={selectedSection}
-                            onChange={(e) => setSelectedSection(e.target.value)}
-                            style={{ width: '200px' }}
-                            disabled={loadingSections || sections.length === 0}
-                          >
-                            <option value="">Select a section</option>
-                            {sections.map(section => (
-                              <option key={section.section_id} value={section.section_id}>
-                                {section.section_name}
-                              </option>
-                            ))}
-                          </Form.Select>
-                        )}
-                      </ReportFilters>
-                    </div>
-
-                    {/* Summary Stats - Simple Text Version */}
-                    {joinTableReport && (
-                      <div className="mb-4 d-flex justify-content-around">
-                        <div className="text-center">
-                          <div className="fw-bold">Total Joins</div>
-                          <div className="h4">{joinTableReport.total_joins}</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="fw-bold">Total Unjoins</div>
-                          <div className="h4">{joinTableReport.total_unjoins}</div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Table Section */}
-                    {dataFetched && filteredData.length > 0 ? (
-                      <div style={{ backgroundColor: 'transparent' }}>
-                        <div className="bg-white rounded p-3">
-                          <ReportTable
-                            data={filteredData}
-                            columns={columns}
-                            title="Join Table History"
-                            filterInfo={getFilterInfo()}
-                          />
-                        </div>
-                      </div>
-                    ) : dataFetched && filteredData.length === 0 ? (
-                      <div className="alert alert-info mt-4">
-                        <i className="fas fa-info-circle me-2"></i>
-                        No join table history found for the selected filters. Please try different filter criteria.
-                      </div>
-                    ) : null}
-                  </div>
+                <div style={{ backgroundColor: 'transparent', width: '100%', overflowX: 'auto' }}>
+                  <ReportTable
+                    data={filteredData}
+                    columns={columns}
+                    title="Join Table Reports"
+                    filterInfo={getFilterInfo()}
+                    enableHorizontalScroll={true}
+                    onBack={handleGoBack}
+                    filterControls={renderFilterControls()}
+                    dataFetched={dataFetched}
+                    breadcrumbs={renderBreadcrumbs()}
+                    onRefresh={fetchJoinTableReport}
+                  />
                 </div>
               )}
             </div>

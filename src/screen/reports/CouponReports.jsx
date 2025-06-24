@@ -1,19 +1,17 @@
 import React, { useState } from 'react';
 import { api, API_PATHS } from '../../config/apiConfig';
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardBody,
-  Badge,
-  Row,
-  Col
+  Form,
+  Button,
+  Breadcrumb
 } from 'react-bootstrap';
 import VerticalSidebar from '../../components/VerticalSidebar';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import { ForbiddenAccessMessage, ReportTable, ReportFilters } from '../../components/common';
+import { ForbiddenAccessMessage, ReportTable } from '../../components/common';
 import { useNavigate } from 'react-router-dom';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 function CouponReports() {
   const [loading, setLoading] = useState(false);
@@ -23,305 +21,329 @@ function CouponReports() {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [orderType, setOrderType] = useState('all');
   const [dataFetched, setDataFetched] = useState(false);
-  const [filterParams, setFilterParams] = useState(null);
+  
+  // Date range filters
+  const [dateRange, setDateRange] = useState('All Time');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   
   const navigate = useNavigate();
 
-  const fetchCouponReport = async (params) => {
-    try {
-      setLoading(true);
-      setError(null);
-      setPermissionDenied(false);
-      setFilterParams(params);
+  // Handle date range selection
+  const handleDateRangeChange = (range) => {
+    setDateRange(range);
+    setShowDatePicker(range === 'Custom Range');
+  };
 
-      const apiParams = {
-        outlet_id: localStorage.getItem('outlet_id'),
-        user_id: localStorage.getItem('user_id'),
-        filter_type: 'all'
-      };
+  const fetchCouponReport = () => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        setPermissionDenied(false);
 
-      // Set order type if specified
-      if (params.order_type && params.order_type !== 'all') {
-        apiParams.filter_type = 'order_type';
-        apiParams.order_type = params.order_type;
-        setOrderType(params.order_type);
-      } else {
-        setOrderType('all');
-      }
+        const apiParams = {
+          outlet_id: localStorage.getItem('outlet_id'),
+          user_id: localStorage.getItem('user_id'),
+          filter_type: 'all'
+        };
 
-      // Add date range parameters if applicable
-      if (params.start_date && params.end_date) {
-        apiParams.start_date = params.start_date.toISOString().split('T')[0];
-        apiParams.end_date = params.end_date.toISOString().split('T')[0];
-      } else if (params.date_range && params.date_range !== 'All Time') {
-        apiParams.date_range = params.date_range;
-      }
+        // Set order type if specified
+        if (orderType && orderType !== 'all') {
+          apiParams.filter_type = 'order_type';
+          apiParams.order_type = orderType;
+        }
 
-      console.log('Making API call with params:', apiParams);
-      const response = await api.post(API_PATHS.couponReport, apiParams);
-      
-      if (response.data && response.data.detail) {
-        setCouponData(response.data.detail);
+        // Add date range parameters if applicable
+        if (startDate && endDate && dateRange === 'Custom Range') {
+          apiParams.start_date = startDate.toISOString().split('T')[0];
+          apiParams.end_date = endDate.toISOString().split('T')[0];
+        } else if (dateRange !== 'All Time') {
+          apiParams.date_range = dateRange;
+        }
+
+        console.log('Making API call with params:', apiParams);
+        const response = await api.post(API_PATHS.couponReport, apiParams);
         
-        // Add unique id to each record for table component
-        const processedData = response.data.detail.coupon_details.map((item, index) => ({
-          ...item,
-          id: `coupon-${index}`
-        }));
+        if (response.data && response.data.detail) {
+          setCouponData(response.data.detail);
+          
+          // Add unique id to each record for table component
+          const processedData = response.data.detail.coupon_details.map((item, index) => ({
+            ...item,
+            id: `coupon-${index}`
+          }));
+          
+          setCouponDetails(processedData);
+          setDataFetched(true);
+          console.log('Data fetched successfully:', response.data.detail);
+        } else {
+          throw new Error('Invalid response format');
+        }
+      } catch (err) {
+        console.error('Error fetching coupon report:', err);
         
-        setCouponDetails(processedData);
-        setDataFetched(true);
-        console.log('Data fetched successfully:', response.data.detail);
-      } else {
-        throw new Error('Invalid response format');
-      }
-    } catch (err) {
-      console.error('Error fetching coupon report:', err);
-      
-      if (err.response?.status === 403 || 
-          err.response?.data?.detail?.includes('permission') ||
-          err.response?.data?.detail?.includes('access')) {
-        setPermissionDenied(true);
-        setError(err.response?.data?.detail || 'You don\'t have permission to access reports management functionality');
-      } else {
-        setError(err.response?.data?.detail || 'Failed to fetch coupon report data');
-      }
+        if (err.response?.status === 403 || 
+            err.response?.data?.detail?.includes('permission') ||
+            err.response?.data?.detail?.includes('access')) {
+          setPermissionDenied(true);
+          setError(err.response?.data?.detail || 'You don\'t have permission to access reports management functionality');
+        } else {
+          setError(err.response?.data?.detail || 'Failed to fetch coupon report data');
+        }
 
-      if (err.response?.status === 401) {
-        navigate('/login');
+        if (err.response?.status === 401) {
+          navigate('/login');
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    fetchData();
   };
 
   const handleRetry = () => {
-    fetchCouponReport(filterParams || {});
+    fetchCouponReport();
   };
 
-  // Function to check if there's meaningful data to display
-  const hasData = () => {
-    if (!couponData) return false;
-    
-    const report = couponData.coupon_report;
-    return report.total_coupons_used > 0 || 
-           report.total_discount_given > 0 || 
-           report.total_revenue > 0 || 
-           report.average_discount_per_order > 0;
+  const handleGoBack = () => {
+    navigate(-1);
+  };
+
+  const handleOrderTypeChange = (e) => {
+    setOrderType(e.target.value);
   };
 
   // Define table columns
   const columns = [
     {
-      Header: 'Order #',
+      Header: 'Order Number',
       accessor: 'order_number',
-      width: '10%',
+      width: '130px',
       Cell: (item) => (
-        <div className="d-flex flex-column">
-          <span className="fw-semibold text-primary">#{item.order_number}</span>
-          <small className="text-muted">ID: {item.order_id}</small>
+        <div className="text-nowrap">
+          <span className="fw-semibold">#{item.order_number}</span>
         </div>
       ),
-      exportFormat: (item) => `#${item.order_number} (ID: ${item.order_id})`
+      exportFormat: (item) => `#${item.order_number}`
     },
     {
       Header: 'Type',
       accessor: 'order_type',
-      width: '10%',
+      width: '100px',
       Cell: (item) => (
-        <Badge bg={getOrderTypeColor(item.order_type)}>
+        <div className="text-nowrap">
           {item.order_type}
-        </Badge>
+        </div>
       ),
       exportFormat: (item) => item.order_type
     },
     {
       Header: 'Status',
       accessor: 'order_status',
-      width: '10%',
+      width: '120px',
       Cell: (item) => (
-        <Badge bg={getStatusColor(item.order_status)}>
+        <div className="text-nowrap">
           {item.order_status}
-        </Badge>
+        </div>
       ),
       exportFormat: (item) => item.order_status
     },
-    {
-      Header: 'Date',
-      accessor: 'created_on',
-      width: '10%',
-      Cell: (item) => <span>{item.created_on}</span>,
-      exportFormat: (item) => item.created_on
-    },
+    // {
+    //   Header: 'Date',
+    //   accessor: 'created_on',
+    //   width: '150px',
+    //   Cell: (item) => (
+    //     <div className="text-nowrap">
+    //       {item.created_on}
+    //     </div>
+    //   ),
+    //   exportFormat: (item) => item.created_on
+    // },
     {
       Header: 'Coupon Code',
       accessor: 'coupon_code',
-      width: '10%',
-      Cell: (item) => <span className="fw-bold">{item.coupon_code}</span>,
+      width: '150px',
+      Cell: (item) => (
+        <div className="text-nowrap fw-bold">
+          {item.coupon_code}
+        </div>
+      ),
       exportFormat: (item) => item.coupon_code
     },
     {
       Header: 'Coupon Type',
       accessor: 'coupon_type',
-      width: '10%',
+      width: '120px',
       Cell: (item) => (
-        <Badge bg={item.coupon_type === 'amount' ? 'success' : 'warning'}>
+        <div className="text-nowrap">
           {item.coupon_type}
-        </Badge>
+        </div>
       ),
       exportFormat: (item) => item.coupon_type
     },
     {
       Header: 'Discount',
       accessor: 'discount_amount',
-      width: '10%',
-      Cell: (item) => <span>₹{item.discount_amount.toFixed(2)}</span>,
+      width: '120px',
+      Cell: (item) => (
+        <div className="text-nowrap">
+          ₹{item.discount_amount.toFixed(2)}
+        </div>
+      ),
       exportFormat: (item) => `₹${item.discount_amount.toFixed(2)}`
     },
     {
       Header: 'Bill Amount',
       accessor: 'total_bill_amount',
-      width: '10%',
-      Cell: (item) => <span>₹{item.total_bill_amount.toFixed(2)}</span>,
+      width: '130px',
+      Cell: (item) => (
+        <div className="text-nowrap">
+          ₹{item.total_bill_amount.toFixed(2)}
+        </div>
+      ),
       exportFormat: (item) => `₹${item.total_bill_amount.toFixed(2)}`
     },
     {
       Header: 'Final Amount',
       accessor: 'final_grand_total',
-      width: '10%',
-      Cell: (item) => <span className="fw-bold">₹{item.final_grand_total.toFixed(2)}</span>,
+      width: '130px',
+      Cell: (item) => (
+        <div className="text-nowrap fw-bold">
+          ₹{item.final_grand_total.toFixed(2)}
+        </div>
+      ),
       exportFormat: (item) => `₹${item.final_grand_total.toFixed(2)}`
     }
   ];
 
-  // Define expandable content for additional coupon details
-  const renderCouponDetails = (item) => (
-    <>
-      <h6 className="mb-3 text-primary">
-        <i className="fas fa-ticket me-2"></i>
-        Coupon Details
-      </h6>
-      <div className="row">
-        <div className="col-md-6">
-          <div className="card h-100">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Order Number:</span>
-                <span>#{item.order_number}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Order Type:</span>
-                <span>{item.order_type}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Order Status:</span>
-                <span>{item.order_status}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Created On:</span>
-                <span>{item.created_on}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-6">
-          <div className="card h-100">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Coupon Code:</span>
-                <span>{item.coupon_code}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Coupon Type:</span>
-                <span>{item.coupon_type}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Discount Amount:</span>
-                <span>₹{item.discount_amount.toFixed(2)}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Special Discount:</span>
-                <span>₹{item.special_discount.toFixed(2)}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Bill Amount:</span>
-                <span>₹{item.total_bill_amount.toFixed(2)}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Final Amount:</span>
-                <span>₹{item.final_grand_total.toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      {item.customer_name && (
-        <div className="row mt-3">
-          <div className="col-md-6">
-            <div className="card">
-              <div className="card-header">
-                <h6 className="mb-0">Customer Information</h6>
-              </div>
-              <div className="card-body">
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <span className="fw-bold">Name:</span>
-                  <span>{item.customer_name}</span>
-                </div>
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <span className="fw-bold">Mobile:</span>
-                  <span>{item.customer_mobile}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-
   // Prepare filter info for export
   const getFilterInfo = () => {
-    if (!filterParams) {
-      return {
-        'Order Type': 'All Orders',
-        'Date Range': 'All Time'
-      };
-    }
-
     const info = {
-      'Order Type': filterParams.order_type ? filterParams.order_type : 'All Orders',
-      'Date Range': filterParams.date_range || 'All Time'
+      'Order Type': orderType === 'all' ? 'All Orders' : orderType,
+      'Date Range': dateRange || 'All Time'
     };
 
-    if (filterParams.start_date && filterParams.end_date) {
-      info['Date Range'] = `${filterParams.start_date.toLocaleDateString()} to ${filterParams.end_date.toLocaleDateString()}`;
+    if (startDate && endDate && dateRange === 'Custom Range') {
+      const formattedStartDate = startDate.toISOString().split('T')[0];
+      const formattedEndDate = endDate.toISOString().split('T')[0];
+      info['Date Range'] = `${formattedStartDate} to ${formattedEndDate}`;
     }
 
     return info;
   };
 
-  if (permissionDenied) {
-    return (
-      <div className="layout-wrapper layout-content-navbar">
-        <div className="layout-container">
-          <VerticalSidebar />
-          <div className="layout-page d-flex flex-column min-vh-100">
-            <Header />
-            <div className="content-wrapper flex-grow-1">
-              <ForbiddenAccessMessage 
-                title="Permission Denied" 
-                message={error}
-                resourceName="Coupon Reports"
-                onRetry={handleRetry}
-                onBack={() => navigate(-1)}
-              />
-            </div>
-            <Footer />
-          </div>
-        </div>
+  // Custom filter controls for the ReportTable
+  const renderFilterControls = () => (
+    <div className="d-flex align-items-center gap-2">
+      {/* Date Range Dropdown */}
+      <div className="dropdown">
+        <button
+          type="button"
+          className="btn btn-outline-primary btn-sm dropdown-toggle"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+        >
+          <i className="fas fa-calendar me-2"></i>
+          {dateRange}
+        </button>
+        <ul className="dropdown-menu">
+          {['All Time', 'Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'Current Month', 'Last Month'].map((range) => (
+            <li key={range}>
+              <a href="javascript:void(0);"
+                className="dropdown-item d-flex align-items-center"
+                onClick={() => handleDateRangeChange(range)}>
+                {range}
+              </a>
+            </li>
+          ))}
+          <li><hr className="dropdown-divider" /></li>
+          <li>
+            <a href="javascript:void(0);"
+              className="dropdown-item d-flex align-items-center"
+              onClick={() => handleDateRangeChange('Custom Range')}>
+              Custom Range
+            </a>
+          </li>
+        </ul>
       </div>
-    );
-  }
+
+      {/* Order Type Select */}
+      <Form.Select 
+        value={orderType}
+        onChange={handleOrderTypeChange}
+        size="sm"
+        style={{ width: '150px' }}
+      >
+        <option value="all">All Orders</option>
+        <option value="dine-in">Dine-in</option>
+        <option value="parcel">Parcel</option>
+        <option value="counter">Counter</option>
+        <option value="delivery">Delivery</option>
+        <option value="drive-through">Drive-through</option>
+      </Form.Select>
+
+      {/* Date Picker for Custom Range */}
+      {showDatePicker && (
+        <div className="d-flex align-items-center gap-2">
+          <DatePicker
+            selected={startDate}
+            onChange={(date) => setStartDate(date)}
+            selectsStart
+            startDate={startDate}
+            endDate={endDate}
+            maxDate={new Date()}
+            placeholderText="Start Date"
+            className="form-control form-control-sm"
+            dateFormat="dd MMM yyyy"
+          />
+          <DatePicker
+            selected={endDate}
+            onChange={(date) => setEndDate(date)}
+            selectsEnd
+            startDate={startDate}
+            endDate={endDate}
+            minDate={startDate}
+            maxDate={new Date()}
+            placeholderText="End Date"
+            className="form-control form-control-sm"
+            dateFormat="dd MMM yyyy"
+          />
+        </div>
+      )}
+
+      {/* Submit Button */}
+      <Button 
+        variant="primary" 
+        size="sm"
+        onClick={fetchCouponReport}
+        disabled={loading}
+        className="px-4"
+      >
+        {loading ? (
+          <>
+            <span 
+              className="spinner-border spinner-border-sm me-1" 
+              role="status" 
+              aria-hidden="true"
+            ></span>
+            Generating...
+          </>
+        ) : "Generate Report"}
+      </Button>
+    </div>
+  );
+
+  // Custom breadcrumbs component
+  const renderBreadcrumbs = () => (
+    <Breadcrumb className="mb-0">
+      <Breadcrumb.Item href="/">Dashboard</Breadcrumb.Item>
+      <Breadcrumb.Item href="/reports">Reports</Breadcrumb.Item>
+      <Breadcrumb.Item active>Coupon Reports</Breadcrumb.Item>
+    </Breadcrumb>
+  );
 
   return (
     <div className="layout-wrapper layout-content-navbar">
@@ -331,132 +353,33 @@ function CouponReports() {
           <Header />
           <div className="content-wrapper flex-grow-1">
             <div className="container-fluid flex-grow-1 container-p-y">
-              {error ? (
+              {permissionDenied ? (
+                <ForbiddenAccessMessage 
+                  title="Permission Denied" 
+                  message={error}
+                  resourceName="Coupon Reports"
+                  onRetry={handleRetry}
+                  onBack={() => navigate(-1)}
+                />
+              ) : error ? (
                 <div className="alert alert-danger mb-4" role="alert">
                   {error}
                 </div>
               ) : (
-                <Card>
-                  <CardHeader className="bg-white">
-                    <CardTitle className="text-center w-100 mb-0 fw-bold text-primary">Coupon Reports</CardTitle>
-                  </CardHeader>
-
-                  <CardBody>
-                    {/* Filters Section */}
-                    <ReportFilters
-                      isLoading={loading}
-                      onSubmit={fetchCouponReport}
-                      defaultDateRange="All Time"
-                    >
-                      {/* Order Type Filter */}
-                      <select 
-                        className="form-select"
-                        name="order_type"
-                        defaultValue="all"
-                        style={{ width: '200px' }}
-                      >
-                        <option value="all">All Orders</option>
-                        <option value="dine-in">Dine-in</option>
-                        <option value="parcel">Parcel</option>
-                        <option value="counter">Counter</option>
-                        <option value="delivery">Delivery</option>
-                        <option value="drive-through">Drive-through</option>
-                      </select>
-                    </ReportFilters>
-
-                    {/* Summary Cards - Only show after data is fetched AND there is meaningful data */}
-                    {dataFetched && hasData() && (
-                      <Row className="mb-4">
-                        <Col md={3}>
-                          <Card className="h-100">
-                            <CardBody className="bg-primary text-white">
-                              <h6 className="card-title">Total Coupons Used</h6>
-                              <h3 className="mb-0">{couponData.coupon_report.total_coupons_used}</h3>
-                            </CardBody>
-                          </Card>
-                        </Col>
-                        <Col md={3}>
-                          <Card className="h-100">
-                            <CardBody className="bg-success text-white">
-                              <h6 className="card-title">Total Revenue</h6>
-                              <h3 className="mb-0">₹{couponData.coupon_report.total_revenue.toFixed(2)}</h3>
-                            </CardBody>
-                          </Card>
-                        </Col>
-                        <Col md={3}>
-                          <Card className="h-100">
-                            <CardBody className="bg-warning text-white">
-                              <h6 className="card-title">Total Discount Given</h6>
-                              <h3 className="mb-0">₹{couponData.coupon_report.total_discount_given.toFixed(2)}</h3>
-                            </CardBody>
-                          </Card>
-                        </Col>
-                        <Col md={3}>
-                          <Card className="h-100">
-                            <CardBody className="bg-info text-white">
-                              <h6 className="card-title">Avg. Discount/Order</h6>
-                              <h3 className="mb-0">₹{couponData.coupon_report.average_discount_per_order.toFixed(2)}</h3>
-                            </CardBody>
-                          </Card>
-                        </Col>
-                      </Row>
-                    )}
-
-                    {/* Coupon Type Breakdown - Only show after data is fetched AND there is meaningful data */}
-                    {dataFetched && hasData() && Object.keys(couponData.coupon_report.coupon_type_breakdown).length > 0 && (
-                      <Row className="mb-4">
-                        <Col md={6}>
-                          <Card>
-                            <CardHeader>
-                              <h5 className="card-title mb-0">Coupon Type Breakdown</h5>
-                            </CardHeader>
-                            <CardBody>
-                              <div className="table-responsive">
-                                <table className="table table-bordered">
-                                  <thead>
-                                    <tr>
-                                      <th>Type</th>
-                                      <th>Count</th>
-                                      <th>Total Discount</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    <tr>
-                                      <td>Amount Based</td>
-                                      <td>{couponData.coupon_report.coupon_type_breakdown.amount?.count || 0}</td>
-                                      <td>₹{(couponData.coupon_report.coupon_type_breakdown.amount?.total_discount || 0).toFixed(2)}</td>
-                                    </tr>
-                                    <tr>
-                                      <td>Percentage Based</td>
-                                      <td>{couponData.coupon_report.coupon_type_breakdown.percent?.count || 0}</td>
-                                      <td>₹{(couponData.coupon_report.coupon_type_breakdown.percent?.total_discount || 0).toFixed(2)}</td>
-                                    </tr>
-                                  </tbody>
-                                </table>
-                              </div>
-                            </CardBody>
-                          </Card>
-                        </Col>
-                      </Row>
-                    )}
-
-                    {/* Table Section - Only show after data is fetched AND there are coupon details */}
-                    {dataFetched && couponDetails.length > 0 ? (
-                      <ReportTable
-                        data={couponDetails}
-                        columns={columns}
-                        title="Coupon Details"
-                        expandableContent={renderCouponDetails}
-                        filterInfo={getFilterInfo()}
-                      />
-                    ) : dataFetched ? (
-                      <div className="alert alert-info mt-4">
-                        <i className="fas fa-info-circle me-2"></i>
-                        No coupon data found for the selected filters. Please try different filter criteria.
-                      </div>
-                    ) : null}
-                  </CardBody>
-                </Card>
+                <div style={{ backgroundColor: 'transparent', width: '100%', overflowX: 'auto' }}>
+                  <ReportTable
+                    data={couponDetails}
+                    columns={columns}
+                    title="Coupon Reports"
+                    filterInfo={getFilterInfo()}
+                    enableHorizontalScroll={true}
+                    onBack={handleGoBack}
+                    filterControls={renderFilterControls()}
+                    dataFetched={dataFetched}
+                    breadcrumbs={renderBreadcrumbs()}
+                    onRefresh={fetchCouponReport}
+                  />
+                </div>
               )}
             </div>
             <Footer />
@@ -465,36 +388,6 @@ function CouponReports() {
       </div>
     </div>
   );
-}
-
-function getStatusColor(status) {
-  switch (status?.toLowerCase()) {
-    case 'paid':
-      return 'success';
-    case 'cancelled':
-      return 'danger';
-    case 'cooking':
-      return 'warning';
-    default:
-      return 'secondary';
-  }
-}
-
-function getOrderTypeColor(type) {
-  switch (type?.toLowerCase()) {
-    case 'dine-in':
-      return 'primary';
-    case 'parcel':
-      return 'info';
-    case 'counter':
-      return 'success';
-    case 'delivery':
-      return 'warning';
-    case 'drive-through':
-      return 'danger';
-    default:
-      return 'secondary';
-  }
 }
 
 export default CouponReports; 

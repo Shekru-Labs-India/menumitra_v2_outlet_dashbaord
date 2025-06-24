@@ -3,13 +3,16 @@ import { api, API_PATHS } from '../../config/apiConfig';
 import {
   Form,
   Modal,
-  Button
+  Button,
+  Breadcrumb
 } from 'react-bootstrap';
 import VerticalSidebar from '../../components/VerticalSidebar';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import { ForbiddenAccessMessage, ReportTable, ReportFilters } from '../../components/common';
+import { ForbiddenAccessMessage, ReportTable } from '../../components/common';
 import { useNavigate } from 'react-router-dom';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const OrderReports = () => {
   const [loading, setLoading] = useState(false);
@@ -18,8 +21,13 @@ const OrderReports = () => {
   const [orderDetails, setOrderDetails] = useState([]);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [dataFetched, setDataFetched] = useState(false);
-  const [filterParams, setFilterParams] = useState(null);
-  const [orderType, setOrderType] = useState('');
+  
+  // Filter states
+  const [dateRange, setDateRange] = useState('All Time');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [orderType, setOrderType] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   
@@ -39,111 +47,93 @@ const OrderReports = () => {
     }
   }, [orderData]);
 
-  // Add another useEffect to log when orderDetails changes
-  useEffect(() => {
-    console.log('orderDetails state updated:', orderDetails.length);
-    
-    // If we have data and dataFetched is true, force a re-render
-    if (orderDetails.length > 0 && !dataFetched) {
-      console.log('Setting dataFetched to true because orderDetails has data');
-      setDataFetched(true);
-    }
-  }, [orderDetails, dataFetched]);
+  // Handle date range selection
+  const handleDateRangeChange = (range) => {
+    setDateRange(range);
+    setShowDatePicker(range === 'Custom Range');
+  };
 
-  const fetchOrderReport = async (params) => {
-    try {
-      setLoading(true);
-      setError(null);
-      setPermissionDenied(false);
-      setFilterParams(params);
-
-      // Store order type from params for filtering
-      if (params.order_type && params.order_type !== 'all') {
-        setOrderType(params.order_type);
-      } else {
-        setOrderType('');
-      }
-
-      // Prepare API parameters with correct filter_type
-      const apiParams = {
-        outlet_id: localStorage.getItem('outlet_id'),
-        user_id: localStorage.getItem('user_id'),
-        filter_type: 'all'  // Default filter type
-      };
-
-      // Handle date range parameters
-      if (params.start_date && params.end_date) {
-        apiParams.filter_type = 'date_range';
-        apiParams.start_date = params.start_date.toISOString().split('T')[0];
-        apiParams.end_date = params.end_date.toISOString().split('T')[0];
-      } else if (params.date_range && params.date_range !== 'All Time') {
-        apiParams.filter_type = 'date_range';
-        apiParams.date_range = params.date_range;
-      }
-
-      // Add order type if specified
-      if (params.order_type && params.order_type !== 'all') {
-        apiParams.order_type = params.order_type;
-      }
-
-      console.log('Fetching order report with params:', apiParams);
-      
-      // Make the actual API call
-      const response = await api.post(API_PATHS.orderReport, apiParams);
-      
-      if (response.data && response.data.detail) {
-        // Process the data directly here instead of relying on the useEffect
-        const responseData = response.data.detail;
-        setOrderData(responseData);
-        
-        // Add unique id to each order for table component
-        if (responseData.orders && Array.isArray(responseData.orders)) {
-          const processedData = responseData.orders.map((order) => ({
-            ...order,
-            id: `order-${order.order_id}`
-          }));
-          
-          setOrderDetails(processedData);
-          console.log('Order details processed directly in fetch:', processedData.length);
+  const fetchOrderReport = () => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        setPermissionDenied(false);
+  
+        // Prepare API parameters with correct filter_type
+        const apiParams = {
+          outlet_id: localStorage.getItem('outlet_id'),
+          user_id: localStorage.getItem('user_id'),
+          filter_type: 'all'  // Default filter type
+        };
+  
+        // Handle date range parameters
+        if (startDate && endDate && dateRange === 'Custom Range') {
+          apiParams.filter_type = 'date_range';
+          apiParams.start_date = startDate.toISOString().split('T')[0];
+          apiParams.end_date = endDate.toISOString().split('T')[0];
+        } else if (dateRange !== 'All Time') {
+          apiParams.filter_type = 'date_range';
+          apiParams.date_range = dateRange;
         }
+  
+        // Add order type if specified
+        if (orderType && orderType !== 'all') {
+          apiParams.order_type = orderType;
+        }
+  
+        console.log('Fetching order report with params:', apiParams);
         
-        // Set dataFetched flag after all state updates
-        setDataFetched(true);
-        console.log('Data fetched successfully:', response.data.detail);
-      } else {
-        throw new Error('Invalid response format');
+        // Make the actual API call
+        const response = await api.post(API_PATHS.orderReport, apiParams);
+        
+        if (response.data && response.data.detail) {
+          // Process the data directly here instead of relying on the useEffect
+          const responseData = response.data.detail;
+          setOrderData(responseData);
+          
+          // Add unique id to each order for table component
+          if (responseData.orders && Array.isArray(responseData.orders)) {
+            const processedData = responseData.orders.map((order) => ({
+              ...order,
+              id: `order-${order.order_id}`
+            }));
+            
+            setOrderDetails(processedData);
+            console.log('Order details processed directly in fetch:', processedData.length);
+          }
+          
+          // Set dataFetched flag after all state updates
+          setDataFetched(true);
+          console.log('Data fetched successfully:', response.data.detail);
+        } else {
+          throw new Error('Invalid response format');
+        }
+      } catch (err) {
+        console.error('Error fetching order report:', err);
+        
+        if (err.response?.status === 403 || 
+            err.response?.data?.detail?.includes('permission') ||
+            err.response?.data?.detail?.includes('access')) {
+          setPermissionDenied(true);
+          setError(err.response?.data?.detail || 'You don\'t have permission to access order reports functionality');
+        } else {
+          setError(err.response?.data?.detail || 'Failed to fetch order report data');
+        }
+  
+        if (err.response?.status === 401) {
+          navigate('/login');
+        }
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error('Error fetching order report:', err);
-      
-      if (err.response?.status === 403 || 
-          err.response?.data?.detail?.includes('permission') ||
-          err.response?.data?.detail?.includes('access')) {
-        setPermissionDenied(true);
-        setError(err.response?.data?.detail || 'You don\'t have permission to access order reports functionality');
-      } else {
-        setError(err.response?.data?.detail || 'Failed to fetch order report data');
-      }
-
-      if (err.response?.status === 401) {
-        navigate('/login');
-      }
-    } finally {
-      setLoading(false);
-    }
+    };
+  
+    fetchData();
   };
 
   const handleRetry = () => {
-    fetchOrderReport(filterParams || {});
-  };
-
-  // Function to check if there's meaningful data to display
-  const hasData = () => {
-    if (!orderData) return false;
-    
-    const report = orderData.order_report;
-    return report.total_orders > 0 || 
-           report.total_revenue > 0;
+    fetchOrderReport();
   };
 
   const handleViewDetails = (order) => {
@@ -155,10 +145,18 @@ const OrderReports = () => {
     setShowModal(false);
   };
 
+  const handleGoBack = () => {
+    navigate(-1);
+  };
+
+  const handleOrderTypeChange = (e) => {
+    setOrderType(e.target.value);
+  };
+
   // Define table columns
   const columns = [
     {
-      Header: 'Order #',
+      Header: 'Order No',
       accessor: 'order_number',
       width: '100px',
       Cell: (item) => (
@@ -255,48 +253,144 @@ const OrderReports = () => {
       },
       headerClassName: 'text-nowrap'
     },
-    {
-      Header: 'Actions',
-      accessor: 'actions',
-      width: '80px',
-      Cell: (item) => (
-        <Button 
-          variant="light" 
-          size="sm" 
-          className="border"
-          onClick={() => handleViewDetails(item)}
-        >
-          <i className="fas fa-eye"></i>
-        </Button>
-      ),
-      disableSortBy: true,
-      includeInExport: false,
-      headerClassName: 'text-nowrap'
-    }
+    // {
+    //   Header: 'Actions',
+    //   accessor: 'actions',
+    //   width: '80px',
+    //   Cell: (item) => (
+    //     <Button 
+    //       variant="light" 
+    //       size="sm" 
+    //       className="border"
+    //       onClick={() => handleViewDetails(item)}
+    //     >
+    //       <i className="fas fa-eye"></i>
+    //     </Button>
+    //   ),
+    //   disableSortBy: true,
+    //   includeInExport: false,
+    //   headerClassName: 'text-nowrap'
+    // }
   ];
 
   // Prepare filter info for export
   const getFilterInfo = () => {
-    if (!filterParams) {
-      return {
-        'Date Range': 'All Time',
-        'Order Type': orderType || 'All'
-      };
-    }
-
     const info = {
-      'Date Range': 'All Time',
-      'Order Type': orderType || 'All'
+      'Date Range': dateRange || 'All Time',
+      'Order Type': orderType === 'all' ? 'All Orders' : orderType
     };
-
-    if (filterParams.date_range && filterParams.date_range !== 'All Time') {
-      info['Date Range'] = filterParams.date_range;
-    } else if (filterParams.start_date && filterParams.end_date) {
-      info['Date Range'] = `${filterParams.start_date.toLocaleDateString()} to ${filterParams.end_date.toLocaleDateString()}`;
-    }
 
     return info;
   };
+
+  // Custom filter controls for the ReportTable
+  const renderFilterControls = () => (
+    <div className="d-flex align-items-center gap-2">
+      {/* Date Range Dropdown */}
+      <div className="dropdown">
+        <button
+          type="button"
+          className="btn btn-outline-primary btn-sm dropdown-toggle"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+        >
+          <i className="fas fa-calendar me-2"></i>
+          {dateRange}
+        </button>
+        <ul className="dropdown-menu">
+          {['All Time', 'Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'Current Month', 'Last Month'].map((range) => (
+            <li key={range}>
+              <a href="javascript:void(0);"
+                className="dropdown-item d-flex align-items-center"
+                onClick={() => handleDateRangeChange(range)}>
+                {range}
+              </a>
+            </li>
+          ))}
+          <li><hr className="dropdown-divider" /></li>
+          <li>
+            <a href="javascript:void(0);"
+              className="dropdown-item d-flex align-items-center"
+              onClick={() => handleDateRangeChange('Custom Range')}>
+              Custom Range
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      {/* Order Type Filter */}
+      <Form.Select 
+        value={orderType}
+        onChange={handleOrderTypeChange}
+        size="sm"
+        style={{ width: '150px' }}
+      >
+        <option value="all">All Orders</option>
+        <option value="dine-in">Dine-in</option>
+        <option value="parcel">Parcel</option>
+        <option value="counter">Counter</option>
+        <option value="delivery">Delivery</option>
+        <option value="drive-through">Drive-through</option>
+      </Form.Select>
+
+      {showDatePicker && (
+        <div className="d-flex align-items-center gap-2">
+          <DatePicker
+            selected={startDate}
+            onChange={(date) => setStartDate(date)}
+            selectsStart
+            startDate={startDate}
+            endDate={endDate}
+            maxDate={new Date()}
+            placeholderText="Start Date"
+            className="form-control form-control-sm"
+            dateFormat="dd MMM yyyy"
+          />
+          <DatePicker
+            selected={endDate}
+            onChange={(date) => setEndDate(date)}
+            selectsEnd
+            startDate={startDate}
+            endDate={endDate}
+            minDate={startDate}
+            maxDate={new Date()}
+            placeholderText="End Date"
+            className="form-control form-control-sm"
+            dateFormat="dd MMM yyyy"
+          />
+        </div>
+      )}
+
+      {/* Submit Button */}
+      <Button 
+        variant="primary" 
+        size="sm"
+        onClick={fetchOrderReport}
+        disabled={loading}
+        className="px-4"
+      >
+        {loading ? (
+          <>
+            <span 
+              className="spinner-border spinner-border-sm me-1" 
+              role="status" 
+              aria-hidden="true"
+            ></span>
+              Generating...
+          </>
+        ) : "Generate Report"}
+      </Button>
+    </div>
+  );
+
+  // Custom breadcrumbs component
+  const renderBreadcrumbs = () => (
+    <Breadcrumb className="mb-0">
+      <Breadcrumb.Item href="/">Dashboard</Breadcrumb.Item>
+      <Breadcrumb.Item href="/reports">Reports</Breadcrumb.Item>
+      <Breadcrumb.Item active>Order Reports</Breadcrumb.Item>
+    </Breadcrumb>
+  );
 
   // Order Details Modal
   const OrderDetailsModal = () => {
@@ -473,72 +567,23 @@ const OrderReports = () => {
                   {error}
                 </div>
               ) : (
-                <div>
-                  <div className="mb-4">
-                    <h2 className="text-center mb-0 fw-bold text-primary">Order Reports</h2>
-                  </div>
+                <div style={{ backgroundColor: 'transparent', width: '100%', overflowX: 'auto' }}>
+                  {/* Order Report Summary Stats */}
+                
 
-                  <div>
-                    {/* Filters Section */}
-                    <div className="mb-4">
-                    <ReportFilters
-                      isLoading={loading}
-                      onSubmit={fetchOrderReport}
-                      defaultDateRange="All Time"
-                    >
-                      {/* Order Type Filter */}
-                        <Form.Select 
-                        name="order_type"
-                        defaultValue="all"
-                        style={{ width: '200px' }}
-                      >
-                        <option value="all">All Orders</option>
-                        <option value="dine-in">Dine-in</option>
-                        <option value="parcel">Parcel</option>
-                        <option value="counter">Counter</option>
-                        <option value="delivery">Delivery</option>
-                        <option value="drive-through">Drive-through</option>
-                        </Form.Select>
-                    </ReportFilters>
-                    </div>
-
-                    {/* Summary Stats - Simple Text Version */}
-                    {dataFetched && hasData() && (
-                      <div className="mb-4 d-flex justify-content-around">
-                        <div className="text-center">
-                          <div className="fw-bold">Total Orders</div>
-                          <div className="h4">{orderData.order_report.total_orders}</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="fw-bold">Total Revenue</div>
-                          <div className="h4">₹{orderData.order_report.total_revenue.toFixed(2)}</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="fw-bold">Avg. Order Value</div>
-                          <div className="h4">₹{orderData.order_report.average_order_value.toFixed(2)}</div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Table Section */}
-                    {orderDetails && orderDetails.length > 0 ? (
-                      <div style={{ backgroundColor: 'transparent' }}>
-                        <ReportTable
-                          key={`order-table-${orderDetails.length}`}
-                          data={orderDetails}
-                          columns={columns}
-                          title="Order Details"
-                          filterInfo={getFilterInfo()}
-                          enableHorizontalScroll={true}
-                        />
-                      </div>
-                    ) : dataFetched ? (
-                      <div className="alert alert-info mt-4">
-                        <i className="fas fa-info-circle me-2"></i>
-                        No order data found for the selected filters. Please try different filter criteria.
-                      </div>
-                    ) : null}
-                  </div>
+                  {/* Report Table */}
+                  <ReportTable
+                    data={orderDetails}
+                    columns={columns}
+                    title="Order Reports"
+                    filterInfo={getFilterInfo()}
+                    enableHorizontalScroll={true}
+                    onBack={handleGoBack}
+                    filterControls={renderFilterControls()}
+                    dataFetched={dataFetched}
+                    breadcrumbs={renderBreadcrumbs()}
+                    onRefresh={fetchOrderReport}
+                  />
                 </div>
               )}
             </div>

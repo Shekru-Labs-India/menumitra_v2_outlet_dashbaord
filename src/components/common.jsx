@@ -100,7 +100,8 @@ export const ReportTable = ({
   onBack,
   filterControls,
   dataFetched = false,
-  breadcrumbs = null
+  breadcrumbs = null,
+  onRefresh = null
 }) => {
   const PAGE_SIZE_OPTIONS = [50, 100, 200, 500]; // Added 100 as an option
   const DEFAULT_PAGE_SIZE = PAGE_SIZE_OPTIONS[0]; // Default to first option (50)
@@ -117,6 +118,7 @@ export const ReportTable = ({
   const [selectedRecords, setSelectedRecords] = useState({});
   const [selectedColumns, setSelectedColumns] = useState({});
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Use refs to track previous values and avoid unnecessary re-renders
   const prevDataRef = useRef(data);
@@ -128,6 +130,21 @@ export const ReportTable = ({
   const prevCurrentPageRef = useRef(currentPage);
   const prevPageSizeRef = useRef(pageSize);
   const prevColumnsRef = useRef(columns);
+
+  // Handle refresh button click
+  const handleRefresh = () => {
+    if (onRefresh && !isRefreshing) {
+      setIsRefreshing(true);
+      
+      // Call the onRefresh function provided by the parent component
+      Promise.resolve(onRefresh())
+        .finally(() => {
+          setTimeout(() => {
+            setIsRefreshing(false);
+          }, 500); // Minimum animation time for better UX
+        });
+    }
+  };
 
   // Initialize data, selections, and columns when data changes
   useEffect(() => {
@@ -571,11 +588,12 @@ export const ReportTable = ({
             <div className="d-flex align-items-center">
               {onBack && (
                 <button 
-                  className="btn btn-sm btn-icon btn-outline-secondary me-3" 
+                  className="btn btn-sm btn-outline-secondary rounded-pill me-3  d-flex align-items-center" 
                   onClick={onBack}
                   title="Back"
                 >
-                  <i className="fas fa-arrow-left"></i>
+                  <i className="fas fa-chevron-left me-1"></i>
+                  <span>Back</span>
                 </button>
               )}
               
@@ -649,6 +667,17 @@ export const ReportTable = ({
                       <i className="fas fa-file-pdf me-1"></i>
                       PDF
                     </Button>
+                    {/* Refresh Button */}
+                    {onRefresh && (
+                      <button
+                        className="btn btn-outline-primary btn-sm"
+                        onClick={handleRefresh}
+                        disabled={isRefreshing}
+                        title="Refresh report data"
+                      >
+                        <i className={`fas ${isRefreshing ? "fa-spinner fa-spin" : "fa-sync-alt"}`}></i>
+                      </button>
+                    )}
                   </div>
                   
                   <InputGroup size="sm">
@@ -1305,7 +1334,7 @@ export const ReportFilters = ({
               />
               Loading...
             </>
-          ) : "Submit"}
+          ) : "Generate Report"}
         </Button>
       </div>
 
