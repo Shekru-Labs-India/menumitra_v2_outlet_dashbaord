@@ -178,12 +178,12 @@ const MenuReports = () => {
     navigate(-1);
   };
 
-  // Define table columns
+  // Define table columns with fixed widths to ensure proper display
   const columns = [
     {
       Header: 'Menu Name',
       accessor: 'menu_name',
-      width: '200px',
+      width: '250px',
       Cell: (item) => (
         <div className="text-nowrap">
           <span className="fw-semibold">{item.menu_name}</span>
@@ -194,7 +194,7 @@ const MenuReports = () => {
     {
       Header: 'Category',
       accessor: 'category_name',
-      width: '150px',
+      width: '200px',
       Cell: (item) => (
         <div className="text-nowrap">
           {item.category_name}
@@ -206,9 +206,9 @@ const MenuReports = () => {
     {
       Header: 'Description',
       accessor: 'description',
-      width: '250px',
+      width: '300px',
       Cell: (item) => (
-        <div className="text-nowrap text-truncate" style={{ maxWidth: '250px' }} title={item.description || '-'}>
+        <div className="text-wrap" style={{ maxWidth: '300px' }}>
           {item.description || '-'}
         </div>
       ),
@@ -217,7 +217,7 @@ const MenuReports = () => {
     {
       Header: 'Status',
       accessor: 'is_available',
-      width: '120px',
+      width: '150px',
       Cell: (item) => (
         <div className="text-nowrap">
           {item.is_available ? 'Available' : 'Unavailable'}
@@ -234,14 +234,14 @@ const MenuReports = () => {
     {
       Header: 'Portions',
       accessor: 'portions',
-      width: '350px',
+      width: '450px',
       Cell: (item) => {
         if (!item.portions || item.portions.length === 0) {
           return <span className="text-nowrap">No portions</span>;
         }
         
         return (
-          <div className="text-nowrap">
+          <div className="text-wrap" style={{ maxWidth: '450px' }}>
             {item.portions.map((portion, index) => (
               <span key={portion.portion_id}>
                 {portion.portion_name}: ₹{portion.price}
@@ -420,10 +420,11 @@ const MenuReports = () => {
                   {error}
                 </div>
               ) : (
-                <div style={{ backgroundColor: 'transparent' }}>
+                <div style={{ backgroundColor: 'transparent', width: '100%', overflowX: 'auto' }}>
                   <ReportTable
                     data={filteredData}
                     columns={columns}
+                    title="Menu Reports"
                     filterInfo={getFilterInfo()}
                     enableHorizontalScroll={true}
                     onBack={handleGoBack}

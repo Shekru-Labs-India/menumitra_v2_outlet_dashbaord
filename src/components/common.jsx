@@ -18,6 +18,10 @@ import { utils, write } from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+// Global table styling variables
+const tableFontSize = '0.75rem'; // 12px equivalent
+const tableHeaderFontSize = '0.8rem'; // Slightly larger for headers
+
 /**
  * A reusable component to display a message when no data is available
  * @param {Object} props - Component props
@@ -98,7 +102,7 @@ export const ReportTable = ({
   dataFetched = false,
   breadcrumbs = null
 }) => {
-  const PAGE_SIZE_OPTIONS = [50, 200, 500]; // Available page size options
+  const PAGE_SIZE_OPTIONS = [50, 100, 200, 500]; // Added 100 as an option
   const DEFAULT_PAGE_SIZE = PAGE_SIZE_OPTIONS[0]; // Default to first option (50)
   
   const [filteredData, setFilteredData] = useState([]);
@@ -518,9 +522,9 @@ export const ReportTable = ({
     return item.id || item.menu_id || item[Object.keys(item)[0]];
   };
 
-  // Calculate total width for horizontal scrolling
+  // Modify the calculateTotalWidth function to ensure it returns a proper width
   const calculateTotalWidth = () => {
-    if (!enableHorizontalScroll) return 'auto';
+    if (!enableHorizontalScroll) return '100%';
     
     let totalWidth = 0;
     columns.forEach(col => {
@@ -529,18 +533,24 @@ export const ReportTable = ({
         const widthValue = parseInt(col.width, 10);
         if (!isNaN(widthValue)) {
           totalWidth += widthValue;
+        } else {
+          // Default width for columns with non-numeric width
+          totalWidth += 150;
         }
       } else {
         // Default width for columns without specified width
-        totalWidth += 120;
+        totalWidth += 150;
       }
     });
     
     // Add width for selection column and expansion column if needed
     totalWidth += 60; // Selection column
-    if (expandableContent && !enableHorizontalScroll) {
+    if (expandableContent) {
       totalWidth += 60; // Expansion column
     }
+    
+    // Add some extra space to ensure all content is visible
+    totalWidth += 50;
     
     return `${totalWidth}px`;
   };
@@ -664,14 +674,31 @@ export const ReportTable = ({
               {data.length > 0 ? (
                 <div className="table-responsive" style={{ 
                   position: 'relative', 
-                  maxHeight: '500px', 
+                  maxHeight: '600px', 
                   overflowY: 'auto',
+                  overflowX: 'auto',
                   border: '1px solid #dee2e6',
                   borderRadius: '0.25rem'
                 }}>
-                  <Table className="table-hover mb-0" size="sm" style={{ 
-                    width: enableHorizontalScroll ? calculateTotalWidth() : '100%', 
-                    tableLayout: 'fixed'
+                  <style>
+                    {`
+                      .custom-table thead tr:not(.header-row) {
+                        background-color: #ffffff !important;
+                      }
+                      .custom-table thead tr.header-row {
+                        background-color: #f8f9fa !important;
+                      }
+                      .custom-table thead tr:not(.header-row) th {
+                        background-color: #ffffff !important;
+                      }
+                      .custom-table thead tr.header-row th {
+                        background-color: #f8f9fa !important;
+                      }
+                    `}
+                  </style>
+                  <Table className={`custom-table ${enableHorizontalScroll ? "" : "table-hover mb-0"}`} size="sm" style={{ 
+                    width: calculateTotalWidth(), 
+                    tableLayout: enableHorizontalScroll ? 'fixed' : 'auto'
                   }}>
                     <colgroup>
                       {/* Expansion column */}
@@ -691,27 +718,27 @@ export const ReportTable = ({
                       
                       {/* Data columns */}
                       {columns.map((column) => (
-                        <col key={`col-${column.accessor}`} style={{ width: column.width || 'auto' }} />
+                        <col key={`col-${column.accessor}`} style={{ width: column.width || '150px' }} />
                       ))}
                     </colgroup>
-                    <thead className="bg-light">
+                    <thead>
                       {/* Advanced controls section - conditionally visible */}
                       {showAdvancedControls && (
                         <>
-                          {/* Row 1: Eye icons for column selection */}
-                          <tr>
+                          {/* Row 1: Eye icons for column selection - white background */}
+                          <tr style={{ height: '15px' }}>
                             {/* Expansion column - only show if expandable content is provided and horizontal scroll is not enabled */}
                             {expandableContent && !enableHorizontalScroll && (
-                              <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}></th>
+                              <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem', backgroundColor: '#ffffff' }}></th>
                             )}
                             
                             {/* S.No. column */}
-                            <th className="text-center align-middle" style={{ width: '60px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}>
+                            <th className="text-center align-middle" style={{ width: '60px', ...verticalLineStyle, padding: '0.3rem 0.5rem', backgroundColor: '#ffffff' }}>
                               <span className="small text-muted">S.No.</span>
                             </th>
                             
                             {/* Selection column */}
-                            <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}>
+                            <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem', backgroundColor: '#ffffff' }}>
                               <span className="small text-muted">Incl.</span>
                             </th>
                             
@@ -723,7 +750,8 @@ export const ReportTable = ({
                                 style={{ 
                                   width: column.width || 'auto', 
                                   ...verticalLineStyle,
-                                  padding: '0.3rem 0.5rem'
+                                  padding: '0.3rem 0.5rem',
+                                  backgroundColor: '#ffffff'
                                 }}
                               >
                                 <OverlayTrigger
@@ -738,6 +766,7 @@ export const ReportTable = ({
                                     variant="link" 
                                     className="p-0 text-decoration-none" 
                                     onClick={(e) => toggleColumnSelection(e, column.accessor)}
+                                    style={{ display: 'flex', justifyContent: 'center' }}
                                   >
                                     <i className={`fas fa-eye${selectedColumns[column.accessor] ? '' : '-slash'} ${selectedColumns[column.accessor] ? 'text-primary' : 'text-muted'}`} style={{ fontSize: '0.85rem' }}></i>
                                   </Button>
@@ -747,61 +776,65 @@ export const ReportTable = ({
                           </tr>
                           
                           {/* Divider after eye buttons row */}
-                          <tr className="table-divider">
-                            <th colSpan={columns.length + (expandableContent && !enableHorizontalScroll ? 3 : 2)} style={{ padding: 0 }}>
+                          <tr>
+                            <th colSpan={columns.length + (expandableContent && !enableHorizontalScroll ? 3 : 2)} style={{ padding: 0, backgroundColor: '#ffffff !important' }}>
                               <hr style={{ margin: '0.1rem 0', borderTop: '1px solid #dee2e6' }} />
                             </th>
                           </tr>
                         </>
                       )}
                       
-                      {/* Row 2: Column headers - always visible */}
-                      <tr style={{ height: 'auto' }}>
+                      {/* Row 2: Column headers - keep bg-light */}
+                      <tr className="header-row" style={{ height: '15px' }}>
                         {/* Expansion column - only show if expandable content is provided and horizontal scroll is not enabled */}
                         {expandableContent && !enableHorizontalScroll && (
-                          <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}></th>
+                          <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem', backgroundColor: '#f8f9fa !important' }}></th>
                         )}
                         
                         {/* S.No. column - Only visible when advanced controls are enabled */}
                         {showAdvancedControls && (
-                          <th className="text-center align-middle" style={{ width: '60px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}></th>
+                          <th className="text-center align-middle" style={{ width: '60px', ...verticalLineStyle, padding: '0.3rem 0.5rem', backgroundColor: '#f8f9fa !important' }}></th>
                         )}
                         
                         {/* Selection column - Only visible when advanced controls are enabled */}
                         {showAdvancedControls && (
-                          <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}></th>
+                          <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem', backgroundColor: '#f8f9fa !important' }}></th>
                         )}
                         
                         {/* Data columns */}
                         {columns.map((column) => (
                           <th 
                             key={column.accessor}
-                            className={`align-middle user-select-none ${column.headerClassName || ''}`}
                             style={{ 
-                              width: column.width || 'auto', 
+                              width: column.width || 'auto',
+                              borderRight: '1px solid #dee2e6',
                               cursor: column.sortable === false ? 'default' : 'pointer',
-                              ...verticalLineStyle,
-                              fontSize: '0.85rem',
-                              fontWeight: 600,
-                              padding: '0.3rem 0.5rem'
+                              padding: '0.25rem 0.5rem',
+                              fontSize: tableHeaderFontSize,
+                              textAlign: 'center',
+                              overflow: 'hidden',
+                              whiteSpace: 'nowrap',
+                              backgroundColor: '#f8f9fa',
+                              height: '15px',
+                              lineHeight: '1.5'
                             }}
                             onClick={() => column.sortable !== false && handleSort(column.accessor)}
                           >
-                            {customHeaderRender ? (
-                              customHeaderRender(column)
-                            ) : (
-                              <div className="d-flex justify-content-between align-items-center">
-                                <span>{column.Header}</span>
-                                {column.sortable !== false && getSortIcon(column.accessor)}
-                              </div>
-                            )}
+                            <div className="d-flex align-items-center justify-content-center position-relative">
+                              <span className="text-truncate px-2">{column.Header}</span>
+                              {column.sortable !== false && (
+                                <span className="position-absolute" style={{ right: '0' }}>
+                                  {getSortIcon(column.accessor)}
+                                </span>
+                              )}
+                            </div>
                           </th>
                         ))}
                       </tr>
                       
                       {/* Divider after column headers row */}
-                      <tr className="table-divider">
-                        <th colSpan={columns.length + (expandableContent && !enableHorizontalScroll ? (showAdvancedControls ? 3 : 1) : (showAdvancedControls ? 2 : 0))} style={{ padding: 0 }}>
+                      <tr>
+                        <th colSpan={columns.length + (expandableContent && !enableHorizontalScroll ? (showAdvancedControls ? 3 : 1) : (showAdvancedControls ? 2 : 0))} style={{ padding: 0, backgroundColor: '#ffffff !important' }}>
                           <hr style={{ margin: '0.1rem 0', borderTop: '1px solid #dee2e6' }} />
                         </th>
                       </tr>
@@ -810,18 +843,18 @@ export const ReportTable = ({
                       {showAdvancedControls && (
                         <>
                           {/* Row 3: Column search inputs */}
-                          <tr>
+                          <tr style={{ height: '15px' }}>
                             {/* Expansion column - only show if expandable content is provided and horizontal scroll is not enabled */}
                             {expandableContent && !enableHorizontalScroll && (
-                              <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}></th>
+                              <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem', backgroundColor: '#ffffff !important' }}></th>
                             )}
                             
                             {/* S.No. column */}
-                            <th className="text-center align-middle" style={{ width: '60px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}>
+                            <th className="text-center align-middle" style={{ width: '60px', ...verticalLineStyle, padding: '0.3rem 0.5rem', backgroundColor: '#ffffff !important' }}>
                             </th>
                             
                             {/* Selection column */}
-                            <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}>
+                            <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem', backgroundColor: '#ffffff' }}>
                               <OverlayTrigger
                                 placement="top"
                                 overlay={
@@ -835,6 +868,7 @@ export const ReportTable = ({
                                   className="p-0 text-decoration-none" 
                                   onClick={clearAllColumnSearches}
                                   disabled={!Object.values(columnSearchQueries).some(q => q !== '')}
+                                  style={{ display: 'flex', justifyContent: 'center' }}
                                 >
                                   <i className="fas fa-filter-circle-xmark text-muted" style={{ fontSize: '0.85rem' }}></i>
                                 </Button>
@@ -848,7 +882,10 @@ export const ReportTable = ({
                                 style={{ 
                                   width: column.width || 'auto', 
                                   ...verticalLineStyle,
-                                  padding: '0.3rem 0.5rem'
+                                  padding: '0.3rem 0.5rem',
+                                  backgroundColor: '#ffffff',
+                                  height: '15px',
+                                  lineHeight: '1.5'
                                 }}
                               >
                                 <InputGroup size="sm">
@@ -857,14 +894,14 @@ export const ReportTable = ({
                                     size="sm"
                                     value={columnSearchQueries[column.accessor] || ''}
                                     onChange={(e) => handleColumnSearchChange(column.accessor, e.target.value)}
-                                    style={{ height: '28px', fontSize: '0.75rem' }}
+                                    style={{ height: '28px', fontSize: tableFontSize }}
                                   />
                                   {columnSearchQueries[column.accessor] && (
                                     <Button 
                                       variant="outline-secondary" 
                                       size="sm" 
                                       onClick={() => clearColumnSearch(column.accessor)}
-                                      style={{ height: '28px', padding: '0 0.5rem' }}
+                                      style={{ height: '28px', padding: '0 0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                     >
                                       <i className="fas fa-times" style={{ fontSize: '0.75rem' }}></i>
                                     </Button>
@@ -875,8 +912,8 @@ export const ReportTable = ({
                           </tr>
                           
                           {/* Divider after search inputs row */}
-                          <tr className="table-divider">
-                            <th colSpan={columns.length + (expandableContent && !enableHorizontalScroll ? 3 : 2)} style={{ padding: 0 }}>
+                          <tr>
+                            <th colSpan={columns.length + (expandableContent && !enableHorizontalScroll ? 3 : 2)} style={{ padding: 0, backgroundColor: '#ffffff !important' }}>
                               <hr style={{ margin: '0.1rem 0', borderTop: '1px solid #dee2e6' }} />
                             </th>
                           </tr>
@@ -898,7 +935,7 @@ export const ReportTable = ({
                                 onClick={() => expandableContent && !enableHorizontalScroll && toggleRow(itemId)}
                                 style={{ 
                                   cursor: (expandableContent && !enableHorizontalScroll) ? 'pointer' : 'default',
-                                  height: '35px'
+                                  height: '15px'
                                 }}
                               >
                                 {/* Expansion column - only show if expandable content is provided and horizontal scroll is not enabled */}
@@ -930,6 +967,7 @@ export const ReportTable = ({
                                         variant="link" 
                                         className="p-0 text-decoration-none" 
                                         onClick={(e) => toggleRecordSelection(e, itemId)}
+                                        style={{ display: 'flex', justifyContent: 'center' }}
                                       >
                                         <i className={`fas fa-eye${selectedRecords[itemId] ? '' : '-slash'} ${selectedRecords[itemId] ? 'text-primary' : 'text-muted'}`} style={{ fontSize: '0.85rem' }}></i>
                                       </Button>
@@ -947,7 +985,12 @@ export const ReportTable = ({
                                       ...verticalLineStyle,
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis',
-                                      whiteSpace: 'nowrap'
+                                      whiteSpace: 'nowrap',
+                                      textAlign: column.cellAlign || 'center',
+                                      padding: '0.25rem 0.5rem',
+                                      fontSize: tableFontSize,
+                                      height: '15px',
+                                      lineHeight: '1.5'
                                     }}
                                   >
                                     <div className="text-truncate">
@@ -1016,31 +1059,50 @@ export const ReportTable = ({
               )}
             </Card.Body>
             <Card.Footer className="bg-white py-2">
-              <div className="d-flex justify-content-between align-items-center">
-                <div className="d-flex align-items-center">
+              <div className="d-flex justify-content-between align-items-center flex-nowrap">
+                <div className="d-flex align-items-center flex-nowrap">
                   {/* Pagination Controls */}
-                  <div className="d-flex align-items-center me-4">
+                  <div className="d-flex align-items-center me-3 flex-nowrap">
                     <span className="text-muted small me-2">Page Size:</span>
-                    <div className="btn-group btn-group-sm me-3">
-                      {PAGE_SIZE_OPTIONS.map(size => (
-                        <Button
-                          key={`page-size-${size}`}
-                          variant={pageSize === size ? 'primary' : 'outline-secondary'}
-                          onClick={() => handlePageSizeChange(size)}
-                        >
-                          {size}
-                        </Button>
-                      ))}
+                    
+                    {/* Replace button group with dropdown */}
+                    <div className="dropdown me-3">
+                      <Button 
+                        variant="outline-secondary" 
+                        size="sm" 
+                        className="dropdown-toggle px-3 py-1" 
+                        id="pageSizeDropdown"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false"
+                      >
+                        {pageSize}
+                      </Button>
+                      <ul className="dropdown-menu" aria-labelledby="pageSizeDropdown">
+                        {PAGE_SIZE_OPTIONS.map(size => (
+                          <li key={`page-size-${size}`}>
+                            <a 
+                              className={`dropdown-item ${pageSize === size ? 'active' : ''}`} 
+                              href="#" 
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handlePageSizeChange(size);
+                              }}
+                            >
+                              {size}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                     
                     {totalPages > 1 && (
-                      <div className="d-flex align-items-center">
+                      <div className="d-flex align-items-center flex-nowrap">
                         <Button
                           variant="outline-secondary"
                           size="sm"
                           onClick={() => handlePageChange(1)}
                           disabled={currentPage === 1}
-                          className="me-1"
+                          className="me-1 px-2 py-1"
                         >
                           <i className="fas fa-angle-double-left"></i>
                         </Button>
@@ -1049,19 +1111,19 @@ export const ReportTable = ({
                           size="sm"
                           onClick={() => handlePageChange(currentPage - 1)}
                           disabled={currentPage === 1}
-                          className="me-1"
+                          className="me-1 px-2 py-1"
                         >
                           <i className="fas fa-angle-left"></i>
                         </Button>
                         <span className="mx-2">
-                          Page <span className="fw-bold">{currentPage}</span> of <span className="fw-bold">{totalPages}</span>
+                          <span className="fw-bold">{currentPage}</span>/<span className="fw-bold">{totalPages}</span>
                         </span>
                         <Button
                           variant="outline-secondary"
                           size="sm"
                           onClick={() => handlePageChange(currentPage + 1)}
                           disabled={currentPage === totalPages}
-                          className="me-1"
+                          className="me-1 px-2 py-1"
                         >
                           <i className="fas fa-angle-right"></i>
                         </Button>
@@ -1070,6 +1132,7 @@ export const ReportTable = ({
                           size="sm"
                           onClick={() => handlePageChange(totalPages)}
                           disabled={currentPage === totalPages}
+                          className="px-2 py-1"
                         >
                           <i className="fas fa-angle-double-right"></i>
                         </Button>
@@ -1078,45 +1141,39 @@ export const ReportTable = ({
                   </div>
                   
                   {/* Records Info */}
-                  <span className="text-muted small me-3">
-                    Showing {displayedData.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} 
-                    - {Math.min(currentPage * pageSize, filteredData.length)} of {filteredData.length} records
+                  <span className="text-muted small me-3 d-none d-md-inline">
+                    {displayedData.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}-{Math.min(currentPage * pageSize, filteredData.length)} of {filteredData.length}
                   </span>
                   
                   {/* Advanced Controls Info */}
-                  {showAdvancedControls ? (
-                    <>
-                      <span className="text-primary small me-3">
+                  {showAdvancedControls && (
+                    <div className="d-flex align-items-center flex-nowrap">
+                      <span className="text-primary small me-3 d-none d-lg-inline">
                         <i className="fas fa-eye me-1"></i>
-                        {getSelectedData().length} of {displayedData.length} visible records selected
+                        {getSelectedData().length} of {displayedData.length} records selected
                       </span>
-                      <span className="text-primary small me-3">
+                      <span className="text-primary small me-3 d-none d-lg-inline">
                         <i className="fas fa-columns me-1"></i>
                         {columns.filter(col => selectedColumns[col.accessor]).length} of {columns.length} columns selected
                       </span>
-                    </>
-                  ) : (
-                    <span className="text-muted small">
-                      <i className="fas fa-gear me-1"></i>
-                      Click the gear icon to show advanced options
-                    </span>
+                    </div>
                   )}
                 </div>
-                <div className="d-flex gap-2">
+                <div className="d-flex gap-2 flex-nowrap">
                   <CSVLink 
                     data={csvData} 
                     filename={`${title || 'report'}.csv`}
-                    className="btn btn-outline-primary btn-sm"
+                    className="btn btn-outline-primary btn-sm py-1 px-3"
                     target="_blank"
                   >
                     <i className="fas fa-file-csv me-1"></i>
                     CSV
                   </CSVLink>
-                  <Button variant="outline-success" size="sm" onClick={exportToExcel}>
+                  <Button variant="outline-success" size="sm" onClick={exportToExcel} className="py-1 px-3">
                     <i className="fas fa-file-excel me-1"></i>
                     Excel
                   </Button>
-                  <Button variant="outline-danger" size="sm" onClick={exportToPDF}>
+                  <Button variant="outline-danger" size="sm" onClick={exportToPDF} className="py-1 px-3">
                     <i className="fas fa-file-pdf me-1"></i>
                     PDF
                   </Button>
@@ -1281,5 +1338,5 @@ export const ReportFilters = ({
         </div>
       )}
     </Form>
-  );
+  ); 
 }; 

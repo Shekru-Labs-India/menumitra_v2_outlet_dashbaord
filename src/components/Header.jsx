@@ -35,9 +35,6 @@ function Header() {
   const [outlets, setOutlets] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [timeElapsed, setTimeElapsed] = useState('0 sec ago');
-  const [startTime, setStartTime] = useState(new Date());
-  const [isRotating, setIsRotating] = useState(false);
   const [selectOutletError, setSelectOutletError] = useState(null);
   const [selectedOutletData, setSelectedOutletData] = useState(null);
   const [showOutletModal, setShowOutletModal] = useState(false);
@@ -69,7 +66,7 @@ function Header() {
   } = useCacheData();
 
   // Get refresh manager functions
-  const { refreshAllData, lastRefreshTime, isRefreshing } = useRefreshManager();
+  const { refreshAllData, isRefreshing } = useRefreshManager();
 
   // Format date function for date filter
   const formatDate = (date) => {
@@ -185,9 +182,6 @@ function Header() {
           console.error('Error during refresh with date filter:', err);
           showToast('Failed to refresh data', 'error');
         });
-      
-      // Update the UI immediately to show refresh is happening
-      setStartTime(new Date());
     } catch (error) {
       console.error('Error initiating refresh:', error);
       showToast('Failed to refresh data', 'error');
@@ -554,34 +548,6 @@ function Header() {
     return truncated.trim() + '...';
   };
 
-  // Add this new function to format time
-  const formatTimeElapsed = (startTime, currentTime) => {
-    const seconds = Math.floor((currentTime - startTime) / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (days > 0) {
-      return `${days} day${days === 1 ? '' : 's'} ago`;
-    } else if (hours > 0) {
-      return `${hours} hour${hours === 1 ? '' : 's'} ago`;
-    } else if (minutes > 0) {
-      return `${minutes} min${minutes === 1 ? '' : ''} ago`;
-    } else {
-      return `${seconds} sec${seconds === 1 ? '' : ''} ago`;
-    }
-  };
-
-  // Effect to update time elapsed since last refresh
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const currentTime = new Date();
-      setTimeElapsed(formatTimeElapsed(lastRefreshTime, currentTime));
-    }, 500);
-
-    return () => clearInterval(timer);
-  }, [lastRefreshTime]);
-
   // Function to refresh all components using the RefreshManager
   const refreshAllComponents = () => {
     console.log('Manual refresh triggered from Header');
@@ -594,9 +560,6 @@ function Header() {
       forceRefresh: true,
       dateFilter: currentDateFilter
     });
-    
-    // Update the UI immediately to show refresh is happening
-    setStartTime(new Date());
   };
 
   // Get the correct refresh function based on the current route
@@ -685,10 +648,8 @@ function Header() {
     return refreshDashboard;
   };
 
-  // Add refresh function with date filter
+  // Modify the handleRefresh function to remove rotation animation
   const handleRefresh = () => {
-    setIsRotating(true);
-    
     // Get the specific refresh function for the current route
     const refreshFunction = getRefreshFunctionForRoute();
     
@@ -714,38 +675,16 @@ function Header() {
           .catch(err => {
             console.error('Error during refresh:', err);
             showToast('Failed to refresh data', 'error');
-          })
-          .finally(() => {
-            // Reset rotation after refresh completes or fails
-            setTimeout(() => {
-              setIsRotating(false);
-            }, 500);
           });
       } else {
         // Not a Promise, handle synchronously
         showToast('Data refresh initiated', 'info');
-        setTimeout(() => {
-          setIsRotating(false);
-        }, 500);
       }
-      
-      // Update the UI immediately to show refresh is happening
-      setStartTime(new Date());
     } catch (error) {
       console.error('Error initiating refresh:', error);
       showToast('Failed to refresh data', 'error');
-      setIsRotating(false);
     }
   };
-
-  // Set up auto refresh every 1 minute (60000ms)
-  useEffect(() => {
-    // Removed redundant auto-refresh timer to prevent duplicate API calls
-    // The RefreshManager already handles auto-refresh globally
-    
-    // Return empty cleanup function
-    return () => {};
-  }, []);
 
   const handleClearSearch = () => {
     setSearchTerm('');
@@ -1153,25 +1092,8 @@ function Header() {
           zIndex: 1000,
           paddingTop: "2.5rem",
           paddingBottom: "2.5rem",
-          // marginBottom:
-          //   selectedOutletData?.outlet_status === false ? "0" : "1.5rem",
         }}
       >
-        <style>
-          {`
-            @keyframes rotate {
-              from {
-                transform: rotate(0deg);
-              }
-              to {
-                transform: rotate(360deg);
-              }
-            }
-            .rotate-animation {
-              animation: rotate 1s linear infinite;
-            }
-          `}
-        </style>
         <div
           className="container-xxl"
           style={{
@@ -1222,10 +1144,10 @@ function Header() {
                       className="btn btn-outline-primary dropdown-toggle d-flex align-items-center"
                       data-bs-toggle="dropdown"
                       aria-expanded="false"
-                  style={{
+                      style={{
                         borderRadius: "8px",
                         padding: "8px 16px",
-                    fontWeight: 600,
+                        fontWeight: 600,
                         boxShadow: "rgba(0, 0, 0, 0.05) 0px 1px 2px",
                       }}
                     >
@@ -1313,7 +1235,7 @@ function Header() {
                   </li>
                 )}
                 
-              {/* Updated Time */}
+              {/* Refresh Button */}
               <li className="nav-item me-3">
                 <div className="d-flex align-items-center">
                   <button
@@ -1328,9 +1250,7 @@ function Header() {
                     title="Refresh current page data"
                   >
                     <i
-                      className={`fas ${isRefreshing ? "fa-spinner" : "fa-sync-alt"} ${
-                        isRotating ? "rotate-animation" : ""
-                      }`}
+                      className={`fas ${isRefreshing ? "fa-spinner" : "fa-sync-alt"}`}
                       style={{ color: "var(--bs-primary)" }}
                     ></i>
                   </button>
@@ -1373,24 +1293,6 @@ function Header() {
                   <li>
                     <div className="dropdown-divider" />
                   </li>
-                  {/* <li>
-                    <Link className="dropdown-item" to="/profile">
-                      <i className="far fa-user fa-lg me-2" />
-                      <span className="align-middle">My Profile</span>
-                    </Link>
-                  </li>
-                  <li>
-                    <Link className="dropdown-item" to="/my-activity">
-                      <i className="fas fa-tasks fa-lg me-2" />
-                      <span className="align-middle">My activity</span>
-                    </Link>
-                  </li>
-                  <li>
-                    <Link className="dropdown-item" to="/settings">
-                      <i className="fas fa-cog fa-lg me-2" />
-                      <span className="align-middle">Settings</span>
-                    </Link>
-                  </li> */}
                   <li>
                     <div className="dropdown-divider" />
                   </li>

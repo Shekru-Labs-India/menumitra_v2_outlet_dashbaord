@@ -90,33 +90,7 @@ export const RefreshManagerProvider = ({ children }) => {
     }
   }, [fetchAllStats, isRefreshing]);
   
-  // Set up auto-refresh
-  useEffect(() => {
-    console.log('Setting up global auto-refresh');
-    
-    // Check if auto-refresh is already set up globally (even across hot reloads)
-    if (!globalTimerRef.current && !isAutoRefreshSetup) {
-      console.log(`Creating new global auto-refresh timer (interval: ${REFRESH_INTERVAL/1000}s)`);
-      
-      isAutoRefreshSetup = true;
-      
-      // Use the utility function to set up auto-refresh
-      globalTimerRef.current = setInterval(() => {
-        console.log(`Auto-refresh triggered at ${new Date().toISOString()}`);
-        if (isMountedRef.current) {
-          refreshAllData();
-        }
-      }, REFRESH_INTERVAL);
-    } else {
-      console.log('Using existing global auto-refresh timer');
-    }
-    
-    // Return cleanup function
-    return () => {
-      // Note: We don't clear the timer on unmount to allow it to persist
-      // It will be cleared when the app is completely unmounted
-    };
-  }, [refreshAllData]);
+  
   
   // Create the context value
   const value = {
