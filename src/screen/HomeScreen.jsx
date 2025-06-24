@@ -189,18 +189,73 @@ function HomeScreen() {
               <div className="row mb-4">
                 <div className="col-12">
                   <div className="card">
-                    <div className="card-body p-4 text-center">
+                    <div className="card-body p-4">
                       <h3 className="mb-4">Welcome to MenuMitra Statistics Dashboard</h3>
                       <p className="mb-4">
-                        Please navigate to the Statistics page to view detailed analytics and reports.
+                        Please use the navigation buttons below to access different sections of the dashboard.
                       </p>
-                      <button 
-                        className="btn btn-primary" 
-                        onClick={() => navigate('/statistics')}
-                      >
-                        <i className="fas fa-chart-bar me-2"></i>
-                        Go to Statistics
-                      </button>
+                      
+                      <div className="row mt-5">
+                        <div className="col-md-4 mb-3">
+                          <div >
+                            <div>
+                              <h5>
+                                <i className="fas fa-chart-bar me-2 text-primary"></i>
+                                Statistics
+                              </h5>
+                              <p className="card-text flex-grow-1">
+                                View detailed analytics and reports for your outlets.
+                              </p>
+                              <button 
+                                className="btn btn-primary mt-auto" 
+                                onClick={() => navigate('/statistics')}
+                              >
+                                View Statistics
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="col-md-4 mb-3">
+                          <div>
+                            <div>
+                              <h5>
+                                <i className="fas fa-store me-2 text-info"></i>
+                                Outlet Details
+                              </h5>
+                              <p className="card-text flex-grow-1">
+                                Access detailed information about your current outlet.
+                              </p>
+                              <button 
+                                className="btn btn-info mt-auto" 
+                                onClick={() => navigate('/outlet-details')}
+                              >
+                                View Outlet Details
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="col-md-4 mb-3">
+                          <div>
+                            <div>
+                              <h5>
+                                <i className="fas fa-balance-scale me-2 text-success"></i>
+                                Compare Outlets
+                              </h5>
+                              <p className="card-text flex-grow-1">
+                                Compare performance metrics between different outlets.
+                              </p>
+                              <button 
+                                className="btn btn-success mt-auto" 
+                                onClick={() => navigate('/compare-outlets')}
+                              >
+                                Compare Outlets
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

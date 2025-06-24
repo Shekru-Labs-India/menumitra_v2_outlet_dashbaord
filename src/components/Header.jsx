@@ -192,7 +192,7 @@ function Header() {
   const showToast = (message, type = 'error') => {
     const options = {
       position: "top-right",
-      autoClose: 5000,
+      autoClose: 2500,
       hideProgressBar: false,
       closeOnClick: true,
       pauseOnHover: true,
@@ -370,6 +370,11 @@ function Header() {
       });
       
       localStorage.setItem('outlet_id', outlet.outlet_id.toString());
+      
+      // Dispatch a custom event to notify other components about the outlet change
+      window.dispatchEvent(new CustomEvent('outlet:changed', {
+        detail: { outletId: outlet.outlet_id.toString() }
+      }));
       
       showToast(`Outlet "${outlet.name}" selected successfully!`, 'success');
       
@@ -978,7 +983,7 @@ function Header() {
       {/* Add ToastContainer component at the root level */}
       <ToastContainer
         position="top-right"
-        autoClose={5000}
+        autoClose={2500}
         hideProgressBar={false}
         newestOnTop
         closeOnClick

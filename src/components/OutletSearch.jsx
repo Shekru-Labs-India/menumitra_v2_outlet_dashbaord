@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api, API_PATHS } from '../config/apiConfig';
 
 /**
@@ -22,6 +22,7 @@ const OutletSearch = ({
   isCompareMode = false,
   title = "Select Outlet"
 }) => {
+  const modalRef = useRef(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [outlets, setOutlets] = useState([]);
   const [allOutlets, setAllOutlets] = useState([]);
@@ -31,6 +32,29 @@ const OutletSearch = ({
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'open', 'closed'
   const [activityFilter, setActivityFilter] = useState('all'); // 'all', 'active', 'inactive'
   const [accountTypeFilter, setAccountTypeFilter] = useState('all'); // 'all', 'live', 'test'
+  const [selectedOutletId, setSelectedOutletId] = useState(null);
+
+  // Helper function to convert text to title case
+  const toTitleCase = (str) => {
+    if (!str) return '';
+    return str
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  // Helper function to create unique keys for outlet items
+  const getUniqueKey = (outlet) => {
+    if (!outlet) return Math.random().toString();
+    
+    // Create a truly unique key by combining outlet_id with other properties
+    const baseKey = outlet.outlet_id ? outlet.outlet_id.toString() : '';
+    const namePart = outlet.name ? outlet.name.substring(0, 3) : '';
+    const codePart = outlet.outlet_code ? outlet.outlet_code.substring(0, 3) : '';
+    
+    return `outlet-${baseKey}-${namePart}-${codePart}-${Math.random().toString(36).substring(2, 7)}`;
+  };
 
   // Fetch outlets from API
   const fetchOutlets = async () => {
@@ -71,7 +95,8 @@ const OutletSearch = ({
           outlet_status: outlet.outlet_status,
           account_type: outlet.account_type || '',
           is_active: outlet.outlet_status,
-          address: outlet.address
+          address: outlet.address,
+          _uniqueTempKey: `outlet-${outlet.outlet_id}-${Math.random().toString(36).substring(2, 7)}`
         }));
         
         console.log('Transformed outlets:', transformedOutlets);
@@ -90,12 +115,19 @@ const OutletSearch = ({
 
   // Apply all filters (search term and dropdown filters)
   const applyFilters = () => {
+    if (!Array.isArray(allOutlets) || allOutlets.length === 0) {
+      console.log("No outlets to filter");
+      return;
+    }
+    
     let filteredOutlets = [...allOutlets];
     
     // Apply search term filter
-    if (searchTerm.trim()) {
+    if (searchTerm && searchTerm.trim()) {
       const searchTermLower = searchTerm.toLowerCase();
       filteredOutlets = filteredOutlets.filter(outlet => {
+        if (!outlet) return false;
+        
         const nameMatch = outlet.name && outlet.name.toLowerCase().includes(searchTermLower);
         const codeMatch = outlet.outlet_code && outlet.outlet_code.toLowerCase().includes(searchTermLower);
         const idMatch = outlet.outlet_id && outlet.outlet_id.toString().includes(searchTermLower);
@@ -108,33 +140,68 @@ const OutletSearch = ({
     
     // Apply status filter (open/closed)
     if (statusFilter !== 'all') {
-      filteredOutlets = filteredOutlets.filter(outlet => outlet.status === statusFilter);
+      filteredOutlets = filteredOutlets.filter(outlet => outlet && outlet.status === statusFilter);
     }
     
     // Apply activity filter (active/inactive)
     if (activityFilter !== 'all') {
       const isActive = activityFilter === 'active';
-      filteredOutlets = filteredOutlets.filter(outlet => outlet.is_active === isActive);
+      filteredOutlets = filteredOutlets.filter(outlet => outlet && outlet.is_active === isActive);
     }
     
     // Apply account type filter (live/test)
     if (accountTypeFilter !== 'all') {
-      filteredOutlets = filteredOutlets.filter(outlet => outlet.account_type === accountTypeFilter);
+      filteredOutlets = filteredOutlets.filter(outlet => outlet && outlet.account_type === accountTypeFilter);
     }
     
-    setOutlets(filteredOutlets);
+    // Apply sorting - make a new copy to ensure React detects changes
+    let sortedOutlets = [...filteredOutlets];
+    
+    console.log("Before sorting:", sortOrder, sortedOutlets.map(o => o.name).slice(0, 5));
+    
+    if (sortOrder !== 'default') {
+      sortedOutlets.sort((a, b) => {
+        if (!a || !a.name) return 1;
+        if (!b || !b.name) return -1;
+        
+        const nameA = a.name.toLowerCase();
+        const nameB = b.name.toLowerCase();
+        
+        if (sortOrder === 'asc') {
+          return nameA.localeCompare(nameB);
+        } else { // desc
+          return nameB.localeCompare(nameA);
+        }
+      });
+    }
+    
+    console.log("After sorting:", sortOrder, sortedOutlets.map(o => o.name).slice(0, 5));
+    
+    // Assign a unique temp key to each outlet for React rendering
+    const outletsWithKeys = sortedOutlets.map(outlet => ({
+      ...outlet,
+      _uniqueTempKey: getUniqueKey(outlet)
+    }));
+    
+    console.log("Filters applied:", { 
+      searchTerm, 
+      statusFilter, 
+      activityFilter, 
+      accountTypeFilter,
+      sortOrder,
+      resultCount: outletsWithKeys.length 
+    });
+    
+    setOutlets(outletsWithKeys);
   };
 
-  // Handle search term change with debounce
+  // Run applyFilters whenever any filter or sort order changes
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (show) {
-        applyFilters();
-      }
-    }, 300);
-    
-    return () => clearTimeout(timer);
-  }, [searchTerm, statusFilter, activityFilter, accountTypeFilter, show, allOutlets]);
+    if (show && allOutlets.length > 0) {
+      console.log("Applying filters due to filter/sort change, sortOrder =", sortOrder);
+      applyFilters();
+    }
+  }, [searchTerm, statusFilter, activityFilter, accountTypeFilter, sortOrder, show, allOutlets]);
 
   // Load outlets when modal is opened
   useEffect(() => {
@@ -144,21 +211,30 @@ const OutletSearch = ({
       setStatusFilter('all');
       setActivityFilter('all');
       setAccountTypeFilter('all');
+      setSortOrder('default');
+      setSelectedOutletId(null);
     }
   }, [show]);
 
   const handleClearSearch = () => {
     setSearchTerm('');
+    // Re-apply filters immediately after clearing search
+    setTimeout(() => applyFilters(), 0);
   };
 
   const handleClearFilters = () => {
     setStatusFilter('all');
     setActivityFilter('all');
     setAccountTypeFilter('all');
+    // Re-apply filters immediately after clearing filters
+    setTimeout(() => applyFilters(), 0);
   };
 
   // Handle sort button click - cycle through sort orders
   const handleSortToggle = () => {
+    console.log("Current sort order:", sortOrder);
+    
+    // Directly update the sort order to force immediate re-render
     if (sortOrder === 'default') {
       setSortOrder('asc');
     } else if (sortOrder === 'asc') {
@@ -168,19 +244,9 @@ const OutletSearch = ({
     }
   };
 
-  // Get sorted outlets based on current sort order
+  // Get sorted outlets based on current sort order - this function is no longer needed as sorting is done in applyFilters
   const getSortedOutlets = () => {
-    if (sortOrder === 'default') {
-      return outlets;
-    }
-    
-    return [...outlets].sort((a, b) => {
-      if (sortOrder === 'asc') {
-        return a.name.localeCompare(b.name);
-      } else {
-        return b.name.localeCompare(a.name);
-      }
-    });
+    return outlets; // Just return the already sorted outlets
   };
 
   // Get sort button icon and title based on current sort order
@@ -195,14 +261,46 @@ const OutletSearch = ({
     }
   };
 
+  // Handle click outside the modal to close it
+  useEffect(() => {
+    function handleClickOutside(event) {
+      // If the modal is shown and the click is outside of the modal content
+      if (show && modalRef.current && !modalRef.current.contains(event.target)) {
+        onClose();
+      }
+    }
+
+    // Add event listener when the modal is shown
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // Clean up the event listener
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [show, onClose]);
+
+  // Handle outlet selection
+  const handleOutletSelect = (outlet) => {
+    setSelectedOutletId(outlet.outlet_id);
+    // Call the onSelect callback after a small delay to show the selection
+    setTimeout(() => {
+      onSelect(outlet);
+    }, 150);
+  };
+
   if (!show) return null;
 
   const sortButtonDetails = getSortButtonDetails();
-  const sortedOutlets = getSortedOutlets();
+  const sortedOutlets = outlets; // No need for getSortedOutlets() anymore
   const hasActiveFilters = statusFilter !== 'all' || activityFilter !== 'all' || accountTypeFilter !== 'all';
 
   return (
-    <div className="outlet-modal">
+    <div className="outlet-modal" onClick={(e) => {
+      // Close if clicking on the backdrop (but not on the modal content)
+      if (e.target.className === 'outlet-modal') {
+        onClose();
+      }
+    }}>
       <style>
         {`
           .outlet-code {
@@ -211,6 +309,100 @@ const OutletSearch = ({
             display: block;
             margin-top: 0.1rem;
             margin-bottom: 0.1rem;
+            text-align: right;
+          }
+          
+          .outlet-name {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 0.2rem;
+            text-transform: uppercase;
+          }
+          
+          .outlet-location {
+            font-size: 0.85rem;
+            color: #6e6b7b;
+            display: block;
+          }
+          
+          .outlet-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 5px;
+            padding-left: 8px;
+            border-bottom: 1px solid #ebe9f1;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+          }
+          
+          .outlet-item:hover {
+            background-color: #f8f8f8;
+          }
+          
+          .outlet-item.selected {
+            background-color: #f1f4ff;
+            border-left: 3px solid #7367f0;
+            padding-left: 5px;
+          }
+          
+          .outlet-item.current {
+            background-color: #eaf4ff;
+            border-left: 3px solid #1a73e8;
+            padding-left: 5px;
+          }
+          
+          .outlet-info {
+            flex: 1;
+            padding-top: 2px;
+          }
+          
+          .outlet-meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            min-width: 120px;
+            padding-top: 2px;
+          }
+          
+          .outlet-status {
+            font-size: 0.75rem;
+            padding: 1px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            font-weight: 500;
+            text-align: center;
+            white-space: nowrap;
+          }
+          
+          .status-active {
+            background-color: #e6f7ee;
+            color: #28c76f;
+          }
+          
+          .status-inactive {
+            background-color: #feefd0;
+            color: #ff9f43;
+          }
+          
+          .status-open {
+            background-color: #e0f8ff;
+            color: #00cfe8;
+          }
+          
+          .status-closed {
+            background-color: #ffe0e0;
+            color: #ea5455;
+          }
+          
+          .status-live {
+            background-color: #e6f7ee;
+            color: #28c76f;
+          }
+          
+          .status-test {
+            background-color: #e7e6fd;
+            color: #7367f0;
           }
           
           .filter-container {
@@ -266,10 +458,26 @@ const OutletSearch = ({
           .clear-filters:hover {
             text-decoration: underline;
           }
+          
+          .outlet-search input {
+            width: 100%;
+            padding: 8px 16px 8px 35px;
+            border: 1px solid #000;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
+          }
+          
+          .outlet-search input:focus {
+            outline: none;
+            border-color: #7367f0;
+            box-shadow: 0 2px 8px rgba(115, 103, 240, 0.2);
+          }
         `}
       </style>
-      <div className="outlet-modal-content">
-        <div className="outlet-modal-header">
+      <div className="outlet-modal-content" ref={modalRef}>
+        <div className="outlet-modal-header p-4 pb-1">
           <h5 className="mb-0">{title}</h5>
           <button
             className="btn-close"
@@ -279,7 +487,7 @@ const OutletSearch = ({
         </div>
         <div className="outlet-modal-body">
           {/* Search Bar */}
-          <div className="outlet-search">
+          <div className="outlet-search mb-2">
             <i className="fas fa-search"></i>
             <input
               type="text"
@@ -369,7 +577,7 @@ const OutletSearch = ({
           )}
 
           {/* Outlet List */}
-          <div className="outlet-list">
+          <div className="outlet-list gap-0">
             {isLoading ? (
               <div className="text-center py-3">Loading outlets...</div>
             ) : error ? (
@@ -385,12 +593,8 @@ const OutletSearch = ({
                       return false;
                     }
                     
-                    // Always filter out the current outlet
+                    // Allow the current outlet to be displayed
                     const currentOutletId = localStorage.getItem('outlet_id');
-                    if (currentOutletId && outlet.outlet_id.toString() === currentOutletId.toString()) {
-                      console.log(`Filtering out current outlet: ${outlet.name} (ID: ${outlet.outlet_id})`);
-                      return false;
-                    }
                     
                     // In compare mode, filter out already selected outlets
                     if (isCompareMode) {
@@ -406,64 +610,77 @@ const OutletSearch = ({
                       return !isAlreadySelected;
                     }
                     
-                    // In regular mode, show all outlets except the current one
+                    // In regular mode, show all outlets
                     return true;
                   })
-                  .map((outlet) => (
-                    <div
-                      key={outlet.outlet_id || Math.random().toString()}
-                      className="outlet-item"
-                      onClick={() => onSelect(outlet)}
-                    >
-                      <i
-                        className={`fas ${
-                          outlet.outlet_status ? "fa-store" : "fa-store-slash"
-                        } outlet-icon`}
-                      ></i>
-                      <div className="outlet-info">
-                        <span className="outlet-name">{outlet.name}</span>
-                        {outlet.outlet_code && (
-                          <span className="outlet-code">
-                            <i className="fas fa-hashtag me-1"></i>
-                            {outlet.outlet_code}
+                  .map((outlet) => {
+                    // Check if this is the current outlet
+                    const currentOutletId = localStorage.getItem('outlet_id');
+                    const isCurrentOutlet = currentOutletId && outlet.outlet_id.toString() === currentOutletId.toString();
+                    
+                    return (
+                      <div
+                        key={outlet._uniqueTempKey || getUniqueKey(outlet)}
+                        className={`outlet-item ${
+                          isCurrentOutlet ? 'current' : (selectedOutletId === outlet.outlet_id ? 'selected' : '')
+                        }`}
+                        onClick={isCurrentOutlet ? undefined : () => handleOutletSelect(outlet)}
+                        style={isCurrentOutlet ? { cursor: 'default' } : {}}
+                      >
+                        <div className="outlet-info">
+                          <span className="outlet-name">
+                            {outlet.name}
+                            {isCurrentOutlet && (
+                              <span className="badge bg-primary ms-2" style={{ fontSize: '0.65rem', verticalAlign: 'middle' }}>Selected</span>
+                            )}
                           </span>
-                        )}
-                        {outlet.location && (
-                          <span className="outlet-location">
-                            <i className="fas fa-map-marker-alt me-1"></i>
-                            {outlet.location}
-                          </span>
-                        )}
-                      </div>
-                      <div className="outlet-meta">
-                        <div className="d-flex flex-wrap gap-1">
-                          <span
-                            className={`outlet-status ${
-                              outlet.is_active ? "status-active" : "status-inactive"
-                            }`}
-                          >
-                            {outlet.is_active ? "Active" : "Inactive"}
-                          </span>
-                          <span
-                            className={`outlet-status ${
-                              outlet.account_type === "test" ? "status-test" : "status-live"
-                            }`}
-                          >
-                            {outlet.account_type === "test" ? "Test" : "Live"}
-                          </span>
-                          <span
-                            className={`outlet-status ${
-                              outlet.status === "open"
-                                ? "status-open"
-                                : "status-closed"
-                            }`}
-                          >
-                            {outlet.status === "open" ? "Open" : "Closed"}
-                          </span>
+                          <div className="d-flex justify-content-between align-items-start">
+                            {outlet.location && (
+                              <span className="outlet-location">
+                                <i className="fas fa-map-marker-alt me-1"></i>
+                                {toTitleCase(outlet.location)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="outlet-meta">
+                          <div className="d-flex flex-wrap gap-1 justify-content-end">
+                            <span
+                              className={`outlet-status ${
+                                outlet.is_active ? "status-active" : "status-inactive"
+                              }`}
+                            >
+                              {outlet.is_active ? "Active" : "Inactive"}
+                            </span>
+                            <span
+                              className={`outlet-status ${
+                                outlet.account_type === "test" ? "status-test" : "status-live"
+                              }`}
+                            >
+                              {outlet.account_type === "test" ? "Test" : "Live"}
+                            </span>
+                            <span
+                              className={`outlet-status ${
+                                outlet.status === "open"
+                                  ? "status-open"
+                                  : "status-closed"
+                              }`}
+                            >
+                              {outlet.status === "open" ? "Open" : "Closed"}
+                            </span>
+                          </div>
+                          <div className="d-flex justify-content-end mt-0 pt-0">
+                            {outlet.outlet_code && (
+                              <span className="outlet-code m-0">
+                                <i className="fas fa-hashtag me-1"></i>
+                                {outlet.outlet_code}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </>
             )}
           </div>

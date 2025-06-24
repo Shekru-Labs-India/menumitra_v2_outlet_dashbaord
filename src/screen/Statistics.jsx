@@ -15,9 +15,6 @@ import WeeklyOrderStat from "../components/WeeklyOrderStat";
 import { useDashboard } from "../context/DashboardContext";
 import { useCacheData } from "../context/CacheDataContext";
 import { useGlobalDateFilter } from "../components/Header";
-import RevenueGraph from "../components/RevenueGraph";
-import PaymentMethodCount from "../components/PaymentMethodCount";
-import RevenueLossWidget from "../components/RevenueLossWidget";
 import CategoryPerformance from "../components/CategoryPerformance";
 import CouponStatistics from "../components/CouponStatistics";
 import MenuCombos from "../components/MenuCombos";
@@ -25,6 +22,25 @@ import AppUsageStatistics from "../components/AppUsageStatistics";
 import UdhariStatistics from "../components/UdhariStatistics";
 import AdvancedPaymentStatistics from "../components/AdvancedPaymentStatistics";
 import { NoDataMessage } from '../components/common.jsx';
+
+// Create a new component for the no data message card
+const NoDataCard = ({ onRefresh }) => {
+  return (
+    <div className="card border-0 shadow-sm mt-5">
+      <div className="card-body text-center py-5">
+        <div className="mb-4">
+          <i className="fas fa-chart-bar fa-4x text-muted"></i>
+        </div>
+        <h4 className="mb-3">No Data Available</h4>
+        <p className="text-muted mb-4">
+          There is no statistical data available for the selected time period. 
+          Please try selecting a different date range or refresh to check again.
+        </p>
+      
+      </div>
+    </div>
+  );
+};
 
 function Statistics() {
   // Get data from dashboard context for backward compatibility
@@ -91,10 +107,8 @@ function Statistics() {
         [componentName]: isVisible
       };
       
-      // Commenting out logs that cause performance issues
-      // console.log(`Component ${componentName} visibility: ${isVisible}`);
-      // const visibleCount = Object.values(updated).filter(Boolean).length;
-      // console.log(`Total visible components: ${visibleCount}/${Object.keys(updated).length}`);
+      // Log visibility changes for debugging
+      console.log(`Component ${componentName} visibility: ${isVisible}`);
       
       return updated;
     });
@@ -102,14 +116,22 @@ function Statistics() {
 
   // Check if any components are visible with better logging
   const hasAnyVisibleComponents = () => {
-    // Since we've updated components to always be visible, 
-    // we should always have visible components now
-    return true;
+    // Check if any component (other than outletStats) is visible
+    const visibleCount = Object.entries(visibleComponents)
+      .filter(([key, value]) => key !== 'outletStats' && value)
+      .length;
     
-    // Previous code (commented out)
-    // const visibleCount = Object.values(visibleComponents).filter(Boolean).length;
-    // const hasVisible = visibleCount > 0;
-    // return hasVisible;
+    return visibleCount > 0;
+  };
+
+  // Helper function to check if a component is visible
+  const isComponentVisible = (componentName) => {
+    return visibleComponents[componentName] === true;
+  };
+
+  // Helper function to check if any component in a list is visible
+  const isAnyComponentVisible = (componentNames) => {
+    return componentNames.some(name => isComponentVisible(name));
   };
 
   // Helper function to format currency in Indian format
@@ -151,8 +173,10 @@ function Statistics() {
     return timeStr;
   };
 
-  // Load data on initial mount and update from cache
+  // Initial load and component mounting effects
   useEffect(() => {
+    console.log('Statistics component mounted, fetching data...');
+    
     // First try to get data from the consolidated API cache
     const allStatsData = getCachedData(API_PATHS.getAllStatsWithoutFilter);
     if (allStatsData && allStatsData.analytic_reports) {
@@ -175,9 +199,15 @@ function Statistics() {
   // using a single call to fetchAllStats instead of each component making its own
   useEffect(() => {
     if (dateRange) {  // Only run this if dateRange exists (skip initial render)
+      console.log('Date range changed, fetching new data...');
       fetchStatisticsData();
     }
   }, [dateRange]);
+
+  // Log component visibility changes for debugging
+  useEffect(() => {
+    console.log('Component visibility updated:', visibleComponents);
+  }, [visibleComponents]);
 
   // Update statistics when cached data changes
   useEffect(() => {
@@ -206,6 +236,7 @@ function Statistics() {
   const updateStatisticsFromData = (data) => {
     if (!data) return;
     
+    // Update statistics state
     setStatistics({
       total_orders: data.total_orders || 0,
       average_order_value: data.avg_order_value || data.average_order_value || 0,
@@ -213,6 +244,31 @@ function Statistics() {
       total_revenue: data.total_revenue || 0,
       average_turnover_time: data.average_turnover_time || "0 min"
     });
+
+    // Always show outlet stats for now (can be hidden by the component itself if no data)
+    updateComponentVisibility('outletStats', true);
+    
+    // Check if all main stats are zero
+    const allZero = !data.total_orders && 
+                   !(data.avg_order_value || data.average_order_value) && 
+                   !data.total_revenue && 
+                   (!data.average_turnover_time || data.average_turnover_time === "0 min");
+                   
+    // Each component will handle its own visibility based on data in fetchStatisticsData
+    // This is just a fallback if all main stats are zero
+    if (allZero) {
+      console.log('All statistics are zero, hiding components');
+      // You might want to reset visibility for all components except outletStats
+      setVisibleComponents(prev => {
+        const updated = {...prev};
+        Object.keys(updated).forEach(key => {
+          if (key !== 'outletStats') {
+            updated[key] = false;
+          }
+        });
+        return updated;
+      });
+    }
   };
 
   // Fetch statistics data using the consolidated API
@@ -227,17 +283,175 @@ function Statistics() {
         forceRefresh: true
       });
       
-      if (allStatsData && allStatsData.analytic_reports) {
-        updateStatisticsFromData(allStatsData.analytic_reports);
+      if (allStatsData) {
+        // Check analytic reports - main stats
+        if (allStatsData.analytic_reports) {
+          updateStatisticsFromData(allStatsData.analytic_reports);
+        }
         
         // Update coupon stats
         if (allStatsData.coupon_statistics) {
+          const hasCouponData = Array.isArray(allStatsData.coupon_statistics) && 
+                               allStatsData.coupon_statistics.length > 0 &&
+                               allStatsData.coupon_statistics.some(coupon => 
+                                 (coupon.total_orders && coupon.total_orders > 0) || 
+                                 (coupon.total_discount && coupon.total_discount > 0));
+          
           setCouponStats(allStatsData.coupon_statistics);
+          updateComponentVisibility('couponStatistics', hasCouponData);
+        } else {
+          updateComponentVisibility('couponStatistics', false);
         }
         
         // Update category performance
         if (allStatsData.category_wise_performance) {
+          const hasCategoryData = Array.isArray(allStatsData.category_wise_performance) && 
+                                 allStatsData.category_wise_performance.length > 0 &&
+                                 allStatsData.category_wise_performance.some(category => 
+                                   (category.total_orders && category.total_orders > 0) || 
+                                   (category.total_revenue && category.total_revenue > 0));
+          
           setCategoryPerformance(allStatsData.category_wise_performance);
+          updateComponentVisibility('categoryPerformance', hasCategoryData);
+        } else {
+          updateComponentVisibility('categoryPerformance', false);
+        }
+        
+        // Update payment methods chart visibility
+        if (allStatsData.total_collection_source) {
+          const tcs = allStatsData.total_collection_source;
+          const hasPaymentData = 
+            (tcs.upi_orders && tcs.upi_orders > 0) ||
+            (tcs.cash_orders && tcs.cash_orders > 0) ||
+            (tcs.card_orders && tcs.card_orders > 0) ||
+            (tcs.complementary_orders && tcs.complementary_orders > 0) ||
+            (tcs.udhari_orders && tcs.udhari_orders > 0) ||
+            (tcs.advance_payment_orders && tcs.advance_payment_orders > 0);
+          
+          updateComponentVisibility('paymentMethods', hasPaymentData);
+        } else {
+          updateComponentVisibility('paymentMethods', false);
+        }
+        
+        // Update order stat visibility
+        if (allStatsData.order_statistics) {
+          const os = allStatsData.order_statistics;
+          const hasOrderStatData = 
+            (os.success_orders && os.success_orders > 0) ||
+            (os.cancelled_orders && os.cancelled_orders > 0) ||
+            (os.complementary_orders && os.complementary_orders > 0) ||
+            (os.KOT_orders && os.KOT_orders > 0) ||
+            (os.udhari_orders && os.udhari_orders > 0);
+          
+          updateComponentVisibility('orderStat', hasOrderStatData);
+        } else {
+          updateComponentVisibility('orderStat', false);
+        }
+        
+        // Update product analysis visibility
+        if (allStatsData.sales_performance) {
+          const sp = allStatsData.sales_performance;
+          const hasProductData = 
+            (sp.top_selling && sp.top_selling.length > 0) ||
+            (sp.low_selling && sp.low_selling.length > 0);
+          
+          updateComponentVisibility('productAnalysis', hasProductData);
+        } else {
+          updateComponentVisibility('productAnalysis', false);
+        }
+        
+        // Update food type graph visibility
+        if (allStatsData.food_type_statistics) {
+          const fts = allStatsData.food_type_statistics;
+          const hasFoodTypeData = Object.values(fts).some(day => {
+            return Object.values(day).some(count => count > 0);
+          });
+          
+          updateComponentVisibility('foodTypeGraph', hasFoodTypeData);
+        } else {
+          updateComponentVisibility('foodTypeGraph', false);
+        }
+        
+        // Update order type visibility
+        if (allStatsData.order_type_statistics) {
+          const ots = allStatsData.order_type_statistics;
+          const hasOrderTypeData = 
+            (ots['dine-in'] && ots['dine-in'] > 0) ||
+            (ots.parcel && ots.parcel > 0) ||
+            (ots.delivery && ots.delivery > 0) ||
+            (ots.counter && ots.counter > 0) ||
+            (ots['drive-through'] && ots['drive-through'] > 0);
+          
+          updateComponentVisibility('orderType', hasOrderTypeData);
+        } else {
+          updateComponentVisibility('orderType', false);
+        }
+        
+        // Update weekly order stat visibility
+        if (allStatsData.weekly_order_stats && allStatsData.weekly_order_stats.data) {
+          const hasWeeklyData = allStatsData.weekly_order_stats.data.some(day => 
+            day[1] && parseInt(day[1]) > 0
+          );
+          
+          updateComponentVisibility('weeklyOrderStat', hasWeeklyData);
+        } else {
+          updateComponentVisibility('weeklyOrderStat', false);
+        }
+        
+        // Update menu combos visibility
+        if (allStatsData.menu_combos) {
+          const hasMenuCombosData = Array.isArray(allStatsData.menu_combos) && 
+                                  allStatsData.menu_combos.length > 0;
+          
+          updateComponentVisibility('menuCombos', hasMenuCombosData);
+        } else {
+          updateComponentVisibility('menuCombos', false);
+        }
+        
+        // Update app usage statistics visibility
+        if (allStatsData.app_usage_statistics) {
+          const aus = allStatsData.app_usage_statistics;
+          
+          // Check if any app usage field has a non-zero value
+          const hasAppUsageData = 
+            (aus.owner_app && aus.owner_app > 0) ||
+            (aus.pos_app && aus.pos_app > 0) ||
+            (aus.waiter_app && aus.waiter_app > 0) ||
+            (aus.captain_app && aus.captain_app > 0) ||
+            (aus.user_app && aus.user_app > 0) ||
+            (aus.kds_app && aus.kds_app > 0) ||
+            (aus.cds_app && aus.cds_app > 0);
+          
+          console.log('App usage statistics data:', aus);
+          console.log('Has app usage data:', hasAppUsageData);
+          
+          updateComponentVisibility('appUsageStatistics', hasAppUsageData);
+        } else {
+          updateComponentVisibility('appUsageStatistics', false);
+        }
+        
+        // Update udhari statistics visibility
+        if (allStatsData.udhari_card) {
+          const uc = allStatsData.udhari_card;
+          const hasUdhariData = 
+            (uc.udhari_pending && uc.udhari_pending.count > 0) ||
+            (uc.udhari_paid && uc.udhari_paid.count > 0);
+          
+          updateComponentVisibility('udhariStatistics', hasUdhariData);
+        } else {
+          updateComponentVisibility('udhariStatistics', false);
+        }
+        
+        // Update advanced payment statistics visibility
+        if (allStatsData.advance_payment_card) {
+          const apc = allStatsData.advance_payment_card;
+          const hasAdvancedPaymentData = 
+            (apc.partial_payment && apc.partial_payment.count > 0) ||
+            (apc.settled_payment && apc.settled_payment.count > 0);
+          
+          updateComponentVisibility('advancedPaymentStatistics', hasAdvancedPaymentData);
+        } else {
+          updateComponentVisibility('advancedPaymentStatistics', false);
         }
       }
     } catch (error) {
@@ -247,6 +461,9 @@ function Statistics() {
 
   // Stats card component with no skeleton loader
   const StatCard = ({ title, value, isPrice }) => {
+    // Don't render the card if value is 0
+    if (value === 0 || value === "0 min") return null;
+    
     // Format the value based on the card type
     let displayValue = value;
     if (isPrice) {
@@ -267,17 +484,32 @@ function Statistics() {
     );
   };
 
+  // Check if any statistics value is non-zero
+  const hasAnyStatValue = () => {
+    return (
+      statistics.total_orders > 0 || 
+      statistics.average_order_value > 0 || 
+      statistics.total_revenue > 0 || 
+      (statistics.average_turnover_time !== "0 min" && statistics.average_turnover_time !== "00:00 - 00:00")
+    );
+  };
+
+  // Check if all statistics values are zero
+  const allStatsAreZero = () => {
+    return !hasAnyStatValue();
+  };
+
   // Get error from cache
   const error = getError(API_PATHS.analyticsReports);
 
   // Determine component pairings based on visibility
   const renderCategoryAndPairedComponent = () => {
-    if (!visibleComponents.categoryPerformance) {
+    if (!isComponentVisible('categoryPerformance')) {
       return null;
     }
 
     // If coupon statistics is visible, pair with it (original pairing)
-    if (visibleComponents.couponStatistics) {
+    if (isComponentVisible('couponStatistics')) {
       return (
         <div className="row g-4 m-0 mx-3 mb-4">
           <div className="col-12 col-md-7 pe-md-2 p-0">
@@ -290,7 +522,7 @@ function Statistics() {
       );
     } 
     // If menu combos is visible, pair with it
-    else if (visibleComponents.menuCombos) {
+    else if (isComponentVisible('menuCombos')) {
       return (
         <div className="row g-4 m-0 mx-3 mb-4">
           <div className="col-12 col-md-7 pe-md-2 p-0">
@@ -319,7 +551,8 @@ function Statistics() {
     // Only show this section if:
     // 1. Menu combos is visible AND not already paired with category performance
     // 2. OR app usage statistics is visible
-    return (visibleComponents.menuCombos && visibleComponents.couponStatistics) || visibleComponents.appUsageStatistics;
+    return (isComponentVisible('menuCombos') && isComponentVisible('couponStatistics')) || 
+           isComponentVisible('appUsageStatistics');
   };
 
   return (
@@ -349,7 +582,8 @@ function Statistics() {
                     </div>
                   ) : null}
                   
-                  {/* Statistics Dashboard Card */}
+                  {/* Statistics Dashboard Card - only show if at least one stat has a value */}
+                  {hasAnyStatValue() && (
                   <div className="row m-0 mb-4 mx-3">
                     <div className="col-12 p-0">
                       <div className="card rounded-0 border border-1" style={{ boxShadow: 'none' }}>
@@ -362,44 +596,53 @@ function Statistics() {
                         <div className="card-body p-4">
                           {/* Stats Cards */}
                           <div className="row g-4">
-                            <StatCard
-                              title="Total Orders"
-                              value={statistics.total_orders}
-                              isPrice={false}
-                            />
-                            <StatCard
-                              title="Total Revenue"
-                              value={statistics.total_revenue}
-                              isPrice={true}
-                            />
-                            <StatCard
-                              title="Average Order Value"
-                              value={statistics.average_order_value}
-                              isPrice={true}
-                            />
-                            <StatCard
-                              title="Average Turnover Time"
-                              value={statistics.average_turnover_time}
-                              isPrice={false}
-                            />
+                            {statistics.total_orders > 0 && (
+                              <StatCard
+                                title="Total Orders"
+                                value={statistics.total_orders}
+                                isPrice={false}
+                              />
+                            )}
+                            {statistics.total_revenue > 0 && (
+                              <StatCard
+                                title="Total Revenue"
+                                value={statistics.total_revenue}
+                                isPrice={true}
+                              />
+                            )}
+                            {statistics.average_order_value > 0 && (
+                              <StatCard
+                                title="Average Order Value"
+                                value={statistics.average_order_value}
+                                isPrice={true}
+                              />
+                            )}
+                            {statistics.average_turnover_time !== "0 min" && statistics.average_turnover_time !== "00:00 - 00:00" && (
+                              <StatCard
+                                title="Average Turnover Time"
+                                value={statistics.average_turnover_time}
+                                isPrice={false}
+                              />
+                            )}
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
+                  )}
 
-                  {/* Charts Section */}
-                  {(visibleComponents.paymentMethods || visibleComponents.orderStat) && (
+                  {/* Charts Section - only render if at least one component has data */}
+                  {isAnyComponentVisible(['paymentMethods', 'orderStat']) && (
                   <div className="row g-4 m-0 mx-3 mb-4">
-                      {visibleComponents.paymentMethods && (
-                        <div className={`col-12 ${visibleComponents.orderStat ? 'col-md-6 col-lg-6 pe-md-2' : ''} p-0`}>
+                      {isComponentVisible('paymentMethods') && (
+                        <div className={`col-12 ${isComponentVisible('orderStat') ? 'col-md-6 col-lg-6 pe-md-2' : ''} p-0`}>
                       <div className="h-100">
                         <PaymentMethodsChart onVisibilityChange={visible => updateComponentVisibility('paymentMethods', visible)} />
                       </div>
                     </div>
                       )}
-                      {visibleComponents.orderStat && (
-                        <div className={`col-12 ${visibleComponents.paymentMethods ? 'col-md-6 col-lg-6 ps-md-2' : ''} p-0`}>
+                      {isComponentVisible('orderStat') && (
+                        <div className={`col-12 ${isComponentVisible('paymentMethods') ? 'col-md-6 col-lg-6 ps-md-2' : ''} p-0`}>
                       <div className="h-100">
                         <OrderStat onVisibilityChange={visible => updateComponentVisibility('orderStat', visible)} />
                       </div>
@@ -408,18 +651,18 @@ function Statistics() {
                   </div>
                   )}
 
-                  {/* Sales Section */}
-                  {(visibleComponents.productAnalysis || visibleComponents.foodTypeGraph) && (
+                  {/* Sales Section - only render if at least one component has data */}
+                  {isAnyComponentVisible(['productAnalysis', 'foodTypeGraph']) && (
                   <div className="row g-4 m-0 mx-3 mb-4">
-                      {visibleComponents.productAnalysis && (
-                        <div className={`col-12 ${visibleComponents.foodTypeGraph ? 'col-md-6 col-lg-6 pe-md-2' : ''} p-0`}>
+                      {isComponentVisible('productAnalysis') && (
+                        <div className={`col-12 ${isComponentVisible('foodTypeGraph') ? 'col-md-6 col-lg-6 pe-md-2' : ''} p-0`}>
                       <div className="h-100">
                         <ProductAnalysis onVisibilityChange={visible => updateComponentVisibility('productAnalysis', visible)} />
                       </div>
                     </div>
                       )}
-                      {visibleComponents.foodTypeGraph && (
-                        <div className={`col-12 ${visibleComponents.productAnalysis ? 'col-md-6 col-lg-6 ps-md-2' : ''} p-0`}>
+                      {isComponentVisible('foodTypeGraph') && (
+                        <div className={`col-12 ${isComponentVisible('productAnalysis') ? 'col-md-6 col-lg-6 ps-md-2' : ''} p-0`}>
                       <div className="h-100">
                         <FoodTypeGraph onVisibilityChange={visible => updateComponentVisibility('foodTypeGraph', visible)} />
                       </div>
@@ -428,18 +671,18 @@ function Statistics() {
                   </div>
                   )}
 
-                  {/* Analytics Section */}
-                  {(visibleComponents.orderType || visibleComponents.weeklyOrderStat) && (
+                  {/* Analytics Section - only render if at least one component has data */}
+                  {isAnyComponentVisible(['orderType', 'weeklyOrderStat']) && (
                   <div className="row g-4 m-0 mx-3 mb-4">
-                      {visibleComponents.orderType && (
-                        <div className={`col-12 ${visibleComponents.weeklyOrderStat ? 'col-md-6 col-lg-6 pe-md-2' : ''} p-0`}>
+                      {isComponentVisible('orderType') && (
+                        <div className={`col-12 ${isComponentVisible('weeklyOrderStat') ? 'col-md-6 col-lg-6 pe-md-2' : ''} p-0`}>
                       <div className="h-100">
                         <OrderType onVisibilityChange={visible => updateComponentVisibility('orderType', visible)} />
                       </div>
                     </div>
                       )}
-                      {visibleComponents.weeklyOrderStat && (
-                        <div className={`col-12 ${visibleComponents.orderType ? 'col-md-6 col-lg-6 ps-md-2' : ''} p-0`}>
+                      {isComponentVisible('weeklyOrderStat') && (
+                        <div className={`col-12 ${isComponentVisible('orderType') ? 'col-md-6 col-lg-6 ps-md-2' : ''} p-0`}>
                       <div className="h-100">
                         <WeeklyOrderStat onVisibilityChange={visible => updateComponentVisibility('weeklyOrderStat', visible)} />
                       </div>
@@ -454,13 +697,13 @@ function Statistics() {
                   {/* Menu Combos and App Usage Section - only shown if menu combos isn't paired with category */}
                   {shouldShowMenuCombosAndAppUsage() && (
                   <div className="row g-4 m-0 mx-3 mb-4">
-                      {visibleComponents.menuCombos && visibleComponents.couponStatistics && (
-                        <div className={`col-12 ${visibleComponents.appUsageStatistics ? 'col-md-6 pe-md-2' : ''} p-0`}>
+                      {isComponentVisible('menuCombos') && isComponentVisible('couponStatistics') && (
+                        <div className={`col-12 ${isComponentVisible('appUsageStatistics') ? 'col-md-6 pe-md-2' : ''} p-0`}>
                       <MenuCombos onVisibilityChange={visible => updateComponentVisibility('menuCombos', visible)} />
                     </div>
                       )}
-                      {visibleComponents.appUsageStatistics && (
-                        <div className={`col-12 ${(visibleComponents.menuCombos && visibleComponents.couponStatistics) ? 'col-md-6 ps-md-2' : ''} p-0`}>
+                      {isComponentVisible('appUsageStatistics') && (
+                        <div className={`col-12 ${(isComponentVisible('menuCombos') && isComponentVisible('couponStatistics')) ? 'col-md-6 ps-md-2' : ''} p-0`}>
                       <AppUsageStatistics onVisibilityChange={visible => updateComponentVisibility('appUsageStatistics', visible)} />
                         </div>
                       )}
@@ -468,17 +711,17 @@ function Statistics() {
                   )}
 
                   {/* Udhari and Advanced Payment Statistics Section */}
-                  {(visibleComponents.udhariStatistics || visibleComponents.advancedPaymentStatistics) && (
+                  {isAnyComponentVisible(['udhariStatistics', 'advancedPaymentStatistics']) && (
                   <div className="row g-4 m-0 mx-3 mb-4">
-                      {visibleComponents.udhariStatistics && (
-                        <div className={`col-12 ${visibleComponents.advancedPaymentStatistics ? 'col-md-6 pe-md-2' : ''} p-0`}>
+                      {isComponentVisible('udhariStatistics') && (
+                        <div className={`col-12 ${isComponentVisible('advancedPaymentStatistics') ? 'col-md-6 pe-md-2' : ''} p-0`}>
                       <div className="h-100">
                         <UdhariStatistics onVisibilityChange={visible => updateComponentVisibility('udhariStatistics', visible)} />
                       </div>
                     </div>
                       )}
-                      {visibleComponents.advancedPaymentStatistics && (
-                        <div className={`col-12 ${visibleComponents.udhariStatistics ? 'col-md-6 ps-md-2' : ''} p-0`}>
+                      {isComponentVisible('advancedPaymentStatistics') && (
+                        <div className={`col-12 ${isComponentVisible('udhariStatistics') ? 'col-md-6 ps-md-2' : ''} p-0`}>
                       <div className="h-100">
                         <AdvancedPaymentStatistics onVisibilityChange={visible => updateComponentVisibility('advancedPaymentStatistics', visible)} />
                       </div>
@@ -487,15 +730,12 @@ function Statistics() {
                   </div>
                   )}
 
-                  {/* No Data Message */}
-                  {!hasAnyVisibleComponents() && (
+                  {/* No Data Message - Show user-friendly card when no data */}
+                  {(allStatsAreZero() && !hasAnyVisibleComponents()) && (
                     <div className="row m-0 mx-3 mb-4">
                       <div className="col-12 p-0">
-                        <NoDataMessage 
-                          message="No statistics data available for the selected time period" 
+                        <NoDataCard 
                           onRefresh={fetchStatisticsData}
-                          icon="fas fa-chart-bar"
-                          hideLoading={true}
                         />
                       </div>
                     </div>
