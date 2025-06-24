@@ -1,15 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api, API_PATHS } from '../../config/apiConfig';
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardBody,
-  Badge,
-  Spinner,
-  Form,
-  Row,
-  Col
+  Form
 } from 'react-bootstrap';
 import VerticalSidebar from '../../components/VerticalSidebar';
 import Header from '../../components/Header';
@@ -179,8 +171,8 @@ const JoinTableReports = () => {
       accessor: 'primary_table_number',
       width: '15%',
       Cell: (item) => (
-        <div className="d-flex flex-column">
-          <span className="fw-semibold text-primary">Table #{item.primary_table_number}</span>
+        <div className="text-nowrap">
+          <span className="fw-semibold">Table #{item.primary_table_number}</span>
         </div>
       ),
       exportFormat: (item) => `Table #${item.primary_table_number}`
@@ -190,8 +182,8 @@ const JoinTableReports = () => {
       accessor: 'joined_table_number',
       width: '15%',
       Cell: (item) => (
-        <div className="d-flex flex-column">
-          <span className="fw-semibold text-secondary">Table #{item.joined_table_number}</span>
+        <div className="text-nowrap">
+          <span className="fw-semibold">Table #{item.joined_table_number}</span>
         </div>
       ),
       exportFormat: (item) => `Table #${item.joined_table_number}`
@@ -201,9 +193,9 @@ const JoinTableReports = () => {
       accessor: 'section_name',
       width: '15%',
       Cell: (item) => (
-        <Badge bg="info" className="text-white">
+        <div className="text-nowrap">
           {item.section_name || 'No Section'}
-        </Badge>
+        </div>
       ),
       exportFormat: (item) => item.section_name || 'No Section'
     },
@@ -211,12 +203,11 @@ const JoinTableReports = () => {
       Header: 'Status',
       accessor: 'status',
       width: '15%',
-      Cell: (item) => {
-        const status = item.status?.toLowerCase();
-        return status === 'joined' ? 
-          <Badge bg="success">Joined</Badge> : 
-          <Badge bg="danger">Unjoined</Badge>;
-      },
+      Cell: (item) => (
+        <div className="text-nowrap">
+          {item.status || '-'}
+        </div>
+      ),
       exportFormat: (item) => item.status || '-'
     },
     {
@@ -224,7 +215,9 @@ const JoinTableReports = () => {
       accessor: 'changed_by',
       width: '15%',
       Cell: (item) => (
-        <span>{item.changed_by || '-'}</span>
+        <div className="text-nowrap">
+          {item.changed_by || '-'}
+        </div>
       ),
       exportFormat: (item) => item.changed_by || '-'
     },
@@ -233,59 +226,13 @@ const JoinTableReports = () => {
       accessor: 'changed_on',
       width: '25%',
       Cell: (item) => (
-        <span>{item.changed_on || '-'}</span>
+        <div className="text-nowrap">
+          {item.changed_on || '-'}
+        </div>
       ),
       exportFormat: (item) => item.changed_on || '-'
     }
   ];
-
-  // Define expandable content for additional join table details
-  const renderJoinTableDetails = (item) => (
-    <>
-      <h6 className="mb-3 text-primary">
-        <i className="fas fa-table me-2"></i>
-        Join Table Details
-      </h6>
-      <div className="row">
-        <div className="col-md-6">
-          <div className="card h-100">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Primary Table:</span>
-                <span>#{item.primary_table_number}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Joined Table:</span>
-                <span>#{item.joined_table_number}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Section:</span>
-                <span>{item.section_name}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-6">
-          <div className="card h-100">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Status:</span>
-                <span>{item.status}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Changed By:</span>
-                <span>{item.changed_by}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Changed On:</span>
-                <span>{item.changed_on}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
 
   // Prepare filter info for export
   const getFilterInfo = () => {
@@ -320,43 +267,6 @@ const JoinTableReports = () => {
     }
   };
 
-  // Render section breakdown cards if available
-  const renderSectionBreakdown = () => {
-    if (!joinTableReport || !joinTableReport.section_breakdown) {
-      return null;
-    }
-
-    const sectionData = joinTableReport.section_breakdown;
-    const sectionNames = Object.keys(sectionData);
-
-    return (
-      <>
-        <h5 className="mt-4 mb-3">Section Breakdown</h5>
-        <Row className="mb-4">
-          {sectionNames.map((sectionName) => (
-            <Col md={4} key={sectionName}>
-              <Card className="h-100 mb-3">
-                <CardHeader className="bg-light">
-                  <h6 className="mb-0">{sectionName}</h6>
-                </CardHeader>
-                <CardBody>
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <span>Joins:</span>
-                    <span className="badge bg-success">{sectionData[sectionName].joins}</span>
-                  </div>
-                  <div className="d-flex justify-content-between align-items-center">
-                    <span>Unjoins:</span>
-                    <span className="badge bg-danger">{sectionData[sectionName].unjoins}</span>
-                  </div>
-                </CardBody>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-      </>
-    );
-  };
-
   return (
     <div className="layout-wrapper layout-content-navbar">
       <div className="layout-container">
@@ -378,87 +288,81 @@ const JoinTableReports = () => {
                   {error}
                 </div>
               ) : (
-                <Card>
-                  <CardHeader className="bg-white">
-                    <CardTitle className="text-center w-100 mb-0 fw-bold text-primary">Join Table Reports</CardTitle>
-                  </CardHeader>
+                <div>
+                  <div className="mb-4">
+                    <h2 className="text-center mb-0 fw-bold text-primary">Join Table Reports</h2>
+                  </div>
 
-                  <CardBody>
+                  <div>
                     {/* Filters Section */}
-                    <ReportFilters
-                      isLoading={loading}
-                      onSubmit={fetchJoinTableReport}
-                      defaultDateRange="All Time"
-                    >
-                      {/* Custom Join Table Report Filters */}
-                      <Form.Select 
-                        value={filterType}
-                        onChange={handleFilterTypeChange}
-                        style={{ width: '200px' }}
+                    <div className="mb-4">
+                      <ReportFilters
+                        isLoading={loading}
+                        onSubmit={fetchJoinTableReport}
+                        defaultDateRange="All Time"
                       >
-                        <option value="all">All Tables</option>
-                        <option value="section" disabled={sections.length === 0}>By Section</option>
-                      </Form.Select>
-
-                      {filterType === 'section' && (
-                        <Form.Select
-                          value={selectedSection}
-                          onChange={(e) => setSelectedSection(e.target.value)}
+                        {/* Custom Join Table Report Filters */}
+                        <Form.Select 
+                          value={filterType}
+                          onChange={handleFilterTypeChange}
                           style={{ width: '200px' }}
-                          disabled={loadingSections || sections.length === 0}
                         >
-                          <option value="">Select a section</option>
-                          {sections.map(section => (
-                            <option key={section.section_id} value={section.section_id}>
-                              {section.section_name}
-                            </option>
-                          ))}
+                          <option value="all">All Tables</option>
+                          <option value="section" disabled={sections.length === 0}>By Section</option>
                         </Form.Select>
-                      )}
-                    </ReportFilters>
 
-                    {/* Summary Cards */}
+                        {filterType === 'section' && (
+                          <Form.Select
+                            value={selectedSection}
+                            onChange={(e) => setSelectedSection(e.target.value)}
+                            style={{ width: '200px' }}
+                            disabled={loadingSections || sections.length === 0}
+                          >
+                            <option value="">Select a section</option>
+                            {sections.map(section => (
+                              <option key={section.section_id} value={section.section_id}>
+                                {section.section_name}
+                              </option>
+                            ))}
+                          </Form.Select>
+                        )}
+                      </ReportFilters>
+                    </div>
+
+                    {/* Summary Stats - Simple Text Version */}
                     {joinTableReport && (
-                      <Row className="mb-4">
-                        <Col md={6}>
-                          <Card className="h-100">
-                            <CardBody>
-                              <h6 className="card-title">Total Joins</h6>
-                              <h2 className="mb-0">{joinTableReport.total_joins}</h2>
-                            </CardBody>
-                          </Card>
-                        </Col>
-                        <Col md={6}>
-                          <Card className="h-100">
-                            <CardBody>
-                              <h6 className="card-title">Total Unjoins</h6>
-                              <h2 className="mb-0">{joinTableReport.total_unjoins}</h2>
-                            </CardBody>
-                          </Card>
-                        </Col>
-                      </Row>
+                      <div className="mb-4 d-flex justify-content-around">
+                        <div className="text-center">
+                          <div className="fw-bold">Total Joins</div>
+                          <div className="h4">{joinTableReport.total_joins}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="fw-bold">Total Unjoins</div>
+                          <div className="h4">{joinTableReport.total_unjoins}</div>
+                        </div>
+                      </div>
                     )}
-
-                    {/* Section Breakdown */}
-                    {joinTableReport && renderSectionBreakdown()}
 
                     {/* Table Section */}
                     {dataFetched && filteredData.length > 0 ? (
-                      <ReportTable
-                        data={filteredData}
-                        columns={columns}
-                        title="Join Table History"
-                        expandableContent={renderJoinTableDetails}
-                        filterInfo={getFilterInfo()}
-                      />
+                      <div style={{ backgroundColor: 'transparent' }}>
+                        <div className="bg-white rounded p-3">
+                          <ReportTable
+                            data={filteredData}
+                            columns={columns}
+                            title="Join Table History"
+                            filterInfo={getFilterInfo()}
+                          />
+                        </div>
+                      </div>
                     ) : dataFetched && filteredData.length === 0 ? (
                       <div className="alert alert-info mt-4">
                         <i className="fas fa-info-circle me-2"></i>
                         No join table history found for the selected filters. Please try different filter criteria.
                       </div>
                     ) : null}
-                  </CardBody>
-                </Card>
+                  </div>
+                </div>
               )}
             </div>
             <Footer />

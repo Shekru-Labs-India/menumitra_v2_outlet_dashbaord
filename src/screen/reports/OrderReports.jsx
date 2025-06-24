@@ -1,13 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { api, API_PATHS } from '../../config/apiConfig';
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardBody,
-  Badge,
-  Row,
-  Col
+  Form,
+  Modal,
+  Button
 } from 'react-bootstrap';
 import VerticalSidebar from '../../components/VerticalSidebar';
 import Header from '../../components/Header';
@@ -24,6 +20,8 @@ const OrderReports = () => {
   const [dataFetched, setDataFetched] = useState(false);
   const [filterParams, setFilterParams] = useState(null);
   const [orderType, setOrderType] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   
   const navigate = useNavigate();
 
@@ -148,236 +146,134 @@ const OrderReports = () => {
            report.total_revenue > 0;
   };
 
+  const handleViewDetails = (order) => {
+    setSelectedOrder(order);
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
   // Define table columns
   const columns = [
     {
       Header: 'Order #',
       accessor: 'order_number',
-      width: '10%',
+      width: '100px',
       Cell: (item) => (
-        <div className="d-flex flex-column">
-          <span className="fw-semibold text-primary">#{item.order_number}</span>
-         
+        <div className="text-nowrap">
+          <span className="fw-semibold">#{item.order_number}</span>
         </div>
       ),
-      exportFormat: (item) => `#${item.order_number} (ID: ${item.order_id})`
+      exportFormat: (item) => `#${item.order_number} (ID: ${item.order_id})`,
+      headerClassName: 'text-nowrap'
     },
     {
       Header: 'Customer',
       accessor: 'customer_name',
-      width: '15%',
+      width: '180px',
       Cell: (item) => (
-        <div className="d-flex flex-column">
+        <div className="text-nowrap">
           <span>{item.customer_name || 'N/A'}</span>
-          {item.customer_mobile && <small className="text-muted">{item.customer_mobile}</small>}
+          {item.customer_mobile && <span className="ms-1">({item.customer_mobile})</span>}
         </div>
       ),
-      exportFormat: (item) => `${item.customer_name || 'N/A'} (${item.customer_mobile || 'No mobile'})`
+      exportFormat: (item) => `${item.customer_name || 'N/A'} (${item.customer_mobile || 'No mobile'})`,
+      headerClassName: 'text-nowrap'
     },
     {
       Header: 'Date',
       accessor: 'created_on',
-      width: '10%',
-      Cell: (item) => <span>{item.created_on}</span>,
-      exportFormat: (item) => item.created_on
+      width: '150px',
+      Cell: (item) => <div className="text-nowrap">{item.created_on}</div>,
+      exportFormat: (item) => item.created_on,
+      headerClassName: 'text-nowrap'
     },
     {
       Header: 'Type',
       accessor: 'order_type',
-      width: '10%',
+      width: '100px',
       Cell: (item) => (
-        <Badge bg={getOrderTypeColor(item.order_type)}>
+        <div className="text-nowrap">
           {item.order_type}
-        </Badge>
+        </div>
       ),
-      exportFormat: (item) => item.order_type
+      exportFormat: (item) => item.order_type,
+      headerClassName: 'text-nowrap'
     },
     {
       Header: 'Status',
       accessor: 'order_status',
-      width: '10%',
+      width: '100px',
       Cell: (item) => (
-        <Badge bg={getStatusColor(item.order_status)}>
+        <div className="text-nowrap">
           {item.order_status}
-        </Badge>
+        </div>
       ),
-      exportFormat: (item) => item.order_status
+      exportFormat: (item) => item.order_status,
+      headerClassName: 'text-nowrap'
     },
     {
       Header: 'Payment',
       accessor: 'payment_method',
-      width: '10%',
+      width: '120px',
       Cell: (item) => (
-        <span>{item.payment_method || 'N/A'}</span>
+        <div className="text-nowrap">
+          {item.payment_method || 'N/A'}
+        </div>
       ),
-      exportFormat: (item) => item.payment_method || 'N/A'
+      exportFormat: (item) => item.payment_method || 'N/A',
+      headerClassName: 'text-nowrap'
     },
     {
       Header: 'Bill Amount',
       accessor: 'total_bill_amount',
-      width: '10%',
-      Cell: (item) => <span>₹{item.total_bill_amount.toFixed(2)}</span>,
-      exportFormat: (item) => `₹${item.total_bill_amount.toFixed(2)}`
+      width: '130px',
+      Cell: (item) => <div className="text-nowrap">₹{item.total_bill_amount.toFixed(2)}</div>,
+      exportFormat: (item) => `₹${item.total_bill_amount.toFixed(2)}`,
+      headerClassName: 'text-nowrap'
     },
     {
       Header: 'Discount',
       accessor: 'discount_amount',
-      width: '10%',
-      Cell: (item) => <span>₹{item.discount_amount.toFixed(2)}</span>,
-      exportFormat: (item) => `₹${item.discount_amount.toFixed(2)}`
+      width: '120px',
+      Cell: (item) => <div className="text-nowrap">₹{item.discount_amount.toFixed(2)}</div>,
+      exportFormat: (item) => `₹${item.discount_amount.toFixed(2)}`,
+      headerClassName: 'text-nowrap'
     },
     {
       Header: 'Final Amount',
       accessor: 'final_grand_total',
-      width: '15%',
-      Cell: (item) => <span className="fw-bold">₹{item.final_grand_total.toFixed(2)}</span>,
+      width: '140px',
+      Cell: (item) => <div className="text-nowrap">₹{item.final_grand_total.toFixed(2)}</div>,
       exportFormat: (item) => `₹${item.final_grand_total.toFixed(2)}`,
       sortFunction: (a, b, direction) => {
         const aAmount = parseFloat(a.final_grand_total);
         const bAmount = parseFloat(b.final_grand_total);
         return direction === 'asc' ? aAmount - bAmount : bAmount - aAmount;
-      }
+      },
+      headerClassName: 'text-nowrap'
+    },
+    {
+      Header: 'Actions',
+      accessor: 'actions',
+      width: '80px',
+      Cell: (item) => (
+        <Button 
+          variant="light" 
+          size="sm" 
+          className="border"
+          onClick={() => handleViewDetails(item)}
+        >
+          <i className="fas fa-eye"></i>
+        </Button>
+      ),
+      disableSortBy: true,
+      includeInExport: false,
+      headerClassName: 'text-nowrap'
     }
   ];
-
-  // Define expandable content for order items
-  const renderOrderItems = (order) => (
-    <>
-      <h6 className="mb-3 text-primary">
-        <i className="fas fa-shopping-cart me-2"></i>
-        Order Details
-      </h6>
-      <div className="row">
-        <div className="col-md-6">
-          <div className="card h-100">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Order Number:</span>
-                <span>#{order.order_number}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Order Type:</span>
-                <span>{order.order_type}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Order Status:</span>
-                <span>{order.order_status}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Created On:</span>
-                <span>{order.created_on}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Payment Method:</span>
-                <span>{order.payment_method || 'N/A'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-6">
-          <div className="card h-100">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Bill Amount:</span>
-                <span>₹{order.total_bill_amount.toFixed(2)}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Discount:</span>
-                <span>₹{order.discount_amount.toFixed(2)}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Special Discount:</span>
-                <span>₹{order.special_discount.toFixed(2)}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">GST Amount:</span>
-                <span>₹{order.gst_amount.toFixed(2)}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Service Charges:</span>
-                <span>₹{order.service_charges_amount.toFixed(2)}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Final Amount:</span>
-                <span className="fw-bold">₹{order.final_grand_total.toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      {order.customer_name && (
-        <div className="row mt-3">
-          <div className="col-md-6">
-            <div className="card">
-              <div className="card-header">
-                <h6 className="mb-0">Customer Information</h6>
-              </div>
-              <div className="card-body">
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <span className="fw-bold">Name:</span>
-                  <span>{order.customer_name}</span>
-                </div>
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <span className="fw-bold">Mobile:</span>
-                  <span>{order.customer_mobile || 'N/A'}</span>
-                </div>
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <span className="fw-bold">Address:</span>
-                  <span>{order.customer_address || 'N/A'}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      <div className="row mt-3">
-        <div className="col-12">
-          <div className="card">
-            <div className="card-header">
-              <h6 className="mb-0">Order Items</h6>
-            </div>
-            <div className="card-body">
-              <div className="table-responsive">
-                <table className="table table-sm table-bordered">
-                  <thead className="bg-light">
-                    <tr>
-                      <th>Item Name</th>
-                      <th className="text-center">Quantity</th>
-                      <th className="text-end">Price</th>
-                      <th className="text-end">Total</th>
-                      <th>Comment</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {order.menu_items && order.menu_items.length > 0 ? (
-                      order.menu_items.map((item) => (
-                        <tr key={item.menu_id}>
-                          <td>{item.menu_name}</td>
-                          <td className="text-center">{item.quantity}</td>
-                          <td className="text-end">₹{item.price.toFixed(2)}</td>
-                          <td className="text-end">₹{(item.quantity * item.price).toFixed(2)}</td>
-                          <td>{item.comment || '-'}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="5" className="text-center">No items available</td>
-                      </tr>
-                    )}
-                    <tr className="table-light">
-                      <td colSpan="3" className="text-end fw-bold">Total:</td>
-                      <td className="text-end fw-bold">₹{order.total_bill_amount.toFixed(2)}</td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
 
   // Prepare filter info for export
   const getFilterInfo = () => {
@@ -402,6 +298,160 @@ const OrderReports = () => {
     return info;
   };
 
+  // Order Details Modal
+  const OrderDetailsModal = () => {
+    if (!selectedOrder) return null;
+    
+    return (
+      <Modal show={showModal} onHide={handleCloseModal} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <span className="me-2">Order #{selectedOrder.order_number}</span>
+            <span className="small text-muted">({selectedOrder.order_type} - {selectedOrder.order_status})</span>
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="row mb-4">
+            <div className="col-md-6">
+              <div className="card h-100 border-0 shadow-sm">
+                <div className="card-body">
+                  <h6 className="card-title border-bottom pb-2 mb-3">Order Information</h6>
+                  <div className="d-flex justify-content-between mb-2">
+                    <span className="fw-bold">Order Number:</span>
+                    <span>#{selectedOrder.order_number}</span>
+                  </div>
+                  <div className="d-flex justify-content-between mb-2">
+                    <span className="fw-bold">Order Type:</span>
+                    <span>{selectedOrder.order_type}</span>
+                  </div>
+                  <div className="d-flex justify-content-between mb-2">
+                    <span className="fw-bold">Order Status:</span>
+                    <span>{selectedOrder.order_status}</span>
+                  </div>
+                  <div className="d-flex justify-content-between mb-2">
+                    <span className="fw-bold">Created On:</span>
+                    <span>{selectedOrder.created_on}</span>
+                  </div>
+                  <div className="d-flex justify-content-between mb-2">
+                    <span className="fw-bold">Payment Method:</span>
+                    <span>{selectedOrder.payment_method || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="col-md-6">
+              <div className="card h-100 border-0 shadow-sm">
+                <div className="card-body">
+                  <h6 className="card-title border-bottom pb-2 mb-3">Payment Details</h6>
+                  <div className="d-flex justify-content-between mb-2">
+                    <span className="fw-bold">Bill Amount:</span>
+                    <span>₹{selectedOrder.total_bill_amount.toFixed(2)}</span>
+                  </div>
+                  <div className="d-flex justify-content-between mb-2">
+                    <span className="fw-bold">Discount:</span>
+                    <span>₹{selectedOrder.discount_amount.toFixed(2)}</span>
+                  </div>
+                  <div className="d-flex justify-content-between mb-2">
+                    <span className="fw-bold">Special Discount:</span>
+                    <span>₹{selectedOrder.special_discount.toFixed(2)}</span>
+                  </div>
+                  <div className="d-flex justify-content-between mb-2">
+                    <span className="fw-bold">GST Amount:</span>
+                    <span>₹{selectedOrder.gst_amount.toFixed(2)}</span>
+                  </div>
+                  <div className="d-flex justify-content-between mb-2">
+                    <span className="fw-bold">Service Charges:</span>
+                    <span>₹{selectedOrder.service_charges_amount.toFixed(2)}</span>
+                  </div>
+                  <div className="d-flex justify-content-between fw-bold mt-2 pt-2 border-top">
+                    <span>Final Amount:</span>
+                    <span>₹{selectedOrder.final_grand_total.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {selectedOrder.customer_name && (
+            <div className="card mb-4 border-0 shadow-sm">
+              <div className="card-body">
+                <h6 className="card-title border-bottom pb-2 mb-3">Customer Information</h6>
+                <div className="row">
+                  <div className="col-md-4">
+                    <div className="d-flex mb-2">
+                      <span className="fw-bold me-2">Name:</span>
+                      <span>{selectedOrder.customer_name}</span>
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="d-flex mb-2">
+                      <span className="fw-bold me-2">Mobile:</span>
+                      <span>{selectedOrder.customer_mobile || 'N/A'}</span>
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="d-flex mb-2">
+                      <span className="fw-bold me-2">Address:</span>
+                      <span>{selectedOrder.customer_address || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="card border-0 shadow-sm">
+            <div className="card-body">
+              <h6 className="card-title border-bottom pb-2 mb-3">Order Items</h6>
+              <div className="table-responsive">
+                <table className="table table-sm">
+                  <thead className="table-light">
+                    <tr>
+                      <th>#</th>
+                      <th>Item Name</th>
+                      <th className="text-center">Quantity</th>
+                      <th className="text-end">Price</th>
+                      <th className="text-end">Total</th>
+                      <th>Comment</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedOrder.menu_items && selectedOrder.menu_items.length > 0 ? (
+                      selectedOrder.menu_items.map((item, index) => (
+                        <tr key={`${selectedOrder.order_id}-${item.menu_id}-${index}`}>
+                          <td>{index + 1}</td>
+                          <td>{item.menu_name}</td>
+                          <td className="text-center">{item.quantity}</td>
+                          <td className="text-end">₹{item.price.toFixed(2)}</td>
+                          <td className="text-end">₹{(item.quantity * item.price).toFixed(2)}</td>
+                          <td>{item.comment || '-'}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="6" className="text-center">No items available</td>
+                      </tr>
+                    )}
+                    <tr className="table-light fw-bold">
+                      <td colSpan="4" className="text-end">Total:</td>
+                      <td className="text-end">₹{selectedOrder.total_bill_amount.toFixed(2)}</td>
+                      <td></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={handleCloseModal}>
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    );
+  };
+
   return (
     <div className="layout-wrapper layout-content-navbar">
       <div className="layout-container">
@@ -423,21 +473,21 @@ const OrderReports = () => {
                   {error}
                 </div>
               ) : (
-                <Card>
-                  <CardHeader className="bg-white">
-                    <CardTitle className="text-center w-100 mb-0 fw-bold text-primary">Order Reports</CardTitle>
-                  </CardHeader>
+                <div>
+                  <div className="mb-4">
+                    <h2 className="text-center mb-0 fw-bold text-primary">Order Reports</h2>
+                  </div>
 
-                  <CardBody>
+                  <div>
                     {/* Filters Section */}
+                    <div className="mb-4">
                     <ReportFilters
                       isLoading={loading}
                       onSubmit={fetchOrderReport}
                       defaultDateRange="All Time"
                     >
                       {/* Order Type Filter */}
-                      <select 
-                        className="form-select"
+                        <Form.Select 
                         name="order_type"
                         defaultValue="all"
                         style={{ width: '200px' }}
@@ -448,103 +498,59 @@ const OrderReports = () => {
                         <option value="counter">Counter</option>
                         <option value="delivery">Delivery</option>
                         <option value="drive-through">Drive-through</option>
-                      </select>
+                        </Form.Select>
                     </ReportFilters>
+                    </div>
 
-                    {/* Summary Cards - Only show after data is fetched AND there is meaningful data */}
+                    {/* Summary Stats - Simple Text Version */}
                     {dataFetched && hasData() && (
-                      <Row className="mb-4">
-                        <Col md={4}>
-                          <Card className="h-100">
-                            <CardBody className="bg-primary text-white">
-                              <h6 className="card-title">Total Orders</h6>
-                              <h3 className="mb-0">{orderData.order_report.total_orders}</h3>
-                            </CardBody>
-                          </Card>
-                        </Col>
-                        <Col md={4}>
-                          <Card className="h-100">
-                            <CardBody className="bg-success text-white">
-                              <h6 className="card-title">Total Revenue</h6>
-                              <h3 className="mb-0">₹{orderData.order_report.total_revenue.toFixed(2)}</h3>
-                            </CardBody>
-                          </Card>
-                        </Col>
-                        <Col md={4}>
-                          <Card className="h-100">
-                            <CardBody className="bg-info text-white">
-                              <h6 className="card-title">Avg. Order Value</h6>
-                              <h3 className="mb-0">₹{orderData.order_report.average_order_value.toFixed(2)}</h3>
-                            </CardBody>
-                          </Card>
-                        </Col>
-                      </Row>
+                      <div className="mb-4 d-flex justify-content-around">
+                        <div className="text-center">
+                          <div className="fw-bold">Total Orders</div>
+                          <div className="h4">{orderData.order_report.total_orders}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="fw-bold">Total Revenue</div>
+                          <div className="h4">₹{orderData.order_report.total_revenue.toFixed(2)}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="fw-bold">Avg. Order Value</div>
+                          <div className="h4">₹{orderData.order_report.average_order_value.toFixed(2)}</div>
+                        </div>
+                      </div>
                     )}
 
-                    {/* Debug info */}
-                    {console.log('Render conditions:', { dataFetched, orderDetailsLength: orderDetails.length })}
-
-                    {/* Table Section - Show as soon as we have order details data */}
+                    {/* Table Section */}
                     {orderDetails && orderDetails.length > 0 ? (
-                      <>
-                        {console.log('Rendering ReportTable with data:', orderDetails.length)}
+                      <div style={{ backgroundColor: 'transparent' }}>
                         <ReportTable
                           key={`order-table-${orderDetails.length}`}
                           data={orderDetails}
                           columns={columns}
                           title="Order Details"
-                          expandableContent={renderOrderItems}
                           filterInfo={getFilterInfo()}
+                          enableHorizontalScroll={true}
                         />
-                      </>
+                      </div>
                     ) : dataFetched ? (
                       <div className="alert alert-info mt-4">
                         <i className="fas fa-info-circle me-2"></i>
                         No order data found for the selected filters. Please try different filter criteria.
                       </div>
                     ) : null}
-                  </CardBody>
-                </Card>
+                  </div>
+                </div>
               )}
             </div>
             <Footer />
           </div>
         </div>
       </div>
+      
+      {/* Order Details Modal */}
+      <OrderDetailsModal />
     </div>
   );
 };
-
-function getStatusColor(status) {
-  switch (status?.toLowerCase()) {
-    case 'paid':
-      return 'success';
-    case 'cancelled':
-      return 'danger';
-    case 'cooking':
-      return 'warning';
-    case 'placed':
-      return 'primary';
-    default:
-      return 'secondary';
-  }
-}
-
-function getOrderTypeColor(type) {
-  switch (type?.toLowerCase()) {
-    case 'dine-in':
-      return 'primary';
-    case 'parcel':
-      return 'info';
-    case 'counter':
-      return 'success';
-    case 'delivery':
-      return 'warning';
-    case 'drive-through':
-      return 'danger';
-    default:
-      return 'secondary';
-  }
-}
 
 export default OrderReports; 

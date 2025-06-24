@@ -92,26 +92,40 @@ export const ReportTable = ({
   customHeaderRender,
   customCellRender,
   initialSortConfig = { key: null, direction: null },
-  enableHorizontalScroll = false
+  enableHorizontalScroll = false,
+  onBack,
+  filterControls,
+  dataFetched = false,
+  breadcrumbs = null
 }) => {
-  const RECORDS_PER_PAGE = 15; // Number of records to show initially and on each "Load More" click
+  const PAGE_SIZE_OPTIONS = [50, 200, 500]; // Available page size options
+  const DEFAULT_PAGE_SIZE = PAGE_SIZE_OPTIONS[0]; // Default to first option (50)
   
   const [filteredData, setFilteredData] = useState([]);
   const [displayedData, setDisplayedData] = useState([]);
   const [expandedRows, setExpandedRows] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
-  const [visibleRecords, setVisibleRecords] = useState(RECORDS_PER_PAGE);
+  const [columnSearchQueries, setColumnSearchQueries] = useState({});
+  const [visibleRecords, setVisibleRecords] = useState(DEFAULT_PAGE_SIZE);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sortConfig, setSortConfig] = useState(initialSortConfig);
   const [selectedRecords, setSelectedRecords] = useState({});
+  const [selectedColumns, setSelectedColumns] = useState({});
+  const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   
   // Use refs to track previous values and avoid unnecessary re-renders
   const prevDataRef = useRef(data);
   const prevSearchQueryRef = useRef(searchQuery);
+  const prevColumnSearchQueriesRef = useRef(columnSearchQueries);
   const prevSortConfigRef = useRef(sortConfig);
   const prevFilteredDataRef = useRef(filteredData);
   const prevVisibleRecordsRef = useRef(visibleRecords);
+  const prevCurrentPageRef = useRef(currentPage);
+  const prevPageSizeRef = useRef(pageSize);
+  const prevColumnsRef = useRef(columns);
 
-  // Initialize data and selections when data changes
+  // Initialize data, selections, and columns when data changes
   useEffect(() => {
     // Skip if data hasn't changed
     if (prevDataRef.current === data) return;
@@ -128,7 +142,7 @@ export const ReportTable = ({
       setSelectedRecords(initialSelectedState);
       
       // Reset visible records when data changes
-      setVisibleRecords(RECORDS_PER_PAGE);
+      setVisibleRecords(DEFAULT_PAGE_SIZE);
       
       // Reset sort config when data changes
       setSortConfig(initialSortConfig);
@@ -141,44 +155,93 @@ export const ReportTable = ({
       setFilteredData([]);
     }
   }, [data, initialSortConfig]);
+  
+  // Initialize column selections when columns change
+  useEffect(() => {
+    // Skip if columns haven't changed
+    if (prevColumnsRef.current === columns) return;
+    prevColumnsRef.current = columns;
+    
+    if (columns && columns.length > 0) {
+      // Initialize all columns as selected by default
+      const initialColumnState = {};
+      // Initialize column search queries to empty
+      const initialColumnSearchState = {};
+      
+      columns.forEach(column => {
+        initialColumnState[column.accessor] = true;
+        initialColumnSearchState[column.accessor] = '';
+      });
+      
+      setSelectedColumns(initialColumnState);
+      setColumnSearchQueries(initialColumnSearchState);
+    }
+  }, [columns]);
 
-  // Apply search filter
+  // Apply global search filter
   useEffect(() => {
     // Skip if search query hasn't changed or data is the same
-    if (prevSearchQueryRef.current === searchQuery && prevDataRef.current === data) return;
+    if (prevSearchQueryRef.current === searchQuery && 
+        prevDataRef.current === data &&
+        prevColumnSearchQueriesRef.current === columnSearchQueries) return;
+    
     prevSearchQueryRef.current = searchQuery;
+    prevColumnSearchQueriesRef.current = columnSearchQueries;
     
     if (!data || data.length === 0) {
       setFilteredData([]);
       return;
     }
     
+    let filtered = [...data];
+    
+    // Apply global search if query exists
     if (searchQuery) {
-      const filtered = data.filter(item => {
+      filtered = filtered.filter(item => {
         return columns.some(col => {
           const value = col.accessor ? item[col.accessor] : null;
           return value && String(value).toLowerCase().includes(searchQuery.toLowerCase());
         });
       });
-      setFilteredData(filtered);
-    } else {
-      setFilteredData(data);
     }
-  }, [searchQuery, data, columns]);
+    
+    // Apply column-specific searches
+    const hasColumnSearches = Object.values(columnSearchQueries).some(query => query !== '');
+    
+    if (hasColumnSearches) {
+      filtered = filtered.filter(item => {
+        return Object.entries(columnSearchQueries).every(([accessor, query]) => {
+          if (!query) return true; // Skip empty queries
+          
+          const value = item[accessor];
+          if (value === undefined || value === null) return false;
+          
+          return String(value).toLowerCase().includes(query.toLowerCase());
+        });
+      });
+    }
+    
+    setFilteredData(filtered);
+  }, [searchQuery, data, columns, columnSearchQueries]);
 
-  // Update displayed data based on visible records count
+  // Update displayed data based on pagination
   useEffect(() => {
-    // Skip if filtered data or visible records haven't changed
+    // Skip if filtered data, current page, or page size haven't changed
     if (
       prevFilteredDataRef.current === filteredData && 
-      prevVisibleRecordsRef.current === visibleRecords
+      prevCurrentPageRef.current === currentPage &&
+      prevPageSizeRef.current === pageSize
     ) return;
     
     prevFilteredDataRef.current = filteredData;
-    prevVisibleRecordsRef.current = visibleRecords;
+    prevCurrentPageRef.current = currentPage;
+    prevPageSizeRef.current = pageSize;
     
-    setDisplayedData(filteredData.slice(0, visibleRecords));
-  }, [filteredData, visibleRecords]);
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    
+    setDisplayedData(filteredData.slice(startIndex, endIndex));
+  }, [filteredData, currentPage, pageSize]);
 
   // Apply sorting to filtered data
   useEffect(() => {
@@ -228,12 +291,54 @@ export const ReportTable = ({
 
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
-    setVisibleRecords(RECORDS_PER_PAGE); // Reset visible records when searching
+    setCurrentPage(1); // Reset to first page when searching
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setCurrentPage(1);
+  };
+  
+  const handleColumnSearchChange = (accessor, value) => {
+    setColumnSearchQueries(prev => ({
+      ...prev,
+      [accessor]: value
+    }));
+    setCurrentPage(1); // Reset to first page when searching
+  };
+  
+  const clearColumnSearch = (accessor) => {
+    setColumnSearchQueries(prev => ({
+      ...prev,
+      [accessor]: ''
+    }));
+  };
+  
+  const clearAllColumnSearches = () => {
+    const clearedSearches = {};
+    Object.keys(columnSearchQueries).forEach(key => {
+      clearedSearches[key] = '';
+    });
+    setColumnSearchQueries(clearedSearches);
+    setCurrentPage(1);
   };
 
   const handleLoadMore = () => {
-    setVisibleRecords(prev => prev + RECORDS_PER_PAGE);
+    if (currentPage * pageSize < filteredData.length) {
+      setCurrentPage(prev => prev + 1);
+    }
   };
+  
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+  
+  const handlePageSizeChange = (size) => {
+    setPageSize(size);
+    setCurrentPage(1); // Reset to first page when changing page size
+  };
+
+  const totalPages = Math.ceil(filteredData.length / pageSize);
 
   const toggleRow = (id) => {
     setExpandedRows(prev => ({
@@ -247,6 +352,14 @@ export const ReportTable = ({
     setSelectedRecords(prev => ({
       ...prev,
       [id]: !prev[id]
+    }));
+  };
+  
+  const toggleColumnSelection = (e, accessor) => {
+    e.stopPropagation(); // Prevent sorting when clicking the eye icon
+    setSelectedColumns(prev => ({
+      ...prev,
+      [accessor]: !prev[accessor]
     }));
   };
 
@@ -301,7 +414,8 @@ export const ReportTable = ({
     const excelData = selectedItems.map(item => {
       const rowData = {};
       columns.forEach(column => {
-        if (column.accessor && column.Header) {
+        // Only include selected columns
+        if (column.accessor && column.Header && selectedColumns[column.accessor]) {
           // Handle special rendering for export
           if (column.exportFormat) {
             rowData[column.Header] = column.exportFormat(item);
@@ -348,14 +462,14 @@ export const ReportTable = ({
       });
     }
     
-    // Prepare columns and data for PDF
+    // Prepare columns and data for PDF - only include selected columns
     const tableColumn = columns
-      .filter(col => col.accessor && col.Header && col.includeInExport !== false)
+      .filter(col => col.accessor && col.Header && selectedColumns[col.accessor] && col.includeInExport !== false)
       .map(col => col.Header);
     
     const tableRows = selectedItems.map(item => {
       return columns
-        .filter(col => col.accessor && col.Header && col.includeInExport !== false)
+        .filter(col => col.accessor && col.Header && selectedColumns[col.accessor] && col.includeInExport !== false)
         .map(col => {
           if (col.exportFormat) {
             return col.exportFormat(item);
@@ -379,11 +493,11 @@ export const ReportTable = ({
     doc.save(`${title || 'report'}.pdf`);
   };
 
-  // CSV data preparation
+  // CSV data preparation - only include selected columns
   const csvData = getSelectedData().map(item => {
     const rowData = {};
     columns.forEach(column => {
-      if (column.accessor && column.Header && column.includeInExport !== false) {
+      if (column.accessor && column.Header && selectedColumns[column.accessor] && column.includeInExport !== false) {
         if (column.exportFormat) {
           rowData[column.Header] = column.exportFormat(item);
         } else {
@@ -432,217 +546,585 @@ export const ReportTable = ({
   };
 
   return (
-    <div className="mt-4">
-      {/* Stats and Search Bar */}
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <div>
-          <span className="text-primary fw-medium">
-            <i className="fas fa-table me-1"></i>
-            {filteredData.length} Records
-          </span>
-          <span className="ms-3 text-muted small">
-            <i className="fas fa-columns me-1"></i>
-            {columns.length} Columns
-          </span>
+    <div className="mt-4 px-3">
+      {/* Breadcrumbs - Outside the card */}
+      {breadcrumbs && (
+        <div className="mb-3 d-flex align-items-center">
+          {breadcrumbs}
         </div>
-        <div>
-          <InputGroup size="sm">
-            <FormControl
-              placeholder="Search..."
-              aria-label="Search"
-              value={searchQuery}
-              onChange={handleSearchChange}
-            />
-            <Button variant="outline-primary">
-              <i className="fas fa-search"></i>
-            </Button>
-          </InputGroup>
-        </div>
-      </div>
+      )}
       
-      {/* Table Card */}
-      <Card className="border shadow-sm">
-        <Card.Body className="p-0">
-          <div className="table-responsive" style={{ overflowX: enableHorizontalScroll ? 'auto' : 'visible' }}>
-            <Table className="table-hover mb-0" size="sm" style={{ width: enableHorizontalScroll ? calculateTotalWidth() : '100%' }}>
-              <thead className="bg-light">
-                <tr>
-                  {/* Expansion column - only show if expandable content is provided and horizontal scroll is not enabled */}
-                  {expandableContent && !enableHorizontalScroll && (
-                    <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle }}></th>
-                  )}
-                  
-                  {/* Selection column */}
-                  <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle }}>
-                    <span className="small text-muted">Incl.</span>
-                  </th>
-                  
-                  {/* Data columns */}
-                  {columns.map((column) => (
-                    <th 
-                      key={column.accessor}
-                      className="align-middle user-select-none py-2"
-                      style={{ 
-                        width: column.width || 'auto', 
-                        cursor: column.sortable === false ? 'default' : 'pointer',
-                        ...verticalLineStyle,
-                        fontSize: '0.85rem',
-                        fontWeight: 600
-                      }}
-                      onClick={() => column.sortable !== false && handleSort(column.accessor)}
-                    >
-                      {customHeaderRender ? (
-                        customHeaderRender(column)
-                      ) : (
-                        <div className="d-flex justify-content-between align-items-center">
-                          <span>{column.Header}</span>
-                          {column.sortable !== false && getSortIcon(column.accessor)}
-                        </div>
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {displayedData.length > 0 ? (
-                  displayedData.map((item) => {
-                    const itemId = getIdFromItem(item);
-                    
-                    return (
-                      <React.Fragment key={itemId}>
-                        {/* Main row */}
-                        <tr 
-                          className={`${expandableContent && !enableHorizontalScroll ? 'cursor-pointer' : ''} ${expandedRows[itemId] ? 'table-active' : ''}`}
-                          onClick={() => expandableContent && !enableHorizontalScroll && toggleRow(itemId)}
-                          style={{ 
-                            cursor: (expandableContent && !enableHorizontalScroll) ? 'pointer' : 'default',
-                            height: '45px'
-                          }}
-                        >
-                          {/* Expansion column - only show if expandable content is provided and horizontal scroll is not enabled */}
-                          {expandableContent && !enableHorizontalScroll && (
-                            <td className="text-center align-middle" style={verticalLineStyle}>
-                              <i className={`fas fa-chevron-${expandedRows[itemId] ? 'down' : 'right'} transition-all`}></i>
-                            </td>
-                          )}
-                          
-                          {/* Selection column */}
-                          <td className="text-center align-middle" style={verticalLineStyle}>
-                            <OverlayTrigger
-                              placement="top"
-                              overlay={
-                                <Tooltip id={`tooltip-${itemId}`}>
-                                  {selectedRecords[itemId] ? 'Click to exclude from export' : 'Click to include in export'}
-                                </Tooltip>
-                              }
-                            >
-                              <Button 
-                                variant="link" 
-                                className="p-0 text-decoration-none" 
-                                onClick={(e) => toggleRecordSelection(e, itemId)}
-                              >
-                                <i className={`fas fa-eye${selectedRecords[itemId] ? '' : '-slash'} ${selectedRecords[itemId] ? 'text-primary' : 'text-muted'}`} style={{ fontSize: '0.85rem' }}></i>
-                              </Button>
-                            </OverlayTrigger>
-                          </td>
-                          
-                          {/* Data cells */}
-                          {columns.map((column) => (
-                            <td 
-                              key={`${itemId}-${column.accessor}`} 
-                              className={column.cellClassName || "align-middle"}
-                              style={verticalLineStyle}
-                            >
-                              {customCellRender ? (
-                                customCellRender(item, column)
-                              ) : column.Cell ? (
-                                column.Cell(item)
-                              ) : (
-                                item[column.accessor]
-                              )}
-                            </td>
-                          ))}
-                        </tr>
-                        
-                        {/* Expandable content row - only show if expandable content is provided and horizontal scroll is not enabled */}
-                        {expandableContent && !enableHorizontalScroll && (
-                          <tr>
-                            <td colSpan={columns.length + 2} className="p-0">
-                              <div 
-                                className={`collapse ${expandedRows[itemId] ? 'show' : ''}`}
-                                style={{
-                                  transition: 'all 0.3s ease-in-out',
-                                  maxHeight: expandedRows[itemId] ? '500px' : '0',
-                                  overflow: 'hidden'
-                                }}
-                              >
-                                <div className="p-3 bg-light border-top">
-                                  {expandableContent(item)}
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={columns.length + (expandableContent && !enableHorizontalScroll ? 2 : 1)} className="text-center py-5">
-                      <i className="fas fa-search fa-2x text-muted mb-3"></i>
-                      <p className="text-muted">No data found</p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </Table>
-          </div>
-        </Card.Body>
-        <Card.Footer className="bg-white py-2">
+      {/* Top Controls Section - Always visible */}
+      <Card className="mb-4">
+        <Card.Body>
           <div className="d-flex justify-content-between align-items-center">
             <div className="d-flex align-items-center">
-              {filteredData.length > visibleRecords && (
-                <Button 
-                  variant="outline-primary"
-                  size="sm"
-                  onClick={handleLoadMore}
-                  className="me-3"
+              {onBack && (
+                <button 
+                  className="btn btn-sm btn-icon btn-outline-secondary me-3" 
+                  onClick={onBack}
+                  title="Back"
                 >
-                  <i className="fas fa-sync-alt me-1"></i>
-                  Load More ({visibleRecords}/{filteredData.length})
-                </Button>
+                  <i className="fas fa-arrow-left"></i>
+                </button>
               )}
-              {filteredData.length <= visibleRecords && filteredData.length > 0 && (
-                <span className="text-muted small me-3">
-                  Showing all {filteredData.length} records
-                </span>
+              
+              {/* Advanced Controls Button - Moved up to filters line */}
+              {dataFetched && (
+                <OverlayTrigger
+                  placement="top"
+                  overlay={
+                    <Tooltip id="tooltip-advanced-controls">
+                      {showAdvancedControls ? 'Hide advanced controls' : 'Show advanced controls'}
+                    </Tooltip>
+                  }
+                >
+                  <Button 
+                    variant="link" 
+                    className={`p-1 me-3 ${showAdvancedControls ? 'text-primary' : 'text-muted'}`}
+                    onClick={() => setShowAdvancedControls(!showAdvancedControls)}
+                  >
+                    <i className="fas fa-gear" style={{ fontSize: '1.1rem' }}></i>
+                  </Button>
+                </OverlayTrigger>
               )}
-              <span className="text-primary small">
-                <i className="fas fa-eye me-1"></i>
-                {getSelectedData().length} of {displayedData.length} visible records selected for export
-              </span>
             </div>
-            <div className="d-flex gap-2">
-              <CSVLink 
-                data={csvData} 
-                filename={`${title || 'report'}.csv`}
-                className="btn btn-outline-primary btn-sm"
-                target="_blank"
-              >
-                <i className="fas fa-file-csv me-1"></i>
-                CSV
-              </CSVLink>
-              <Button variant="outline-success" size="sm" onClick={exportToExcel}>
-                <i className="fas fa-file-excel me-1"></i>
-                Excel
-              </Button>
-              <Button variant="outline-danger" size="sm" onClick={exportToPDF}>
-                <i className="fas fa-file-pdf me-1"></i>
-                PDF
-              </Button>
+            
+            <div className="d-flex justify-content-center align-items-center">
+              {filterControls && (
+                <div className="d-flex align-items-center">
+                  {filterControls}
+                </div>
+              )}
             </div>
+            
+            <div style={{ width: '75px' }}></div> {/* Empty div to balance the layout */}
           </div>
-        </Card.Footer>
+        </Card.Body>
+        
+        {/* Only show the table content if data has been fetched */}
+        {dataFetched && (
+          <>
+            <Card.Body className="border-top">
+              {/* Stats and Search Bar */}
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <div className="d-flex align-items-center">
+                  <span className="text-primary fw-medium">
+                    <i className="fas fa-table me-1"></i>
+                    {filteredData.length} Records
+                  </span>
+                  
+                  <span className="ms-3 text-muted small">
+                    <i className="fas fa-columns me-1"></i>
+                    {columns.filter(col => selectedColumns[col.accessor]).length} of {columns.length} Columns
+                  </span>
+                </div>
+                
+                <div className="d-flex align-items-center">
+                  <div className="d-flex gap-2 me-3">
+                    <CSVLink 
+                      data={csvData} 
+                      filename={`${title || 'report'}.csv`}
+                      className="btn btn-outline-primary btn-sm"
+                      target="_blank"
+                    >
+                      <i className="fas fa-file-csv me-1"></i>
+                      CSV
+                    </CSVLink>
+                    <Button variant="outline-success" size="sm" onClick={exportToExcel}>
+                      <i className="fas fa-file-excel me-1"></i>
+                      Excel
+                    </Button>
+                    <Button variant="outline-danger" size="sm" onClick={exportToPDF}>
+                      <i className="fas fa-file-pdf me-1"></i>
+                      PDF
+                    </Button>
+                  </div>
+                  
+                  <InputGroup size="sm">
+                    <FormControl
+                      placeholder="Search..."
+                      aria-label="Search"
+                      value={searchQuery}
+                      onChange={handleSearchChange}
+                    />
+                    {searchQuery && (
+                      <Button variant="outline-secondary" onClick={clearSearch}>
+                        <i className="fas fa-times"></i>
+                      </Button>
+                    )}
+                    <Button variant="outline-primary">
+                      <i className="fas fa-search"></i>
+                    </Button>
+                  </InputGroup>
+                </div>
+              </div>
+              
+              {/* Table Content - Fix alignment issues */}
+              {data.length > 0 ? (
+                <div className="table-responsive" style={{ 
+                  position: 'relative', 
+                  maxHeight: '500px', 
+                  overflowY: 'auto',
+                  border: '1px solid #dee2e6',
+                  borderRadius: '0.25rem'
+                }}>
+                  <Table className="table-hover mb-0" size="sm" style={{ 
+                    width: enableHorizontalScroll ? calculateTotalWidth() : '100%', 
+                    tableLayout: 'fixed'
+                  }}>
+                    <colgroup>
+                      {/* Expansion column */}
+                      {expandableContent && !enableHorizontalScroll && (
+                        <col style={{ width: '40px' }} />
+                      )}
+                      
+                      {/* S.No. column */}
+                      {showAdvancedControls && (
+                        <col style={{ width: '60px' }} />
+                      )}
+                      
+                      {/* Selection column */}
+                      {showAdvancedControls && (
+                        <col style={{ width: '40px' }} />
+                      )}
+                      
+                      {/* Data columns */}
+                      {columns.map((column) => (
+                        <col key={`col-${column.accessor}`} style={{ width: column.width || 'auto' }} />
+                      ))}
+                    </colgroup>
+                    <thead className="bg-light">
+                      {/* Advanced controls section - conditionally visible */}
+                      {showAdvancedControls && (
+                        <>
+                          {/* Row 1: Eye icons for column selection */}
+                          <tr>
+                            {/* Expansion column - only show if expandable content is provided and horizontal scroll is not enabled */}
+                            {expandableContent && !enableHorizontalScroll && (
+                              <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}></th>
+                            )}
+                            
+                            {/* S.No. column */}
+                            <th className="text-center align-middle" style={{ width: '60px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}>
+                              <span className="small text-muted">S.No.</span>
+                            </th>
+                            
+                            {/* Selection column */}
+                            <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}>
+                              <span className="small text-muted">Incl.</span>
+                            </th>
+                            
+                            {/* Data columns */}
+                            {columns.map((column) => (
+                              <th 
+                                key={column.accessor}
+                                className="text-center align-middle"
+                                style={{ 
+                                  width: column.width || 'auto', 
+                                  ...verticalLineStyle,
+                                  padding: '0.3rem 0.5rem'
+                                }}
+                              >
+                                <OverlayTrigger
+                                  placement="top"
+                                  overlay={
+                                    <Tooltip id={`tooltip-col-${column.accessor}`}>
+                                      {selectedColumns[column.accessor] ? 'Click to exclude column from export' : 'Click to include column in export'}
+                                    </Tooltip>
+                                  }
+                                >
+                                  <Button 
+                                    variant="link" 
+                                    className="p-0 text-decoration-none" 
+                                    onClick={(e) => toggleColumnSelection(e, column.accessor)}
+                                  >
+                                    <i className={`fas fa-eye${selectedColumns[column.accessor] ? '' : '-slash'} ${selectedColumns[column.accessor] ? 'text-primary' : 'text-muted'}`} style={{ fontSize: '0.85rem' }}></i>
+                                  </Button>
+                                </OverlayTrigger>
+                              </th>
+                            ))}
+                          </tr>
+                          
+                          {/* Divider after eye buttons row */}
+                          <tr className="table-divider">
+                            <th colSpan={columns.length + (expandableContent && !enableHorizontalScroll ? 3 : 2)} style={{ padding: 0 }}>
+                              <hr style={{ margin: '0.1rem 0', borderTop: '1px solid #dee2e6' }} />
+                            </th>
+                          </tr>
+                        </>
+                      )}
+                      
+                      {/* Row 2: Column headers - always visible */}
+                      <tr style={{ height: 'auto' }}>
+                        {/* Expansion column - only show if expandable content is provided and horizontal scroll is not enabled */}
+                        {expandableContent && !enableHorizontalScroll && (
+                          <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}></th>
+                        )}
+                        
+                        {/* S.No. column - Only visible when advanced controls are enabled */}
+                        {showAdvancedControls && (
+                          <th className="text-center align-middle" style={{ width: '60px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}></th>
+                        )}
+                        
+                        {/* Selection column - Only visible when advanced controls are enabled */}
+                        {showAdvancedControls && (
+                          <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}></th>
+                        )}
+                        
+                        {/* Data columns */}
+                        {columns.map((column) => (
+                          <th 
+                            key={column.accessor}
+                            className={`align-middle user-select-none ${column.headerClassName || ''}`}
+                            style={{ 
+                              width: column.width || 'auto', 
+                              cursor: column.sortable === false ? 'default' : 'pointer',
+                              ...verticalLineStyle,
+                              fontSize: '0.85rem',
+                              fontWeight: 600,
+                              padding: '0.3rem 0.5rem'
+                            }}
+                            onClick={() => column.sortable !== false && handleSort(column.accessor)}
+                          >
+                            {customHeaderRender ? (
+                              customHeaderRender(column)
+                            ) : (
+                              <div className="d-flex justify-content-between align-items-center">
+                                <span>{column.Header}</span>
+                                {column.sortable !== false && getSortIcon(column.accessor)}
+                              </div>
+                            )}
+                          </th>
+                        ))}
+                      </tr>
+                      
+                      {/* Divider after column headers row */}
+                      <tr className="table-divider">
+                        <th colSpan={columns.length + (expandableContent && !enableHorizontalScroll ? (showAdvancedControls ? 3 : 1) : (showAdvancedControls ? 2 : 0))} style={{ padding: 0 }}>
+                          <hr style={{ margin: '0.1rem 0', borderTop: '1px solid #dee2e6' }} />
+                        </th>
+                      </tr>
+                      
+                      {/* Advanced controls section - conditionally visible */}
+                      {showAdvancedControls && (
+                        <>
+                          {/* Row 3: Column search inputs */}
+                          <tr>
+                            {/* Expansion column - only show if expandable content is provided and horizontal scroll is not enabled */}
+                            {expandableContent && !enableHorizontalScroll && (
+                              <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}></th>
+                            )}
+                            
+                            {/* S.No. column */}
+                            <th className="text-center align-middle" style={{ width: '60px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}>
+                            </th>
+                            
+                            {/* Selection column */}
+                            <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle, padding: '0.3rem 0.5rem' }}>
+                              <OverlayTrigger
+                                placement="top"
+                                overlay={
+                                  <Tooltip id="tooltip-clear-all-filters">
+                                    Clear all column filters
+                                  </Tooltip>
+                                }
+                              >
+                                <Button 
+                                  variant="link" 
+                                  className="p-0 text-decoration-none" 
+                                  onClick={clearAllColumnSearches}
+                                  disabled={!Object.values(columnSearchQueries).some(q => q !== '')}
+                                >
+                                  <i className="fas fa-filter-circle-xmark text-muted" style={{ fontSize: '0.85rem' }}></i>
+                                </Button>
+                              </OverlayTrigger>
+                            </th>
+                            
+                            {/* Data columns search inputs */}
+                            {columns.map((column) => (
+                              <th 
+                                key={`search-${column.accessor}`}
+                                style={{ 
+                                  width: column.width || 'auto', 
+                                  ...verticalLineStyle,
+                                  padding: '0.3rem 0.5rem'
+                                }}
+                              >
+                                <InputGroup size="sm">
+                                  <FormControl
+                                    placeholder={`Search ${column.Header}...`}
+                                    size="sm"
+                                    value={columnSearchQueries[column.accessor] || ''}
+                                    onChange={(e) => handleColumnSearchChange(column.accessor, e.target.value)}
+                                    style={{ height: '28px', fontSize: '0.75rem' }}
+                                  />
+                                  {columnSearchQueries[column.accessor] && (
+                                    <Button 
+                                      variant="outline-secondary" 
+                                      size="sm" 
+                                      onClick={() => clearColumnSearch(column.accessor)}
+                                      style={{ height: '28px', padding: '0 0.5rem' }}
+                                    >
+                                      <i className="fas fa-times" style={{ fontSize: '0.75rem' }}></i>
+                                    </Button>
+                                  )}
+                                </InputGroup>
+                              </th>
+                            ))}
+                          </tr>
+                          
+                          {/* Divider after search inputs row */}
+                          <tr className="table-divider">
+                            <th colSpan={columns.length + (expandableContent && !enableHorizontalScroll ? 3 : 2)} style={{ padding: 0 }}>
+                              <hr style={{ margin: '0.1rem 0', borderTop: '1px solid #dee2e6' }} />
+                            </th>
+                          </tr>
+                        </>
+                      )}
+                    </thead>
+                    <tbody>
+                      {displayedData.length > 0 ? (
+                        displayedData.map((item, index) => {
+                          const itemId = getIdFromItem(item);
+                          // Calculate the actual index based on the current page and page size
+                          const actualIndex = (currentPage - 1) * pageSize + index + 1;
+                          
+                          return (
+                            <React.Fragment key={itemId}>
+                              {/* Main row */}
+                              <tr 
+                                className={`${expandableContent && !enableHorizontalScroll ? 'cursor-pointer' : ''} ${expandedRows[itemId] ? 'table-active' : ''}`}
+                                onClick={() => expandableContent && !enableHorizontalScroll && toggleRow(itemId)}
+                                style={{ 
+                                  cursor: (expandableContent && !enableHorizontalScroll) ? 'pointer' : 'default',
+                                  height: '35px'
+                                }}
+                              >
+                                {/* Expansion column - only show if expandable content is provided and horizontal scroll is not enabled */}
+                                {expandableContent && !enableHorizontalScroll && (
+                                  <td className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle }}>
+                                    <i className={`fas fa-chevron-${expandedRows[itemId] ? 'down' : 'right'} transition-all`}></i>
+                                  </td>
+                                )}
+                                
+                                {/* S.No. column - Only visible when advanced controls are enabled */}
+                                {showAdvancedControls && (
+                                  <td className="text-center align-middle" style={{ width: '60px', ...verticalLineStyle }}>
+                                    <span className="text-muted">{actualIndex}</span>
+                                  </td>
+                                )}
+                                
+                                {/* Selection column - Only visible when advanced controls are enabled */}
+                                {showAdvancedControls && (
+                                  <td className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle }}>
+                                    <OverlayTrigger
+                                      placement="top"
+                                      overlay={
+                                        <Tooltip id={`tooltip-${itemId}`}>
+                                          {selectedRecords[itemId] ? 'Click to exclude from export' : 'Click to include in export'}
+                                        </Tooltip>
+                                      }
+                                    >
+                                      <Button 
+                                        variant="link" 
+                                        className="p-0 text-decoration-none" 
+                                        onClick={(e) => toggleRecordSelection(e, itemId)}
+                                      >
+                                        <i className={`fas fa-eye${selectedRecords[itemId] ? '' : '-slash'} ${selectedRecords[itemId] ? 'text-primary' : 'text-muted'}`} style={{ fontSize: '0.85rem' }}></i>
+                                      </Button>
+                                    </OverlayTrigger>
+                                  </td>
+                                )}
+                                
+                                {/* Data cells */}
+                                {columns.map((column) => (
+                                  <td 
+                                    key={`${itemId}-${column.accessor}`} 
+                                    className={column.cellClassName || "align-middle"}
+                                    style={{
+                                      width: column.width || 'auto',
+                                      ...verticalLineStyle,
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    <div className="text-truncate">
+                                      {customCellRender ? (
+                                        customCellRender(item, column)
+                                      ) : column.Cell ? (
+                                        column.Cell(item)
+                                      ) : (
+                                        item[column.accessor]
+                                      )}
+                                    </div>
+                                  </td>
+                                ))}
+                              </tr>
+                              
+                              {/* Expandable content row - only show if expandable content is provided and horizontal scroll is not enabled */}
+                              {expandableContent && !enableHorizontalScroll && expandedRows[itemId] && (
+                                <tr>
+                                  <td colSpan={columns.length + (showAdvancedControls ? 3 : 1)} className="p-0">
+                                    <div className="p-3 bg-light border-top">
+                                      {expandableContent(item)}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={columns.length + (expandableContent && !enableHorizontalScroll ? (showAdvancedControls ? 3 : 1) : (showAdvancedControls ? 2 : 0))} className="text-center py-5">
+                            <i className="fas fa-search fa-2x text-muted mb-3"></i>
+                            <p className="text-muted">No data found</p>
+                            {(searchQuery || Object.values(columnSearchQueries).some(q => q !== '')) && (
+                              <div className="mt-2">
+                                <Button 
+                                  variant="outline-secondary" 
+                                  size="sm" 
+                                  onClick={() => {
+                                    clearSearch();
+                                    clearAllColumnSearches();
+                                  }}
+                                >
+                                  <i className="fas fa-times me-1"></i>
+                                  Clear Search Filters
+                                </Button>
+                                {!showAdvancedControls && Object.values(columnSearchQueries).some(q => q !== '') && (
+                                  <div className="mt-2 small text-muted">
+                                    <i className="fas fa-info-circle me-1"></i>
+                                    Column filters are active. Click the <i className="fas fa-gear mx-1"></i> icon to show and modify them.
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="alert alert-info mb-0">
+                  <i className="fas fa-info-circle me-2"></i>
+                  No data found for the selected filters. Please try different filter criteria.
+                </div>
+              )}
+            </Card.Body>
+            <Card.Footer className="bg-white py-2">
+              <div className="d-flex justify-content-between align-items-center">
+                <div className="d-flex align-items-center">
+                  {/* Pagination Controls */}
+                  <div className="d-flex align-items-center me-4">
+                    <span className="text-muted small me-2">Page Size:</span>
+                    <div className="btn-group btn-group-sm me-3">
+                      {PAGE_SIZE_OPTIONS.map(size => (
+                        <Button
+                          key={`page-size-${size}`}
+                          variant={pageSize === size ? 'primary' : 'outline-secondary'}
+                          onClick={() => handlePageSizeChange(size)}
+                        >
+                          {size}
+                        </Button>
+                      ))}
+                    </div>
+                    
+                    {totalPages > 1 && (
+                      <div className="d-flex align-items-center">
+                        <Button
+                          variant="outline-secondary"
+                          size="sm"
+                          onClick={() => handlePageChange(1)}
+                          disabled={currentPage === 1}
+                          className="me-1"
+                        >
+                          <i className="fas fa-angle-double-left"></i>
+                        </Button>
+                        <Button
+                          variant="outline-secondary"
+                          size="sm"
+                          onClick={() => handlePageChange(currentPage - 1)}
+                          disabled={currentPage === 1}
+                          className="me-1"
+                        >
+                          <i className="fas fa-angle-left"></i>
+                        </Button>
+                        <span className="mx-2">
+                          Page <span className="fw-bold">{currentPage}</span> of <span className="fw-bold">{totalPages}</span>
+                        </span>
+                        <Button
+                          variant="outline-secondary"
+                          size="sm"
+                          onClick={() => handlePageChange(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                          className="me-1"
+                        >
+                          <i className="fas fa-angle-right"></i>
+                        </Button>
+                        <Button
+                          variant="outline-secondary"
+                          size="sm"
+                          onClick={() => handlePageChange(totalPages)}
+                          disabled={currentPage === totalPages}
+                        >
+                          <i className="fas fa-angle-double-right"></i>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Records Info */}
+                  <span className="text-muted small me-3">
+                    Showing {displayedData.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} 
+                    - {Math.min(currentPage * pageSize, filteredData.length)} of {filteredData.length} records
+                  </span>
+                  
+                  {/* Advanced Controls Info */}
+                  {showAdvancedControls ? (
+                    <>
+                      <span className="text-primary small me-3">
+                        <i className="fas fa-eye me-1"></i>
+                        {getSelectedData().length} of {displayedData.length} visible records selected
+                      </span>
+                      <span className="text-primary small me-3">
+                        <i className="fas fa-columns me-1"></i>
+                        {columns.filter(col => selectedColumns[col.accessor]).length} of {columns.length} columns selected
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-muted small">
+                      <i className="fas fa-gear me-1"></i>
+                      Click the gear icon to show advanced options
+                    </span>
+                  )}
+                </div>
+                <div className="d-flex gap-2">
+                  <CSVLink 
+                    data={csvData} 
+                    filename={`${title || 'report'}.csv`}
+                    className="btn btn-outline-primary btn-sm"
+                    target="_blank"
+                  >
+                    <i className="fas fa-file-csv me-1"></i>
+                    CSV
+                  </CSVLink>
+                  <Button variant="outline-success" size="sm" onClick={exportToExcel}>
+                    <i className="fas fa-file-excel me-1"></i>
+                    Excel
+                  </Button>
+                  <Button variant="outline-danger" size="sm" onClick={exportToPDF}>
+                    <i className="fas fa-file-pdf me-1"></i>
+                    PDF
+                  </Button>
+                </div>
+              </div>
+            </Card.Footer>
+          </>
+        )}
       </Card>
     </div>
   );
@@ -796,7 +1278,7 @@ export const ReportFilters = ({
             className="form-control"
             dateFormat="dd MMM yyyy"
           />
-    </div>
+        </div>
       )}
     </Form>
   );

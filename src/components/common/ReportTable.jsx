@@ -337,7 +337,7 @@ const ReportTable = ({
 
   // Calculate total width for horizontal scrolling
   const calculateTotalWidth = () => {
-    if (!enableHorizontalScroll) return 'auto';
+    if (!enableHorizontalScroll) return '100%';
     
     let totalWidth = 0;
     columns.forEach(col => {
@@ -349,7 +349,7 @@ const ReportTable = ({
         }
       } else {
         // Default width for columns without specified width
-        totalWidth += 120;
+        totalWidth += 150; // Increased from 120 to give more room for headers
       }
     });
     
@@ -359,11 +359,38 @@ const ReportTable = ({
       totalWidth += 60; // Expansion column
     }
     
-    return `${totalWidth}px`;
+    // If total width is less than container width, return 100%
+    return `100%`;
   };
 
   return (
     <div className="mt-4">
+      <style>
+        {`
+          .table th {
+            white-space: nowrap !important;
+            overflow: visible;
+            background-color: #f8f9fa !important;
+            height: auto !important;
+            line-height: 1.2 !important;
+            padding-top: 10px !important;
+            padding-bottom: 10px !important;
+            vertical-align: middle !important;
+          }
+          .table-responsive {
+            overflow-x: auto !important;
+          }
+          .table {
+            background-color: transparent !important;
+          }
+          .table thead {
+            background-color: #f8f9fa !important;
+          }
+          .table tbody {
+            background-color: white !important;
+          }
+        `}
+      </style>
       {/* Stats and Search Bar */}
       <div className="d-flex justify-content-between align-items-center mb-3">
         <div>
@@ -392,12 +419,23 @@ const ReportTable = ({
       </div>
       
       {/* Table Card */}
-      <Card className="border shadow-sm">
-        <Card.Body className="p-0">
-          <div className="table-responsive" style={{ overflowX: enableHorizontalScroll ? 'auto' : 'visible' }}>
-            <Table className="table-hover mb-0" size="sm" style={{ width: enableHorizontalScroll ? calculateTotalWidth() : '100%' }}>
-              <thead className="bg-light">
-                <tr>
+      <Card className="border shadow-sm" style={{ backgroundColor: 'transparent' }}>
+        <Card.Body className="p-0" style={{ backgroundColor: 'transparent' }}>
+          <div className="table-responsive" style={{ 
+            overflowX: enableHorizontalScroll ? 'auto' : 'visible',
+            minWidth: '100%',
+            backgroundColor: 'transparent'
+          }}>
+            <Table className="table-hover mb-0" size="sm" style={{ 
+              width: '100%',
+              tableLayout: 'auto'
+            }}>
+              <thead style={{ 
+                backgroundColor: '#f8f9fa', 
+                whiteSpace: 'nowrap',
+                height: 'auto'
+              }}>
+                <tr style={{ height: 'auto', lineHeight: '1.2', width: '100%' }}>
                   {/* Expansion column - only show if expandable content is provided and horizontal scroll is not enabled */}
                   {expandableContent && !enableHorizontalScroll && (
                     <th className="text-center align-middle" style={{ width: '40px', ...verticalLineStyle }}></th>
@@ -412,21 +450,27 @@ const ReportTable = ({
                   {columns.map((column) => (
                     <th 
                       key={column.accessor}
-                      className="align-middle user-select-none py-2"
+                      className="align-middle user-select-none py-2 text-nowrap"
                       style={{ 
                         width: column.width || 'auto', 
                         cursor: column.sortable === false ? 'default' : 'pointer',
                         ...verticalLineStyle,
                         fontSize: '0.85rem',
-                        fontWeight: 600
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap',
+                        height: 'auto',
+                        lineHeight: 1.2,
+                        padding: '10px 8px',
+                        verticalAlign: 'middle',
+                        maxHeight: '45px'
                       }}
                       onClick={() => column.sortable !== false && handleSort(column.accessor)}
                     >
                       {customHeaderRender ? (
                         customHeaderRender(column)
                       ) : (
-                        <div className="d-flex justify-content-between align-items-center">
-                          <span>{column.Header}</span>
+                        <div className="d-flex justify-content-between align-items-center" style={{ whiteSpace: 'nowrap', display: 'flex', flexWrap: 'nowrap' }}>
+                          <span style={{ whiteSpace: 'nowrap', display: 'inline-block' }}>{column.Header}</span>
                           {column.sortable !== false && getSortIcon(column.accessor)}
                         </div>
                       )}

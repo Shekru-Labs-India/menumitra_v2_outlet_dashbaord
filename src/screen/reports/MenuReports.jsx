@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { api, API_PATHS } from '../../config/apiConfig';
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardBody,
-  Badge,
-  Form
+  Form,
+  Button,
+  Dropdown,
+  Breadcrumb
 } from 'react-bootstrap';
 import VerticalSidebar from '../../components/VerticalSidebar';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import { ForbiddenAccessMessage, ReportTable, ReportFilters } from '../../components/common';
+import { ForbiddenAccessMessage, ReportTable } from '../../components/common';
 import { useNavigate } from 'react-router-dom';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const MenuReports = () => {
   const [loading, setLoading] = useState(false);
@@ -23,7 +23,12 @@ const MenuReports = () => {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [dataFetched, setDataFetched] = useState(false);
-  const [filterParams, setFilterParams] = useState(null);
+  
+  // Filter states
+  const [dateRange, setDateRange] = useState('All Time');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [filterType, setFilterType] = useState('all');
   const [categoryId, setCategoryId] = useState('');
   
@@ -78,79 +83,87 @@ const MenuReports = () => {
     }
   };
 
-  const fetchMenuReport = async (params) => {
-    try {
-      // If filter type is category but no category is selected, don't fetch
-      if (filterType === 'category' && !categoryId) {
-        setError('Please select a category');
-        return;
-      }
-      
-      setLoading(true);
-      setError(null);
-      setPermissionDenied(false);
-      setFilterParams(params); // Store the filter params for potential reuse
+  // Handle date range selection
+  const handleDateRangeChange = (range) => {
+    setDateRange(range);
+    setShowDatePicker(range === 'Custom Range');
+  };
 
-      // Set default filter_type if not provided
-      const apiParams = {
-        filter_type: filterType,
-        outlet_id: localStorage.getItem('outlet_id'),
-        user_id: localStorage.getItem('user_id')
-      };
+  const fetchMenuReport = () => {
+    const fetchData = async () => {
+      try {
+        // If filter type is category but no category is selected, don't fetch
+        if (filterType === 'category' && !categoryId) {
+          setError('Please select a category');
+          return;
+        }
+        
+        setLoading(true);
+        setError(null);
+        setPermissionDenied(false);
 
-      if (filterType === 'category' && categoryId) {
-        apiParams.category_id = parseInt(categoryId, 10);
-      }
+        // Set default filter_type if not provided
+        const apiParams = {
+          filter_type: filterType,
+          outlet_id: localStorage.getItem('outlet_id'),
+          user_id: localStorage.getItem('user_id')
+        };
 
-      // Add date range parameters if applicable
-      if (params.start_date && params.end_date) {
-        apiParams.start_date = params.start_date.toISOString().split('T')[0];
-        apiParams.end_date = params.end_date.toISOString().split('T')[0];
-      } else if (params.date_range && params.date_range !== 'All Time') {
-        apiParams.date_range = params.date_range;
-      }
+        if (filterType === 'category' && categoryId) {
+          apiParams.category_id = parseInt(categoryId, 10);
+        }
 
-      console.log('Fetching menu report with params:', apiParams);
-      const response = await api.post(API_PATHS.menuReport, apiParams);
-      const data = response.data.detail || [];
-      console.log('API response data:', data);
-      
-      // Add unique id to each record for table component
-      const processedData = data.map((item, index) => ({
-        ...item,
-        id: item.menu_id || `menu-${index}`,
-        sr_no: index + 1, // Add serial number
-        // Add formatted portion information
-        portion_details: item.portions && item.portions.length > 0 
-          ? item.portions.map(p => `${p.portion_name} (₹${p.price})`).join(', ')
-          : 'No portions'
-      }));
-      
-      setMenuData(processedData);
-      setFilteredData(processedData);
-      setDataFetched(true);
-    } catch (err) {
-      console.error('Error fetching menu report:', err);
-      
-      if (err.response?.status === 403 || 
-          err.response?.data?.detail?.includes('permission') ||
-          err.response?.data?.detail?.includes('access')) {
-        setPermissionDenied(true);
-        setError(err.response?.data?.detail || 'You don\'t have permission to access reports management functionality');
-      } else {
-        setError(err.response?.data?.detail || 'Failed to fetch menu report data');
-      }
+        // Add date range parameters if applicable
+        if (startDate && endDate && dateRange === 'Custom Range') {
+          apiParams.start_date = startDate.toISOString().split('T')[0];
+          apiParams.end_date = endDate.toISOString().split('T')[0];
+        } else if (dateRange !== 'All Time') {
+          apiParams.date_range = dateRange;
+        }
 
-      if (err.response?.status === 401) {
-        navigate('/login');
+        console.log('Fetching menu report with params:', apiParams);
+        const response = await api.post(API_PATHS.menuReport, apiParams);
+        const data = response.data.detail || [];
+        console.log('API response data:', data);
+        
+        // Add unique id to each record for table component
+        const processedData = data.map((item, index) => ({
+          ...item,
+          id: item.menu_id || `menu-${index}`,
+          // Add formatted portion information
+          portion_details: item.portions && item.portions.length > 0 
+            ? item.portions.map(p => `${p.portion_name} (₹${p.price})`).join(', ')
+            : 'No portions'
+        }));
+        
+        setMenuData(processedData);
+        setFilteredData(processedData);
+        setDataFetched(true);
+      } catch (err) {
+        console.error('Error fetching menu report:', err);
+        
+        if (err.response?.status === 403 || 
+            err.response?.data?.detail?.includes('permission') ||
+            err.response?.data?.detail?.includes('access')) {
+          setPermissionDenied(true);
+          setError(err.response?.data?.detail || 'You don\'t have permission to access reports management functionality');
+        } else {
+          setError(err.response?.data?.detail || 'Failed to fetch menu report data');
+        }
+
+        if (err.response?.status === 401) {
+          navigate('/login');
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    fetchData();
   };
 
   const handleRetry = () => {
-    fetchMenuReport({});
+    fetchMenuReport();
   };
 
   const handleFilterTypeChange = (e) => {
@@ -161,120 +174,80 @@ const MenuReports = () => {
     }
   };
 
+  const handleGoBack = () => {
+    navigate(-1);
+  };
+
   // Define table columns
   const columns = [
     {
-      Header: '#',
-      accessor: 'sr_no',
-      width: '50px',
-      Cell: (item) => (
-        <span className="text-muted">{item.sr_no}</span>
-      )
-    },
-    {
       Header: 'Menu Name',
       accessor: 'menu_name',
-      width: '140px',
+      width: '200px',
       Cell: (item) => (
-        <div className="d-flex align-items-center">
-          <span className="fw-semibold text-primary">{item.menu_name}</span>
+        <div className="text-nowrap">
+          <span className="fw-semibold">{item.menu_name}</span>
         </div>
-      )
+      ),
+      headerClassName: 'text-nowrap'
     },
     {
       Header: 'Category',
       accessor: 'category_name',
-      width: '100px',
+      width: '150px',
       Cell: (item) => (
-        <Badge bg="info" pill className="text-white px-2 py-1">
+        <div className="text-nowrap">
           {item.category_name}
-        </Badge>
+        </div>
       ),
-      exportFormat: (item) => item.category_name
+      exportFormat: (item) => item.category_name,
+      headerClassName: 'text-nowrap'
     },
     {
       Header: 'Description',
       accessor: 'description',
-      width: '180px',
+      width: '250px',
       Cell: (item) => (
-        <div className="text-truncate" style={{ maxWidth: '180px' }} title={item.description || '-'}>
+        <div className="text-nowrap text-truncate" style={{ maxWidth: '250px' }} title={item.description || '-'}>
           {item.description || '-'}
         </div>
-      )
+      ),
+      headerClassName: 'text-nowrap'
     },
     {
       Header: 'Status',
       accessor: 'is_available',
-      width: '90px',
+      width: '120px',
       Cell: (item) => (
-        <Badge 
-          bg={item.is_available ? 'success' : 'danger'} 
-          pill
-          className="px-2 py-1"
-        >
+        <div className="text-nowrap">
           {item.is_available ? 'Available' : 'Unavailable'}
-        </Badge>
+        </div>
       ),
       exportFormat: (item) => item.is_available ? 'Available' : 'Unavailable',
       sortFunction: (a, b, direction) => {
         const aValue = a.is_available ? 1 : 0;
         const bValue = b.is_available ? 1 : 0;
         return direction === 'asc' ? aValue - bValue : bValue - aValue;
-      }
-    },
-    {
-      Header: 'Created',
-      accessor: 'created_on',
-      width: '100px',
-      Cell: (item) => (
-        <div className="small text-muted">
-          {item.created_on || '-'}
-        </div>
-      )
-    },
-    {
-      Header: 'Updated',
-      accessor: 'updated_on',
-      width: '100px',
-      Cell: (item) => (
-        <div className="small text-muted">
-          {item.updated_on || '-'}
-        </div>
-      )
+      },
+      headerClassName: 'text-nowrap'
     },
     {
       Header: 'Portions',
       accessor: 'portions',
-      width: '240px',
+      width: '350px',
       Cell: (item) => {
         if (!item.portions || item.portions.length === 0) {
-          return <span className="text-muted small">No portions</span>;
+          return <span className="text-nowrap">No portions</span>;
         }
         
         return (
-          <div className="d-flex flex-wrap gap-1">
-            {item.portions.map(portion => (
-              <div 
-                key={portion.portion_id} 
-                className="border rounded px-2 py-1 d-flex align-items-center" 
-                style={{ 
-                  fontSize: '0.8rem',
-                  backgroundColor: portion.is_available ? '#f8f9fa' : '#f5f5f5'
-                }}
-              >
-                <div className="d-flex flex-column">
-                  <div className="d-flex align-items-center">
-                    <span className="fw-medium">{portion.portion_name}</span>
-                    <Badge bg="primary" pill className="ms-1" style={{ fontSize: '0.7rem' }}>₹{portion.price}</Badge>
-                  </div>
-                  <div className="d-flex align-items-center" style={{ fontSize: '0.7rem' }}>
-                    <span className={`${portion.is_available ? 'text-success' : 'text-danger'}`}>
-                      <i className={`fas fa-circle me-1`} style={{ fontSize: '0.5rem' }}></i>
-                      {portion.is_available ? 'Available' : 'Unavailable'}
-                    </span>
-                  </div>
-                </div>
-              </div>
+          <div className="text-nowrap">
+            {item.portions.map((portion, index) => (
+              <span key={portion.portion_id}>
+                {portion.portion_name}: ₹{portion.price}
+                {portion.is_available ? ' (Available)' : ' (Unavailable)'}
+                {index < item.portions.length - 1 ? ' | ' : ''}
+              </span>
             ))}
           </div>
         );
@@ -282,22 +255,16 @@ const MenuReports = () => {
       exportFormat: (item) => {
         if (!item.portions || item.portions.length === 0) return 'No portions';
         return item.portions.map(p => `${p.portion_name} (₹${p.price})`).join(', ');
-      }
+      },
+      headerClassName: 'text-nowrap'
     }
   ];
 
   // Prepare filter info for export
   const getFilterInfo = () => {
-    if (!filterParams) {
-      return {
-        'Filter Type': filterType === 'category' ? 'By Category' : 'All Items',
-        'Date Range': 'All Time'
-      };
-    }
-
     const info = {
       'Filter Type': filterType === 'category' ? 'By Category' : 'All Items',
-      'Date Range': filterParams.date_range || 'All Time'
+      'Date Range': dateRange || 'All Time'
     };
 
     if (filterType === 'category' && categoryId) {
@@ -309,6 +276,128 @@ const MenuReports = () => {
 
     return info;
   };
+
+  // Custom filter controls for the ReportTable
+  const renderFilterControls = () => (
+    <div className="d-flex align-items-center gap-2">
+      {/* Date Range Dropdown */}
+      <div className="dropdown">
+        <button
+          type="button"
+          className="btn btn-outline-primary btn-sm dropdown-toggle"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+        >
+          <i className="fas fa-calendar me-2"></i>
+          {dateRange}
+        </button>
+        <ul className="dropdown-menu">
+          {['All Time', 'Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'Current Month', 'Last Month'].map((range) => (
+            <li key={range}>
+              <a href="javascript:void(0);"
+                className="dropdown-item d-flex align-items-center"
+                onClick={() => handleDateRangeChange(range)}>
+                {range}
+              </a>
+            </li>
+          ))}
+          <li><hr className="dropdown-divider" /></li>
+          <li>
+            <a href="javascript:void(0);"
+              className="dropdown-item d-flex align-items-center"
+              onClick={() => handleDateRangeChange('Custom Range')}>
+              Custom Range
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      {/* Custom Filter Elements */}
+      <Form.Select 
+        value={filterType}
+        onChange={handleFilterTypeChange}
+        size="sm"
+        style={{ width: '150px' }}
+      >
+        <option value="all">All Items</option>
+        <option value="category" disabled={categories.length === 0}>By Category</option>
+      </Form.Select>
+
+      {filterType === 'category' && (
+        <Form.Select
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+          size="sm"
+          style={{ width: '150px' }}
+          disabled={loadingCategories || categories.length === 0}
+        >
+          <option value="">Select a category</option>
+          {categories.map(category => (
+            <option key={category.category_id} value={category.category_id}>
+              {category.category_name}
+            </option>
+          ))}
+        </Form.Select>
+      )}
+
+      {showDatePicker && (
+        <div className="d-flex align-items-center gap-2">
+          <DatePicker
+            selected={startDate}
+            onChange={(date) => setStartDate(date)}
+            selectsStart
+            startDate={startDate}
+            endDate={endDate}
+            maxDate={new Date()}
+            placeholderText="Start Date"
+            className="form-control form-control-sm"
+            dateFormat="dd MMM yyyy"
+          />
+          <DatePicker
+            selected={endDate}
+            onChange={(date) => setEndDate(date)}
+            selectsEnd
+            startDate={startDate}
+            endDate={endDate}
+            minDate={startDate}
+            maxDate={new Date()}
+            placeholderText="End Date"
+            className="form-control form-control-sm"
+            dateFormat="dd MMM yyyy"
+          />
+        </div>
+      )}
+
+      {/* Submit Button */}
+      <Button 
+        variant="primary" 
+        size="sm"
+        onClick={fetchMenuReport}
+        disabled={loading}
+        className="px-4"
+      >
+        {loading ? (
+          <>
+            <span 
+              className="spinner-border spinner-border-sm me-1" 
+              role="status" 
+              aria-hidden="true"
+            ></span>
+            Loading...
+          </>
+        ) : "Submit"}
+      </Button>
+    </div>
+  );
+
+  // Custom breadcrumbs component
+  const renderBreadcrumbs = () => (
+    <Breadcrumb className="mb-0">
+      <Breadcrumb.Item href="/">Dashboard</Breadcrumb.Item>
+      <Breadcrumb.Item href="/reports">Reports</Breadcrumb.Item>
+      <Breadcrumb.Item active>Menu Reports</Breadcrumb.Item>
+    </Breadcrumb>
+  );
 
   return (
     <div className="layout-wrapper layout-content-navbar">
@@ -331,62 +420,18 @@ const MenuReports = () => {
                   {error}
                 </div>
               ) : (
-                <Card>
-                  <CardHeader className="bg-white">
-                    <CardTitle className="text-center w-100 mb-0 fw-bold text-primary">Menu Reports</CardTitle>
-                  </CardHeader>
-
-                  <CardBody>
-                    {/* Filters Section */}
-                    <ReportFilters
-                      isLoading={loading}
-                      onSubmit={fetchMenuReport}
-                      defaultDateRange="All Time"
-                    >
-                      {/* Custom Menu Report Filters */}
-                      <Form.Select 
-                        value={filterType}
-                        onChange={handleFilterTypeChange}
-                        style={{ width: '200px' }}
-                      >
-                        <option value="all">All Items</option>
-                        <option value="category" disabled={categories.length === 0}>By Category</option>
-                      </Form.Select>
-
-                      {filterType === 'category' && (
-                        <Form.Select
-                          value={categoryId}
-                          onChange={(e) => setCategoryId(e.target.value)}
-                          style={{ width: '200px' }}
-                          disabled={loadingCategories || categories.length === 0}
-                        >
-                          <option value="">Select a category</option>
-                          {categories.map(category => (
-                            <option key={category.category_id} value={category.category_id}>
-                              {category.category_name}
-                            </option>
-                          ))}
-                        </Form.Select>
-                      )}
-                    </ReportFilters>
-
-                    {/* Table Section */}
-                    {dataFetched && filteredData.length > 0 ? (
-                      <ReportTable
-                        data={filteredData}
-                        columns={columns}
-                        title="Menu Report"
-                        filterInfo={getFilterInfo()}
-                        enableHorizontalScroll={true}
-                      />
-                    ) : dataFetched && filteredData.length === 0 ? (
-                      <div className="alert alert-info mt-4">
-                        <i className="fas fa-info-circle me-2"></i>
-                        No menu items found for the selected filters. Please try different filter criteria.
-                      </div>
-                    ) : null}
-                  </CardBody>
-                </Card>
+                <div style={{ backgroundColor: 'transparent' }}>
+                  <ReportTable
+                    data={filteredData}
+                    columns={columns}
+                    filterInfo={getFilterInfo()}
+                    enableHorizontalScroll={true}
+                    onBack={handleGoBack}
+                    filterControls={renderFilterControls()}
+                    dataFetched={dataFetched}
+                    breadcrumbs={renderBreadcrumbs()}
+                  />
+                </div>
               )}
             </div>
             <Footer />

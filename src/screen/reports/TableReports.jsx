@@ -1,15 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api, API_PATHS } from '../../config/apiConfig';
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardBody,
-  Badge,
-  Spinner,
-  Form,
-  Row,
-  Col
+  Form
 } from 'react-bootstrap';
 import VerticalSidebar from '../../components/VerticalSidebar';
 import Header from '../../components/Header';
@@ -173,27 +165,37 @@ const TableReports = () => {
   // Define table columns
   const columns = [
     {
-      Header: 'Table Details',
+      Header: 'Table #',
       accessor: 'table_number',
-      width: '20%',
+      width: '7%',
       Cell: (item) => (
-        <div className="d-flex flex-column">
-          <span className="fw-semibold text-primary">Table #{item.table_number}</span>
-          <small className="text-muted">{item.capacity || 0} persons</small>
+        <div className="text-nowrap">
+          <span className="fw-semibold">#{item.table_number}</span>
         </div>
       ),
-      exportFormat: (item) => `Table #${item.table_number} (${item.capacity || 0} persons)`
+      exportFormat: (item) => `Table #${item.table_number}`
     },
     {
       Header: 'Section',
       accessor: 'section_name',
       width: '15%',
       Cell: (item) => (
-        <Badge bg="info" className="text-white">
+        <div className="text-nowrap">
           {item.section_name || 'No Section'}
-        </Badge>
+        </div>
       ),
       exportFormat: (item) => item.section_name || 'No Section'
+    },
+    {
+      Header: 'Capacity',
+      accessor: 'capacity',
+      width: '10%',
+      Cell: (item) => (
+        <div className="text-nowrap">
+          {item.capacity || 0} persons
+        </div>
+      ),
+      exportFormat: (item) => `${item.capacity || 0} persons`
     },
     {
       Header: 'Status',
@@ -201,12 +203,12 @@ const TableReports = () => {
       width: '15%',
       Cell: (item) => {
         if (item.is_reserved) {
-          return <Badge bg="warning">Reserved</Badge>;
+          return <div className="text-nowrap">Reserved</div>;
         }
         if (item.is_joined && item.current_order) {
-          return <Badge bg="danger">Occupied</Badge>;
+          return <div className="text-nowrap">Occupied</div>;
         }
-        return <Badge bg="success">Available</Badge>;
+        return <div className="text-nowrap">Available</div>;
       },
       exportFormat: (item) => {
         if (item.is_reserved) return 'Reserved';
@@ -230,13 +232,13 @@ const TableReports = () => {
     {
       Header: 'Current Order',
       accessor: 'current_order',
-      width: '20%',
+      width: '18%',
       Cell: (item) => (
-        <div className="d-flex flex-column">
+        <div className="text-nowrap">
           {item.current_order ? (
-            <span className="fw-semibold">Order #{item.current_order.order_number}</span>
+            <>Order #{item.current_order.order_number}</>
           ) : (
-            <span className="text-muted">No active order</span>
+            <>No active order</>
           )}
         </div>
       ),
@@ -246,98 +248,25 @@ const TableReports = () => {
       Header: 'Order Status',
       accessor: 'current_order.order_status',
       width: '15%',
-      Cell: (item) => {
-        if (!item.current_order) return <span className="text-muted">-</span>;
-        
-        const status = item.current_order.order_status?.toLowerCase();
-        switch (status) {
-          case 'placed':
-            return <Badge bg="info">Placed</Badge>;
-          case 'cooking':
-            return <Badge bg="warning">Cooking</Badge>;
-          case 'paid':
-            return <Badge bg="success">Paid</Badge>;
-          case 'cancelled':
-            return <Badge bg="danger">Cancelled</Badge>;
-          default:
-            return <span className="text-muted">{status || '-'}</span>;
-        }
-      },
+      Cell: (item) => (
+        <div className="text-nowrap">
+          {item.current_order ? item.current_order.order_status : '-'}
+        </div>
+      ),
       exportFormat: (item) => item.current_order?.order_status || '-'
     },
     {
       Header: 'Created On',
       accessor: 'current_order.created_on',
-      width: '15%',
+      width: '20%',
       Cell: (item) => (
-        <span>{item.current_order?.created_on || '-'}</span>
+        <div className="text-nowrap">
+          {item.current_order?.created_on || '-'}
+        </div>
       ),
       exportFormat: (item) => item.current_order?.created_on || '-'
     }
   ];
-
-  // Define expandable content for additional table details
-  const renderTableDetails = (item) => (
-    <>
-      <h6 className="mb-3 text-primary">
-        <i className="fas fa-table me-2"></i>
-        Table Information
-      </h6>
-      <div className="row">
-        <div className="col-md-6">
-          <div className="card h-100">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Table Number:</span>
-                <span>#{item.table_number}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Section:</span>
-                <span>{item.section_name}</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="fw-bold">Capacity:</span>
-                <span>{item.capacity || 0} persons</span>
-              </div>
-              <div className="d-flex justify-content-between align-items-center">
-                <span className="fw-bold">Status:</span>
-                <span>
-                  {item.is_reserved ? 'Reserved' : 
-                   (item.is_joined && item.current_order) ? 'Occupied' : 'Available'}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-6">
-          <div className="card h-100">
-            <div className="card-body">
-              {item.current_order ? (
-                <>
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <span className="fw-bold">Order Number:</span>
-                    <span>#{item.current_order.order_number}</span>
-                  </div>
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <span className="fw-bold">Status:</span>
-                    <span>{item.current_order.order_status}</span>
-                  </div>
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <span className="fw-bold">Created On:</span>
-                    <span>{item.current_order.created_on}</span>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center text-muted">
-                  No active order
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
 
   // Prepare filter info for export
   const getFilterInfo = () => {
@@ -393,100 +322,89 @@ const TableReports = () => {
                   {error}
                 </div>
               ) : (
-                <Card>
-                  <CardHeader className="bg-white">
-                    <CardTitle className="text-center w-100 mb-0 fw-bold text-primary">Table Reports</CardTitle>
-                  </CardHeader>
+                <div>
+                  <div className="mb-4">
+                    <h2 className="text-center mb-0 fw-bold text-primary">Table Reports</h2>
+                  </div>
 
-                  <CardBody>
+                  <div>
                     {/* Filters Section */}
-                    <ReportFilters
-                      isLoading={loading}
-                      onSubmit={fetchTableReport}
-                      defaultDateRange="All Time"
-                    >
-                      {/* Custom Table Report Filters */}
-                      <Form.Select 
-                        value={filterType}
-                        onChange={handleFilterTypeChange}
-                        style={{ width: '200px' }}
+                    <div className="mb-4">
+                      <ReportFilters
+                        isLoading={loading}
+                        onSubmit={fetchTableReport}
+                        defaultDateRange="All Time"
                       >
-                        <option value="all">All Tables</option>
-                        <option value="section" disabled={sections.length === 0}>By Section</option>
-                      </Form.Select>
-
-                      {filterType === 'section' && (
-                        <Form.Select
-                          value={selectedSection}
-                          onChange={(e) => setSelectedSection(e.target.value)}
+                        {/* Custom Table Report Filters */}
+                        <Form.Select 
+                          value={filterType}
+                          onChange={handleFilterTypeChange}
                           style={{ width: '200px' }}
-                          disabled={loadingSections || sections.length === 0}
                         >
-                          <option value="">Select a section</option>
-                          {sections.map(section => (
-                            <option key={section.section_id} value={section.section_id}>
-                              {section.section_name}
-                            </option>
-                          ))}
+                          <option value="all">All Tables</option>
+                          <option value="section" disabled={sections.length === 0}>By Section</option>
                         </Form.Select>
-                      )}
-                    </ReportFilters>
 
-                    {/* Summary Cards */}
+                        {filterType === 'section' && (
+                          <Form.Select
+                            value={selectedSection}
+                            onChange={(e) => setSelectedSection(e.target.value)}
+                            style={{ width: '200px' }}
+                            disabled={loadingSections || sections.length === 0}
+                          >
+                            <option value="">Select a section</option>
+                            {sections.map(section => (
+                              <option key={section.section_id} value={section.section_id}>
+                                {section.section_name}
+                              </option>
+                            ))}
+                          </Form.Select>
+                        )}
+                      </ReportFilters>
+                    </div>
+
+                    {/* Summary Stats - Simple Text Version */}
                     {tableReport && (
-                      <Row className="mb-4">
-                        <Col md={3}>
-                          <Card className="h-100">
-                            <CardBody>
-                              <h6 className="card-title">Total Tables</h6>
-                              <h2 className="mb-0">{tableReport.total_tables}</h2>
-                            </CardBody>
-                          </Card>
-                        </Col>
-                        <Col md={3}>
-                          <Card className="h-100">
-                            <CardBody>
-                              <h6 className="card-title">Occupied Tables</h6>
-                              <h2 className="mb-0">{tableReport.occupied_tables}</h2>
-                            </CardBody>
-                          </Card>
-                        </Col>
-                        <Col md={3}>
-                          <Card className="h-100">
-                            <CardBody>
-                              <h6 className="card-title">Available Tables</h6>
-                              <h2 className="mb-0">{tableReport.available_tables}</h2>
-                            </CardBody>
-                          </Card>
-                        </Col>
-                        <Col md={3}>
-                          <Card className="h-100">
-                            <CardBody>
-                              <h6 className="card-title">Reserved Tables</h6>
-                              <h2 className="mb-0">{tableReport.reserved_tables}</h2>
-                            </CardBody>
-                          </Card>
-                        </Col>
-                      </Row>
+                      <div className="mb-4 d-flex justify-content-around">
+                        <div className="text-center">
+                          <div className="fw-bold">Total Tables</div>
+                          <div className="h4">{tableReport.total_tables}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="fw-bold">Occupied Tables</div>
+                          <div className="h4">{tableReport.occupied_tables}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="fw-bold">Available Tables</div>
+                          <div className="h4">{tableReport.available_tables}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="fw-bold">Reserved Tables</div>
+                          <div className="h4">{tableReport.reserved_tables}</div>
+                        </div>
+                      </div>
                     )}
 
                     {/* Table Section */}
                     {dataFetched && filteredData.length > 0 ? (
-                      <ReportTable
-                        data={filteredData}
-                        columns={columns}
-                        title="Table Report"
-                        expandableContent={renderTableDetails}
-                        filterInfo={getFilterInfo()}
-                      />
+                      <div style={{ backgroundColor: 'transparent' }}>
+                        <div className="bg-white rounded p-3">
+                          <ReportTable
+                            data={filteredData}
+                            columns={columns}
+                            title="Table Report"
+                            filterInfo={getFilterInfo()}
+                          />
+                        </div>
+                      </div>
                     ) : dataFetched && filteredData.length === 0 ? (
                       <div className="alert alert-info mt-4">
                         <i className="fas fa-info-circle me-2"></i>
                         No tables found for the selected filters. Please try different filter criteria.
                       </div>
                     ) : null}
-                  </CardBody>
-                </Card>
+                  </div>
+                </div>
               )}
             </div>
             <Footer />
