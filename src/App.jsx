@@ -25,7 +25,7 @@ import JoinTableReports from './screen/reports/JoinTableReports'
 import SplitTableReports from './screen/reports/SplitTableReports'
 import OrderStatusReports from './screen/reports/OrderStatusReports'
 import PaymentSettleReports from './screen/reports/PaymentSettleReports'
-
+import Footer from './components/Footer'
 
 import Settings from './screen/Settings';
 
@@ -70,6 +70,8 @@ function App() {
                     {/* 404 - Not Found */}
                     <Route path="*" element={<Navigate to="/login" replace />} />
                   </Routes>
+
+
                 </div>
               </div>
             </RefreshManagerProvider>

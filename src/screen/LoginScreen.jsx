@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios'; // Import axios for API calls
 // Import the images at the top of the file
 import tree3 from '../assets/img/illustrations/tree-3.png';
 import authMaskLight from '../assets/img/illustrations/auth-basic-mask-light.png';
 import tree from '../assets/img/illustrations/tree.png';
 // Import the auth CSS
 import '../assets/css/page-auth.css';
-import logo from "../assets/img/company/MenuMitra_logo.png";
+import logo from '../assets/img/company/MenuMitra_logo.png'; // Ensure path is correct
 // Import configuration
 import { menuMitraCompanyInfo, menuMitraSocialLinks, menuMitraAppInfo, apiEndpoint } from '../config/menuMitraConfig';
 import { requestNotificationPermission } from '../config/firebase';
@@ -75,12 +74,11 @@ function LoginScreen() {
         if (response.status === 200) {
           console.log('API Response:', response.data);
           
-         
           // Check role from response
           const { role } = response.data;
           
           // Only proceed if role is owner, manager, captain, super_owner, or admin
-          if (role === 'owner' || role === 'manager' || role === 'captain' || role == 'super_owner' || role == 'admin') {
+          if (role === 'owner' || role === 'manager' || role === 'captain' || role === 'super_owner' || role === 'admin') {
             setShowOtpForm(true);
             setCountdown(15);
             setResendDisabled(true);
@@ -216,7 +214,7 @@ function LoginScreen() {
         localStorage.setItem('user_id', user_id);
         localStorage.setItem('user_name', name);
         localStorage.setItem('mobile_number', mobileNumber);
-        localStorage.setItem('role', role || "owner");
+        localStorage.setItem('role', role || 'owner');
         localStorage.setItem('access_token', access_token);
         localStorage.setItem('expires_at', expires_at);
         
@@ -402,7 +400,7 @@ function LoginScreen() {
                   />
                 </span>
               </span>
-              <span className="app-brand-text demo text-heading fw-bold">
+              <span className="app-brand-text demo text-heading" style={{ fontWeight: 'normal' }}>
                 {menuMitraAppInfo.name}
               </span>
             </div>
@@ -412,7 +410,7 @@ function LoginScreen() {
             {!showOtpForm ? (
               <>
                 <h4 className="mb-2 text-center fs-5">
-                  Welcome to {menuMitraAppInfo.title}
+                   {menuMitraAppInfo.title}
                 </h4>
                 <p className="mb-4 text-center">
                   Please enter your mobile number to login
@@ -470,28 +468,21 @@ function LoginScreen() {
                   </a>
                 </p> */}
 
-                <div className="text-center">
-                  <p className="text-muted mb-0">
-                    <small>
-                      <span>
-                        <i className="fa-solid fa-bolt text-primary me-1"></i>{" "}
-                        Powered by
-                      </span>
-                      <br />
-                      <Link
-                        to={menuMitraCompanyInfo.website}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <span className="text-primary">
-                          {menuMitraCompanyInfo.name}
-                        </span>
-                        <br />
-                      </Link>
-                      {/* <span className="text-muted">version {menuMitraCompanyInfo.version}</span> */}
-                    </small>
-                  </p>
+                {/* MenuMitra logo and name above social icons */}
+                <div className="d-flex align-items-center justify-content-center mt-4">
+                  <img
+                    src={logo}
+                    alt={`${menuMitraAppInfo.name} Logo`}
+                    style={{
+                      width: "40px",
+                      height: "40px",
+                      objectFit: "contain",
+                      marginRight: "10px"
+                    }}
+                  />
+                  <h4 className="text-black mb-0" style={{ fontWeight: 'normal', fontSize: '1.2rem' }}>{menuMitraAppInfo.name}</h4>
                 </div>
+
                 <div className="mt-4 d-flex justify-content-center gap-2">
                   {menuMitraSocialLinks.map((social) => (
                     <a
@@ -504,6 +495,12 @@ function LoginScreen() {
                       <i className={social.icon} />
                     </a>
                   ))}
+                </div>
+                {/* Version Info Below Icons */}
+                <div className="text-center mt-2">
+                  <div className="text-muted small">
+                    Version 2.0 · 13 Aug 2025
+                  </div>
                 </div>
               </>
             ) : (
@@ -590,40 +587,16 @@ function LoginScreen() {
                   </button>
                 </div>
 
-                <div className="text-center">
-                  <p className="text-muted mb-0">
-                    <small>
-                      <span>
-                        <i className="fa-solid fa-bolt text-primary me-1"></i>{" "}
-                        Powered by
-                      </span>
-                      <br />
-                      <Link
-                        to={menuMitraCompanyInfo.website}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <span className="text-primary">
-                          {menuMitraCompanyInfo.name}
-                        </span>
-                        <br />
-                      </Link>
-                      {/* <span className="text-muted">version {menuMitraCompanyInfo.version}</span> */}
-                    </small>
-                  </p>
-                </div>
-                <div className="mt-4 d-flex justify-content-center gap-2">
-                  {menuMitraSocialLinks.map((social) => (
-                    <a
-                      key={social.name}
-                      href={social.url}
-                      className={`btn btn-outline-secondary btn-icon btn-lg rounded-pill ${social.btnClass} waves-effect waves-light`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <i className={social.icon} />
-                    </a>
-                  ))}
+                <div className="d-flex justify-content-center align-items-center mb-3">
+                  <img
+                    src={logo}
+                    alt={`${menuMitraAppInfo.name} Logo`}
+                    style={{
+                      width: menuMitraAppInfo.logo.width,
+                      height: menuMitraAppInfo.logo.height,
+                    }}
+                  />
+                  <h2 className="text-black ms-3 m-0" style={{ fontWeight: 'normal', fontSize: '1.2rem' }}>MenuMitra</h2>
                 </div>
               </>
             )}
@@ -655,4 +628,4 @@ function LoginScreen() {
   );
 }
 
-export default LoginScreen; 
+export default LoginScreen;

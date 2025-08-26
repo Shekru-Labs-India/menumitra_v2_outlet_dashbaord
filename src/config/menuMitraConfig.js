@@ -19,38 +19,35 @@ export const menuMitraSocialLinks = [
   {
     name: "Facebook",
     url: "https://www.facebook.com/share/x5wymXr6w7W49vaQ/?mibextid=qi2Omg",
-    icon: "fa-brands fa-facebook fs-4",
+    icon: "ri-facebook-fill fs-4",
     btnClass: "btn-text-facebook",
   },
-  {
-    name: "LinkedIn",
-    url: "https://www.linkedin.com/company/102429337/admin/dashboard/",
-    icon: "fa-brands fa-linkedin fs-4",
-    btnClass: "btn-text-linkedin",
-  },
-  {
-    name: "YouTube",
-    url: "https://www.youtube.com/@menumitra",
-    icon: "fa-brands fa-youtube fs-4",
-    btnClass: "btn-text-youtube",
-  },
-  {
-    name: "Telegram",
-    url: "https://t.me/MenuMitra",
-    icon: "fa-brands fa-telegram fs-4",
-    btnClass: "btn-text-telegram",
-  },
+
   {
     name: "Instagram",
     url: "https://www.instagram.com/menumitra/",
-    icon: "fa-brands fa-instagram fs-4",
+    icon: "ri-instagram-fill fs-4", // ✅ Remix Icon
     btnClass: "btn-text-instagram",
   },
+
+  {
+    name: "YouTube",
+    url: "https://www.youtube.com/@menumitra",
+    icon: "ri-youtube-fill fs-4",
+    btnClass: "btn-text-youtube",
+  },
+  {
+    name: "Google",
+    url: "https://www.google.com/menumitra/",
+    icon: "ri-google-fill fs-4",
+    btnClass: "btn-text-google",
+  },
+
 ];
 
 export const menuMitraAppInfo = {
   name: "MenuMitra",
-  title: `MenuMitra Statistics Dashboard ${ENV_INDICATOR}`,
+  title: ` Statistics Dashboard ${ENV_INDICATOR}`,
   version: APP_VERSION,
   logo: {
     width: "60px",
