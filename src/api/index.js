@@ -5,7 +5,7 @@ const isDev = import.meta.env.DEV; // Vite provides this boolean
 const MODE = import.meta.env.MODE || 'development'; // 'development' or 'production'
 
 // API URLs - use env variables if available, otherwise fallback to defaults
-const DEV_URL = import.meta.env.VITE_API_URL || 'https://men4u.xyz';
+const DEV_URL = import.meta.env.VITE_API_URL || 'https://ghanish.in';
 const PROD_URL = import.meta.env.VITE_API_URL || 'https://menusmitra.xyz';
 
 // Base URLs for different environments

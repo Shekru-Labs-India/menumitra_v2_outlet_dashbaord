@@ -19,7 +19,7 @@ export default defineConfig(({ command, mode }) => {
       port: 3000,
       proxy: {
         '/v2': {
-          target: 'https://men4u.xyz',
+          target: 'https://ghanish.in',
           changeOrigin: true,
           secure: false
         }

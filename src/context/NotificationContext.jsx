@@ -150,7 +150,7 @@ export const NotificationProvider = ({ children }) => {
       }
 
       // Create WebSocket connection
-      const ws = new WebSocket(`wss://men4u.xyz/v2/common/ws/${outletId}`);
+      const ws = new WebSocket(`wss://ghanish.in/v2/common/ws/${outletId}`);
       
       ws.onopen = () => {
         console.log('WebSocket connection established');

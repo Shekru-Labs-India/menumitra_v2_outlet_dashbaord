@@ -3,7 +3,7 @@
   publish = "dist"
 
 [context.production.environment]
-  VITE_API_URL = "https://men4u.xyz"
+  VITE_API_URL = "https://ghanish.in"
 
 [[redirects]]
   from = "/*"

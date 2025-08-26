@@ -6,7 +6,7 @@ const MODE = import.meta.env.MODE || 'development'; // 'development' or 'product
 
 // API URLs - use env variables if available, otherwise fallback to defaults
 const DEV_URL = import.meta.env.VITE_API_URL || '';  // Empty string to use relative URLs with proxy
-const PROD_URL = import.meta.env.VITE_API_URL || 'https://men4u.xyz';
+const PROD_URL = import.meta.env.VITE_API_URL || 'https://ghanish.in';
 
 // Base URLs for different environments
 const BASE_URL = {
